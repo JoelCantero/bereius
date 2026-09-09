@@ -286,5 +286,3 @@ export async function saveGravityFormsSettings(
     return toErrorState(error);
   }
 }
-
-export { RATE_SKUS };

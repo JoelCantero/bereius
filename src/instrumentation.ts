@@ -32,6 +32,8 @@ export function register(): void {
     .catch((error: unknown) => {
       const message =
         error instanceof Error ? error.message : "Unknown scheduler failure";
-      process.stderr.write(`Booking scheduler failed to start: ${message}\n`);
+      // console rather than process.stderr: this module is also analysed for
+      // the Edge runtime, where Node APIs are unavailable.
+      console.error(`Booking scheduler failed to start: ${message}`);
     });
 }
