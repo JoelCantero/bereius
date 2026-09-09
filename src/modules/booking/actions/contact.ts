@@ -140,9 +140,12 @@ export async function linkEstimateAction(
       holdedId: formData.get("holdedId"),
     });
 
-    return await run("booking_estimate_link_failed", bookingRequestId, () =>
-      linkExistingEstimate(bookingRequestId, holdedId, actor.userId),
-    );
+    return await run("booking_estimate_link_failed", bookingRequestId, async () => {
+      await linkExistingEstimate(bookingRequestId, holdedId, actor.userId);
+      // The same link is shown from the contract side, which must not go stale.
+      revalidatePath("/contracts");
+      revalidatePath(`/contracts/${holdedId}`);
+    });
   } catch (error) {
     return toErrorState(error);
   }

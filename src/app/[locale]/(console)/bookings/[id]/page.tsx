@@ -201,7 +201,7 @@ export default async function BookingDetailPage({ params }: BookingDetailPagePro
                     <span className="font-medium">{estimate.number ?? estimate.id}</span>
                     {estimate.description ? ` · ${estimate.description}` : ""}
                     <span className="block text-xs text-zinc-600">
-                      {[estimate.date, estimate.total ? `${estimate.total} €` : null]
+                      {[estimate.date, cents(estimate.totalCents)]
                         .filter(Boolean)
                         .join(" · ")}
                     </span>

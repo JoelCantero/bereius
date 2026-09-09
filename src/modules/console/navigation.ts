@@ -81,6 +81,17 @@ export async function buildConsoleNavigation(
           },
         ],
       },
+      {
+        key: "holded",
+        label: t("sections.holded"),
+        links: [
+          {
+            href: "/contracts",
+            label: t("links.contracts.label"),
+            description: t("links.contracts.description"),
+          },
+        ],
+      },
     ],
     userLinks,
     homeHref: getPathname({ href: "/", locale }),

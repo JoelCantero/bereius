@@ -190,12 +190,17 @@
     "logout": "Cerrar sesión",
     "sections": {
       "bookings": "Reservas",
+      "holded": "Holded",
       "account": "Cuenta"
     },
     "links": {
       "queue": {
         "label": "Cola",
         "description": "Revisa solicitudes, apruébalas y registra pagos."
+      },
+      "contracts": {
+        "label": "Contratos",
+        "description": "Presupuestos de Holded y la solicitud a la que pertenecen."
       },
       "integrations": {
         "label": "Integraciones",
@@ -691,6 +696,51 @@
           "body": "Este borrador puede sustituirse por una versión posterior. El registro conserva la versión del aviso aceptada con el enlace de incorporación."
         }
       }
+    }
+  },
+  "Contracts": {
+    "title": "Contratos",
+    "description": "Presupuestos de Holded y la solicitud a la que pertenecen.",
+    "searchLabel": "Buscar",
+    "linkLabel": "Vinculación",
+    "allLinks": "Todos",
+    "filters": {
+      "linked": "Vinculados",
+      "unlinked": "Sin vincular"
+    },
+    "count": "{count, plural, =0 {Ningún contrato} one {1 contrato} other {# contratos}}",
+    "empty": "Ningún contrato coincide con este filtro.",
+    "noKey": "Sin la clave de Holded no se pueden leer los presupuestos. Guárdala en Integraciones.",
+    "unavailable": "Holded no ha respondido, así que no se puede mostrar la lista de presupuestos.",
+    "missing": "Este presupuesto ya no existe en Holded.",
+    "columns": {
+      "number": "Número",
+      "date": "Fecha",
+      "customer": "Cliente",
+      "total": "Importe",
+      "status": "Estado",
+      "link": "Solicitud"
+    },
+    "statuses": {
+      "pending": "Pendiente",
+      "completed": "Aceptado",
+      "partial": "Parcial"
+    },
+    "unlinked": "Sin vincular",
+    "detail": {
+      "back": "Volver a contratos",
+      "summary": "Presupuesto",
+      "contact": "Cliente en Holded",
+      "linkedTo": "Vinculado a la solicitud de {name}.",
+      "open": "Abrir la solicitud",
+      "candidates": "Vincular a una solicitud",
+      "candidatesHint": "Solo aparecen las solicitudes del cliente cuyo NIF coincide con el contacto del presupuesto y que aún no tienen presupuesto.",
+      "link": "Vincular",
+      "suggested": "Fechas coinciden",
+      "approvalNote": "Al vincular, la solicitud pasa a aprobada: el presupuesto es el contrato.",
+      "noTaxId": "El contacto de este presupuesto no tiene NIF en Holded, así que no se puede emparejar con ninguna solicitud.",
+      "noCandidates": "Este cliente no tiene ninguna solicitud abierta sin presupuesto.",
+      "stay": "{start} – {end} · {headcount} personas"
     }
   },
   "Bookings": {

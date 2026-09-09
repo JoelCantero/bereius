@@ -190,12 +190,17 @@
     "logout": "Log out",
     "sections": {
       "bookings": "Bookings",
+      "holded": "Holded",
       "account": "Account"
     },
     "links": {
       "queue": {
         "label": "Queue",
         "description": "Review requests, approve them and record payments."
+      },
+      "contracts": {
+        "label": "Contracts",
+        "description": "Holded estimates and the request each one belongs to."
       },
       "integrations": {
         "label": "Integrations",
@@ -691,6 +696,51 @@
           "body": "This draft may be replaced by a later version. Signup records the notice version accepted with the onboarding link."
         }
       }
+    }
+  },
+  "Contracts": {
+    "title": "Contracts",
+    "description": "Holded estimates and the request each one belongs to.",
+    "searchLabel": "Search",
+    "linkLabel": "Link",
+    "allLinks": "All",
+    "filters": {
+      "linked": "Linked",
+      "unlinked": "Not linked"
+    },
+    "count": "{count, plural, =0 {No contracts} one {1 contract} other {# contracts}}",
+    "empty": "No contract matches this filter.",
+    "noKey": "Without the Holded key the estimates cannot be read. Save it under Integrations.",
+    "unavailable": "Holded did not answer, so the estimate list cannot be shown.",
+    "missing": "This estimate no longer exists in Holded.",
+    "columns": {
+      "number": "Number",
+      "date": "Date",
+      "customer": "Customer",
+      "total": "Amount",
+      "status": "Status",
+      "link": "Request"
+    },
+    "statuses": {
+      "pending": "Pending",
+      "completed": "Accepted",
+      "partial": "Partial"
+    },
+    "unlinked": "Not linked",
+    "detail": {
+      "back": "Back to contracts",
+      "summary": "Estimate",
+      "contact": "Customer in Holded",
+      "linkedTo": "Linked to the request from {name}.",
+      "open": "Open the request",
+      "candidates": "Link to a request",
+      "candidatesHint": "Only requests from the customer whose tax id matches the estimate's contact, and that hold no estimate yet, are offered.",
+      "link": "Link",
+      "suggested": "Dates match",
+      "approvalNote": "Linking approves the request: the estimate is the contract.",
+      "noTaxId": "Holded holds no tax id for this estimate's contact, so it cannot be matched to a request.",
+      "noCandidates": "This customer has no open request without an estimate.",
+      "stay": "{start} – {end} · {headcount} people"
     }
   },
   "Bookings": {

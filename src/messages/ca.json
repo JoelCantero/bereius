@@ -190,12 +190,17 @@
     "logout": "Tanca la sessió",
     "sections": {
       "bookings": "Reserves",
+      "holded": "Holded",
       "account": "Compte"
     },
     "links": {
       "queue": {
         "label": "Cua",
         "description": "Revisa sol·licituds, aprova-les i registra pagaments."
+      },
+      "contracts": {
+        "label": "Contractes",
+        "description": "Pressupostos de Holded i la sol·licitud a què pertanyen."
       },
       "integrations": {
         "label": "Integracions",
@@ -691,6 +696,51 @@
           "body": "Aquest esborrany es pot substituir per una versió posterior. El registre conserva la versió de l'avís acceptada amb l'enllaç d'incorporació."
         }
       }
+    }
+  },
+  "Contracts": {
+    "title": "Contractes",
+    "description": "Pressupostos de Holded i la sol·licitud a què pertanyen.",
+    "searchLabel": "Cerca",
+    "linkLabel": "Vinculació",
+    "allLinks": "Tots",
+    "filters": {
+      "linked": "Vinculats",
+      "unlinked": "Sense vincular"
+    },
+    "count": "{count, plural, =0 {Cap contracte} one {1 contracte} other {# contractes}}",
+    "empty": "Cap contracte coincideix amb aquest filtre.",
+    "noKey": "Sense la clau de Holded no es poden llegir els pressupostos. Desa-la a Integracions.",
+    "unavailable": "Holded no ha respost, així que no es pot mostrar la llista de pressupostos.",
+    "missing": "Aquest pressupost ja no existeix a Holded.",
+    "columns": {
+      "number": "Número",
+      "date": "Data",
+      "customer": "Client",
+      "total": "Import",
+      "status": "Estat",
+      "link": "Sol·licitud"
+    },
+    "statuses": {
+      "pending": "Pendent",
+      "completed": "Acceptat",
+      "partial": "Parcial"
+    },
+    "unlinked": "Sense vincular",
+    "detail": {
+      "back": "Torna als contractes",
+      "summary": "Pressupost",
+      "contact": "Client a Holded",
+      "linkedTo": "Vinculat a la sol·licitud de {name}.",
+      "open": "Obre la sol·licitud",
+      "candidates": "Vincula a una sol·licitud",
+      "candidatesHint": "Només apareixen les sol·licituds del client amb el mateix NIF que el contacte del pressupost i que encara no tenen pressupost.",
+      "link": "Vincula",
+      "suggested": "Les dates coincideixen",
+      "approvalNote": "En vincular, la sol·licitud passa a aprovada: el pressupost és el contracte.",
+      "noTaxId": "El contacte d'aquest pressupost no té NIF a Holded, així que no es pot aparellar amb cap sol·licitud.",
+      "noCandidates": "Aquest client no té cap sol·licitud oberta sense pressupost.",
+      "stay": "{start} – {end} · {headcount} persones"
     }
   },
   "Bookings": {

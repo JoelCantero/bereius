@@ -78,6 +78,15 @@ const estimateSummarySchema = z
     total: z.union([z.string(), z.number()]).nullish(),
     status: z.string().nullish(),
     contact_id: z.string().nullish(),
+    contact_name: z.string().nullish(),
+  })
+  .catchall(z.unknown());
+
+const estimatePageSchema = z
+  .object({
+    items: z.array(estimateSummarySchema),
+    has_more: z.boolean().optional(),
+    cursor: z.string().nullish(),
   })
   .catchall(z.unknown());
 
@@ -93,6 +102,21 @@ function toContact(raw: z.infer<typeof contactSchema>): HoldedContact {
     province: raw.bill_address?.province?.trim() || null,
     postalCode: raw.bill_address?.postal_code?.trim() || null,
     country: raw.bill_address?.country?.trim() || null,
+  };
+}
+
+function toEstimate(raw: z.infer<typeof estimateSummarySchema>): HoldedEstimateSummary {
+  const total = parseDecimal(raw.total ?? undefined);
+
+  return {
+    id: raw.id,
+    number: raw.document_number?.trim() || null,
+    description: raw.description?.trim() || null,
+    date: raw.date ?? null,
+    totalCents: total === null ? null : Math.round(total * 100),
+    status: raw.status ?? null,
+    contactId: raw.contact_id ?? null,
+    contactName: raw.contact_name?.trim() || null,
   };
 }
 
@@ -183,8 +207,11 @@ export interface HoldedEstimateSummary {
   number: string | null;
   description: string | null;
   date: string | null;
-  total: string | null;
+  /** Cents, so the screen formats the amount instead of echoing Holded's commas. */
+  totalCents: number | null;
   status: string | null;
+  contactId: string | null;
+  contactName: string | null;
 }
 
 export interface HoldedClient {
@@ -196,9 +223,13 @@ export interface HoldedClient {
    */
   listCatalogue(resource: HoldedCatalogueResource): Promise<HoldedOption[]>;
   findContactByTaxId(taxId: string): Promise<HoldedContact | null>;
+  getContact(contactId: string): Promise<HoldedContact | null>;
   createContact(input: HoldedContactInput): Promise<{ id: string }>;
   updateContact(contactId: string, input: HoldedContactInput): Promise<void>;
   listEstimatesByContact(contactId: string): Promise<HoldedEstimateSummary[]>;
+  /** Every estimate in the account, so an operator can find one without a booking. */
+  listEstimates(): Promise<HoldedEstimateSummary[]>;
+  getEstimate(estimateId: string): Promise<HoldedEstimateSummary | null>;
   getServicePriceCents(serviceId: string): Promise<number>;
   createEstimate(input: HoldedDocumentInput): Promise<HoldedDocumentResult>;
   sendEstimate(estimateId: string, emails: string[], mailTemplateId?: string): Promise<void>;
@@ -434,6 +465,16 @@ export function createHoldedClient(
       return match ? toContact(match) : null;
     },
 
+    async getContact(contactId) {
+      try {
+        const parsed = contactSchema.safeParse(await request("GET", `/contacts/${contactId}`));
+        return parsed.success ? toContact(parsed.data) : null;
+      } catch (error) {
+        if (error instanceof HoldedError && error.code === "not_found") return null;
+        throw error;
+      }
+    },
+
     async listEstimatesByContact(contactId) {
       const query = new URLSearchParams({ contact_id: contactId, limit: "100" });
       const payload = await request("GET", `/estimates?${query.toString()}`);
@@ -453,14 +494,45 @@ export function createHoldedClient(
         // Filtered again locally, so a server that ignored the parameter cannot
         // put another customer's estimate in front of an operator.
         .filter((item) => item.contact_id === contactId)
-        .map((item) => ({
-          id: item.id,
-          number: item.document_number?.trim() || null,
-          description: item.description?.trim() || null,
-          date: item.date ?? null,
-          total: item.total === null || item.total === undefined ? null : String(item.total),
-          status: item.status ?? null,
-        }));
+        .map(toEstimate);
+    },
+
+    async listEstimates() {
+      const collected: HoldedEstimateSummary[] = [];
+      let cursor: string | null = null;
+
+      for (let page = 0; page < HOLDED_MAX_CATALOGUE_PAGES; page += 1) {
+        const query = new URLSearchParams({ limit: String(HOLDED_CATALOGUE_PAGE_SIZE) });
+        if (cursor) query.set("cursor", cursor);
+
+        const payload: unknown = await request("GET", `/estimates?${query.toString()}`);
+        const parsed = estimatePageSchema.safeParse(payload);
+        if (!parsed.success) {
+          throw new HoldedError(
+            "malformed_response",
+            "Holded estimate list did not match the expected shape",
+          );
+        }
+
+        collected.push(...parsed.data.items.map(toEstimate));
+        const next = parsed.data.has_more ? (parsed.data.cursor ?? null) : null;
+        if (!next) break;
+        cursor = next;
+      }
+
+      return collected;
+    },
+
+    async getEstimate(estimateId) {
+      try {
+        const parsed = estimateSummarySchema.safeParse(
+          await request("GET", `/estimates/${estimateId}`),
+        );
+        return parsed.success ? toEstimate(parsed.data) : null;
+      } catch (error) {
+        if (error instanceof HoldedError && error.code === "not_found") return null;
+        throw error;
+      }
     },
 
     async createContact(input) {

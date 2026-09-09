@@ -1,5 +1,6 @@
 import {
   CalendarCheck,
+  FileSignature,
   FileText,
   LayoutGrid,
   type LucideIcon,
@@ -30,6 +31,7 @@ export interface ConsoleUser {
 /** Resolved from the route, because a component cannot cross the server boundary. */
 const ICONS: Record<string, LucideIcon> = {
   "/bookings": CalendarCheck,
+  "/contracts": FileSignature,
   "/bookings/settings": Plug,
   "/account": UserRound,
   "/account/security": ShieldCheck,
