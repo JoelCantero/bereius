@@ -20,6 +20,13 @@ import {
   resolveIntegration,
   type HoldedConfig,
 } from "@/modules/booking/services/settings";
+import {
+  ADVANCE_LINE,
+  DEPOSIT_LINE,
+  quoteNotes,
+  stayDescription,
+  stayPhrase as quoteStayPhrase,
+} from "@/modules/booking/wording";
 
 /** Holded identifies a rate by key, confirmed against the account's tax list. */
 const VAT_TAX_KEY = `s_iva_${VAT_PERCENT}`;
@@ -56,34 +63,6 @@ export class QuotingError extends Error {
 function centsToAmount(cents: number): number {
   return cents / 100;
 }
-
-function stayDescription(
-  startDate: Date,
-  endDate: Date,
-  headcount: number,
-  boardType: string,
-): string {
-  // The shape every document in the account already uses: DD/MM/YY.
-  const format = (date: Date) =>
-    [
-      String(date.getUTCDate()).padStart(2, "0"),
-      String(date.getUTCMonth() + 1).padStart(2, "0"),
-      String(date.getUTCFullYear()).slice(2),
-    ].join("/");
-
-  return `${format(startDate)} - ${format(endDate)} - ${headcount} persones ${boardType}`;
-}
-
-/** Wording copied from the documents the account already holds. */
-const DEPOSIT_LINE = {
-  name: "Dipòsit",
-  description: "Es retornarà un cop finalitzada l'estada i tot estigui en condicions.",
-} as const;
-
-const ADVANCE_LINE = {
-  name: "Reserva",
-  description: "30% de l'import total del pressupost.",
-} as const;
 
 /**
  * Turns an approved booking into a Holded contact, estimate and reserve
@@ -203,11 +182,21 @@ export async function runQuoteJob(
     quote.billableHeadcount,
     booking.boardType === "FULL_BOARD" ? "PC" : "DC",
   );
-  const notes = `${quote.nights} nits. Reserva ${centsToAmount(
-    quote.advanceCents,
-  )} EUR, dipòsit ${centsToAmount(quote.depositCents)} EUR, total per confirmar ${centsToAmount(
-    quote.amountToConfirmCents,
-  )} EUR.`;
+  const stayPhrase = quoteStayPhrase(
+    booking.startDate,
+    booking.endDate,
+    quote.billableHeadcount,
+    quote.nights,
+  );
+  const notes = quoteNotes({
+    startDate: booking.startDate,
+    endDate: booking.endDate,
+    headcount: quote.billableHeadcount,
+    nights: quote.nights,
+    advanceCents: quote.advanceCents,
+    depositCents: quote.depositCents,
+    amountToConfirmCents: quote.amountToConfirmCents,
+  });
 
   const stayLine: HoldedDocumentLine = {
     serviceId,
@@ -215,7 +204,7 @@ export async function runQuoteJob(
     units: quote.units,
     price: centsToAmount(quote.unitPriceCents),
     taxes: [VAT_TAX_KEY],
-    description,
+    description: stayPhrase,
   };
 
   // Step 3 — estimate.
