@@ -40,8 +40,7 @@ function stubClient(options: StubOptions = {}) {
     ping: vi.fn(async () => {
       track("ping", () => undefined);
     }),
-    listServices: vi.fn(async () => track("listServices", () => [])),
-    listOptions: vi.fn(async () => track("listOptions", () => [])),
+    listCatalogue: vi.fn(async () => track("listCatalogue", () => [])),
     findContactByTaxId: vi.fn(async () => track("findContactByTaxId", () => null)),
     createContact: vi.fn(async () => track("createContact", () => ({ id: "contact-1" }))),
     updateContactEmail: vi.fn(async () => {

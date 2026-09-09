@@ -15,10 +15,10 @@ export interface CatalogueOption {
 }
 
 export interface HoldedCatalogueOptions {
+  status: "ok" | "no_key" | "unauthorized" | "unavailable";
   services: CatalogueOption[];
   accounts: CatalogueOption[];
   paymentMethods: CatalogueOption[];
-  mailTemplates: CatalogueOption[];
 }
 
 type SettingsAction = (
@@ -28,6 +28,13 @@ type SettingsAction = (
 
 const IDLE: SettingsActionState = { status: "idle" };
 const RATE_SKUS = ["dc30", "dc40", "dc60", "dc80", "pc30", "pc40", "pc60", "pc80"] as const;
+/** The languages Holded can render a document in, named in their own tongue. */
+const DOCUMENT_LANGUAGES: CatalogueOption[] = [
+  { id: "ca", name: "Català" },
+  { id: "es", name: "Español" },
+  { id: "en", name: "English" },
+  { id: "fr", name: "Français" },
+];
 
 function Feedback({ state }: { state: SettingsActionState }) {
   const t = useTranslations("Bookings.settings");
@@ -91,8 +98,9 @@ function Field({
 }
 
 /**
- * A dropdown when the catalogue could be read from Holded, a text field when it
- * could not. Configuration must never depend on a list call succeeding.
+ * Always a dropdown. A Holded identifier is an opaque 24-character string, so a
+ * text field cannot be filled correctly from memory; when the catalogue is
+ * missing the control is disabled and says why rather than inviting a guess.
  */
 function Choice({
   name,
@@ -101,6 +109,7 @@ function Choice({
   defaultValue,
   required = false,
   emptyLabel,
+  unavailableLabel,
 }: {
   name: string;
   label: string;
@@ -108,12 +117,12 @@ function Choice({
   defaultValue?: string;
   required?: boolean;
   emptyLabel: string;
+  unavailableLabel: string;
 }) {
-  if (options.length === 0) {
-    return (
-      <Field name={name} label={label} defaultValue={defaultValue} required={required} />
-    );
-  }
+  const unavailable = options.length === 0;
+  // A disabled control submits nothing, which would wipe a stored value, so the
+  // current one rides along in a hidden field.
+  const keepsCurrentValue = unavailable && Boolean(defaultValue);
 
   return (
     <div className="flex flex-col gap-1">
@@ -122,18 +131,28 @@ function Choice({
       </label>
       <select
         id={name}
-        name={name}
-        required={required}
+        name={unavailable ? undefined : name}
+        required={required && !unavailable}
+        disabled={unavailable}
         defaultValue={defaultValue ?? ""}
-        className="rounded-md border border-zinc-300 p-2 text-sm"
+        className="rounded-md border border-zinc-300 p-2 text-sm disabled:bg-zinc-100 disabled:text-zinc-500"
       >
-        <option value="">{emptyLabel}</option>
-        {options.map((option) => (
-          <option key={option.id} value={option.id}>
-            {option.name}
-          </option>
-        ))}
+        {unavailable ? (
+          <option value={defaultValue ?? ""}>{defaultValue || unavailableLabel}</option>
+        ) : (
+          <>
+            <option value="">{emptyLabel}</option>
+            {options.map((option) => (
+              <option key={option.id} value={option.id}>
+                {option.name}
+              </option>
+            ))}
+          </>
+        )}
       </select>
+      {keepsCurrentValue ? (
+        <input type="hidden" name={name} value={defaultValue} />
+      ) : null}
     </div>
   );
 }
@@ -181,6 +200,9 @@ export function HoldedSettingsForm({
   const t = useTranslations("Bookings.settings");
   const [state, formAction, pending] = useActionState(action, IDLE);
   const services = (config?.serviceIdsBySku ?? {}) as Record<string, string>;
+  const unavailableLabel = t("holded.catalogueEmpty");
+  const notice =
+    catalogues.status === "ok" ? null : t(`holded.catalogue.${catalogues.status}`);
 
   return (
     <section aria-labelledby="holded-heading" className="flex flex-col gap-3">
@@ -188,11 +210,16 @@ export function HoldedSettingsForm({
         {t("holded.title")}
       </h2>
 
-      {hasSecret && catalogues.services.length === 0 ? (
-        <p className="text-sm text-amber-700">{t("holded.cataloguesUnavailable")}</p>
-      ) : null}
-      {!hasSecret ? (
-        <p className="text-sm text-zinc-600">{t("holded.keyFirst")}</p>
+      {notice ? (
+        <p
+          className={
+            catalogues.status === "no_key"
+              ? "text-sm text-zinc-600"
+              : "text-sm text-amber-700"
+          }
+        >
+          {notice}
+        </p>
       ) : null}
 
       <form action={formAction} className="flex flex-col gap-3">
@@ -208,6 +235,7 @@ export function HoldedSettingsForm({
           options={catalogues.accounts}
           defaultValue={String(config?.accountingAccountId ?? "")}
           emptyLabel={t("choose")}
+          unavailableLabel={unavailableLabel}
         />
         <Choice
           name="depositServiceId"
@@ -215,13 +243,7 @@ export function HoldedSettingsForm({
           options={catalogues.services}
           defaultValue={String(config?.depositServiceId ?? "")}
           emptyLabel={t("choose")}
-        />
-        <Choice
-          name="mailTemplateId"
-          label={t("holded.mailTemplateId")}
-          options={catalogues.mailTemplates}
-          defaultValue={String(config?.mailTemplateId ?? "")}
-          emptyLabel={t("choose")}
+          unavailableLabel={unavailableLabel}
         />
         <Choice
           name="paymentMethodId"
@@ -229,12 +251,16 @@ export function HoldedSettingsForm({
           options={catalogues.paymentMethods}
           defaultValue={String(config?.paymentMethodId ?? "")}
           emptyLabel={t("choose")}
+          unavailableLabel={unavailableLabel}
         />
-        <Field
+        <Choice
           name="language"
           label={t("holded.language")}
-          required
+          options={DOCUMENT_LANGUAGES}
           defaultValue={String(config?.language ?? "ca")}
+          required
+          emptyLabel={t("choose")}
+          unavailableLabel={unavailableLabel}
         />
 
         <fieldset className="flex flex-col gap-2">
@@ -248,6 +274,7 @@ export function HoldedSettingsForm({
                 options={catalogues.services}
                 defaultValue={services[sku] ?? ""}
                 emptyLabel={t("choose")}
+                unavailableLabel={unavailableLabel}
               />
             ))}
           </div>

@@ -9,7 +9,11 @@ import {
   openSecret,
   sealSecret,
 } from "@/lib/booking/secrets";
-import { createHoldedClient, type HoldedOption } from "@/lib/holded/client";
+import {
+  createHoldedClient,
+  HoldedError,
+  type HoldedOption,
+} from "@/lib/holded/client";
 import {
   DEFAULT_GRAVITY_FORM_FIELDS,
   gravityFormFieldMapSchema,
@@ -36,6 +40,8 @@ const holdedConfigSchema = z
     // until they are present.
     accountingAccountId: z.string().min(1).optional(),
     depositServiceId: z.string().min(1).optional(),
+    // Holded publishes no catalogue for mail templates, so the screen cannot
+    // offer a choice. Kept only so an already stored value survives a save.
     mailTemplateId: z.string().min(1).optional(),
     paymentMethodId: z.string().min(1).optional(),
     language: z.string().min(2).max(5).default("ca"),
@@ -204,25 +210,28 @@ export async function readIntegrationConfig(
     : null;
 }
 
+export type HoldedCatalogueStatus =
+  | "ok"
+  | "no_key"
+  | "unauthorized"
+  | "unavailable";
+
 export interface HoldedCatalogues {
+  status: HoldedCatalogueStatus;
   services: HoldedOption[];
   accounts: HoldedOption[];
   paymentMethods: HoldedOption[];
-  mailTemplates: HoldedOption[];
 }
 
-const EMPTY_CATALOGUES: HoldedCatalogues = {
-  services: [],
-  accounts: [],
-  paymentMethods: [],
-  mailTemplates: [],
-};
+function emptyCatalogues(status: HoldedCatalogueStatus): HoldedCatalogues {
+  return { status, services: [], accounts: [], paymentMethods: [] };
+}
 
 /**
  * Loads what the settings dropdowns need once a Holded key is stored.
  *
- * Every list is best-effort: an unconfigured or unreachable Holded leaves the
- * screen usable with plain text fields rather than blocking configuration.
+ * The status is reported rather than swallowed: an operator who cannot see a
+ * list needs to know whether the key is missing, refused or the account empty.
  */
 export async function readHoldedCatalogues(): Promise<HoldedCatalogues> {
   let client;
@@ -230,17 +239,24 @@ export async function readHoldedCatalogues(): Promise<HoldedCatalogues> {
     const { secret } = await resolveIntegration("HOLDED");
     client = createHoldedClient(secret);
   } catch {
-    return EMPTY_CATALOGUES;
+    return emptyCatalogues("no_key");
   }
 
-  const [services, accounts, paymentMethods, mailTemplates] = await Promise.all([
-    client.listServices().catch(() => []),
-    client.listOptions("expensesaccounts"),
-    client.listOptions("paymentmethods"),
-    client.listOptions("mailtemplates"),
-  ]);
+  try {
+    const [services, accounts, paymentMethods] = await Promise.all([
+      client.listCatalogue("services"),
+      client.listCatalogue("expenses-accounts"),
+      client.listCatalogue("payment-methods"),
+    ]);
 
-  return { services, accounts, paymentMethods, mailTemplates };
+    return { status: "ok", services, accounts, paymentMethods };
+  } catch (error) {
+    const refused =
+      error instanceof HoldedError &&
+      (error.code === "unauthorized" || error.code === "not_found");
+
+    return emptyCatalogues(refused ? "unauthorized" : "unavailable");
+  }
 }
 
 /**

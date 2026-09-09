@@ -20,6 +20,7 @@ import {
   IntegrationSettingsError,
   listIntegrationStatus,
   markIntegrationVerified,
+  readIntegrationConfig,
   resolveIntegration,
   saveIntegrationSettings,
   type IntegrationStatus,
@@ -193,7 +194,6 @@ export async function saveHoldedSettings(
       .object({
         accountingAccountId: z.string().trim().min(1).optional(),
         depositServiceId: z.string().trim().min(1).optional(),
-        mailTemplateId: z.string().trim().min(1).optional(),
         paymentMethodId: z.string().trim().min(1).optional(),
         language: z.string().trim().min(2).max(5),
         apiKey: z.string().optional(),
@@ -201,20 +201,23 @@ export async function saveHoldedSettings(
       .parse({
         accountingAccountId: formData.get("accountingAccountId") || undefined,
         depositServiceId: formData.get("depositServiceId") || undefined,
-        mailTemplateId: formData.get("mailTemplateId") || undefined,
         paymentMethodId: formData.get("paymentMethodId") || undefined,
         language: formData.get("language") ?? "ca",
         apiKey: formData.get("apiKey") ?? undefined,
       });
 
     const apiKey = parsed.apiKey?.trim();
+    // The form no longer offers this, because Holded exposes no catalogue to
+    // pick it from; carried over so saving does not silently discard it.
+    const existing = await readIntegrationConfig("HOLDED");
+    const mailTemplateId = existing?.mailTemplateId;
 
     await saveIntegrationSettings({
       provider: "HOLDED",
       config: {
         accountingAccountId: parsed.accountingAccountId,
         depositServiceId: parsed.depositServiceId,
-        mailTemplateId: parsed.mailTemplateId,
+        mailTemplateId: typeof mailTemplateId === "string" ? mailTemplateId : undefined,
         paymentMethodId: parsed.paymentMethodId,
         language: parsed.language,
         serviceIdsBySku,

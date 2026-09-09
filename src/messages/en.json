@@ -763,14 +763,17 @@
       "holded": {
         "title": "Holded",
         "apiKey": "API key",
-        "accountingAccountId": "Accounting account id",
-        "depositServiceId": "Deposit service id",
-        "mailTemplateId": "Mail template id",
-        "paymentMethodId": "Payment method id",
+        "accountingAccountId": "Accounting account",
+        "depositServiceId": "Deposit service",
+        "paymentMethodId": "Payment method",
         "language": "Document language",
-        "services": "Service id per rate",
-        "keyFirst": "Save the API key first and the identifiers become dropdowns.",
-        "cataloguesUnavailable": "Holded did not return the lists, so identifiers stay as text fields."
+        "services": "Service per rate",
+        "catalogueEmpty": "Not available",
+        "catalogue": {
+          "no_key": "Save the API key and the Holded lists will fill these dropdowns.",
+          "unauthorized": "Holded refused the key or it lacks read permission, so the dropdowns are empty.",
+          "unavailable": "Holded could not be reached, so the dropdowns are empty. Try again shortly."
+        }
       },
       "gravityForms": {
         "title": "Gravity Forms",

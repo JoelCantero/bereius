@@ -11,9 +11,24 @@ import {
 import type { ProviderHttpClient } from "@/lib/email/types";
 
 export const HOLDED_BASE_URL = "https://api.holded.com/api/invoicing/v1";
+/**
+ * Catalogue reads use the current API, which documents these routes and their
+ * response shape. The v1 equivalents were undocumented guesses.
+ */
+export const HOLDED_V2_BASE_URL = "https://api.holded.com/api/v2";
 export const HOLDED_TIMEOUT_MS = 15_000;
 /** Bounds the contact scan so a large account cannot stall a job. */
 export const HOLDED_MAX_CONTACT_PAGES = 20;
+export const HOLDED_MAX_CATALOGUE_PAGES = 20;
+export const HOLDED_CATALOGUE_PAGE_SIZE = 100;
+
+export const HOLDED_CATALOGUE_RESOURCES = [
+  "services",
+  "expenses-accounts",
+  "payment-methods",
+] as const;
+
+export type HoldedCatalogueResource = (typeof HOLDED_CATALOGUE_RESOURCES)[number];
 
 export class HoldedError extends Error {
   constructor(
@@ -100,15 +115,13 @@ export interface HoldedOption {
 }
 
 export interface HoldedClient {
-  /** Cheapest authenticated call, used by the settings screen. */
+  /** Exercises both API versions, because the two are authenticated separately. */
   ping(): Promise<void>;
-  listServices(): Promise<HoldedOption[]>;
   /**
-   * Best-effort lookup for the settings dropdowns. Returns an empty list when
-   * the endpoint is unavailable, so the screen degrades to a free-text field
-   * instead of failing.
+   * Throws instead of returning an empty list, so the caller can tell a rejected
+   * key from an account that genuinely holds no entries.
    */
-  listOptions(resource: string): Promise<HoldedOption[]>;
+  listCatalogue(resource: HoldedCatalogueResource): Promise<HoldedOption[]>;
   findContactByTaxId(taxId: string): Promise<{ id: string; email: string | null } | null>;
   createContact(input: HoldedContactInput): Promise<{ id: string }>;
   updateContactEmail(contactId: string, email: string): Promise<void>;
@@ -147,45 +160,46 @@ function toCents(amount: number): number {
   return Math.round(amount * 100);
 }
 
-const optionSchema = z
-  .object({ id: z.union([z.string(), z.number()]).transform(String) })
-  .catchall(z.unknown());
+const cataloguePageSchema = z.object({
+  items: z.array(
+    z
+      .object({ id: z.union([z.string(), z.number()]).transform(String) })
+      .catchall(z.unknown()),
+  ),
+  has_more: z.boolean().optional(),
+  cursor: z.string().nullish(),
+});
 
-/** Holded names a resource differently per endpoint, so several keys are tried. */
-function readOptions(payload: unknown): HoldedOption[] {
-  const parsed = z.array(optionSchema).safeParse(payload);
-  if (!parsed.success) return [];
+/** Every catalogue carries an id; the human label sits under a different key. */
+function readCataloguePage(payload: unknown) {
+  const parsed = cataloguePageSchema.safeParse(payload);
+  if (!parsed.success) {
+    throw new HoldedError(
+      "malformed_response",
+      "Holded catalogue did not match the expected shape",
+    );
+  }
 
-  return parsed.data.map((item) => {
-    const label = ["name", "desc", "title", "sku"]
+  const options = parsed.data.items.map((item) => {
+    const label = ["name", "description", "code"]
       .map((key) => item[key])
       .find((value) => typeof value === "string" && value.trim().length > 0);
 
-    return { id: item.id, name: typeof label === "string" ? label : item.id };
+    return { id: item.id, name: typeof label === "string" ? label.trim() : item.id };
   });
+
+  return { options, cursor: parsed.data.has_more ? (parsed.data.cursor ?? null) : null };
 }
 
 export function createHoldedClient(
   apiKey: string,
   httpClient: ProviderHttpClient = nativeProviderHttpClient,
 ): HoldedClient {
-  async function request(
-    method: string,
-    path: string,
-    body?: unknown,
-  ): Promise<unknown> {
+  async function send(logicalUrl: string, init: Record<string, unknown>): Promise<unknown> {
     const outcome = await executeProviderRequest({
       client: httpClient,
-      logicalUrl: `${HOLDED_BASE_URL}${path}`,
-      init: {
-        method,
-        headers: {
-          accept: "application/json",
-          key: apiKey,
-          ...(body === undefined ? {} : { "content-type": "application/json" }),
-        },
-        ...(body === undefined ? {} : { body: serializeProviderJson(body) }),
-      },
+      logicalUrl,
+      init,
       timeoutMs: HOLDED_TIMEOUT_MS,
     });
 
@@ -202,22 +216,59 @@ export function createHoldedClient(
     }
   }
 
+  async function request(
+    method: string,
+    path: string,
+    body?: unknown,
+  ): Promise<unknown> {
+    return send(`${HOLDED_BASE_URL}${path}`, {
+      method,
+      headers: {
+        accept: "application/json",
+        key: apiKey,
+        ...(body === undefined ? {} : { "content-type": "application/json" }),
+      },
+      ...(body === undefined ? {} : { body: serializeProviderJson(body) }),
+    });
+  }
+
+  async function requestV2(path: string): Promise<unknown> {
+    return send(`${HOLDED_V2_BASE_URL}${path}`, {
+      method: "GET",
+      headers: {
+        accept: "application/json",
+        authorization: `Bearer ${apiKey}`,
+      },
+    });
+  }
+
   return {
     async ping() {
+      // Documents go through v1 and the dropdowns through v2, so a key that only
+      // satisfies one of them must not be reported as verified.
+      await requestV2(`/services?limit=1`);
       await request("GET", "/contacts?page=1");
     },
 
-    async listServices() {
-      return readOptions(await request("GET", "/services"));
-    },
+    async listCatalogue(resource) {
+      const collected: HoldedOption[] = [];
+      let cursor: string | null = null;
 
-    async listOptions(resource) {
-      try {
-        return readOptions(await request("GET", `/${resource}`));
-      } catch {
-        // The settings screen falls back to a text field rather than failing.
-        return [];
+      for (let page = 0; page < HOLDED_MAX_CATALOGUE_PAGES; page += 1) {
+        const query = new URLSearchParams({
+          limit: String(HOLDED_CATALOGUE_PAGE_SIZE),
+        });
+        if (cursor) query.set("cursor", cursor);
+
+        const payload: unknown = await requestV2(`/${resource}?${query.toString()}`);
+        const { options, cursor: next } = readCataloguePage(payload);
+        collected.push(...options);
+
+        if (!next) break;
+        cursor = next;
       }
+
+      return collected;
     },
 
     /**

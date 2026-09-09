@@ -763,14 +763,17 @@
       "holded": {
         "title": "Holded",
         "apiKey": "Clau d'API",
-        "accountingAccountId": "Id de compte comptable",
-        "depositServiceId": "Id del servei de dipòsit",
-        "mailTemplateId": "Id de plantilla de correu",
-        "paymentMethodId": "Id de mètode de pagament",
+        "accountingAccountId": "Compte comptable",
+        "depositServiceId": "Servei de dipòsit",
+        "paymentMethodId": "Mètode de pagament",
         "language": "Idioma dels documents",
-        "services": "Id de servei per tarifa",
-        "keyFirst": "Desa primer la clau d'API i els identificadors passaran a ser desplegables.",
-        "cataloguesUnavailable": "Holded no ha retornat les llistes, així que els identificadors continuen sent camps de text."
+        "services": "Servei per tarifa",
+        "catalogueEmpty": "No disponible",
+        "catalogue": {
+          "no_key": "Desa la clau d'API i les llistes de Holded ompliran els desplegables.",
+          "unauthorized": "Holded ha rebutjat la clau o li manquen permisos de lectura, així que els desplegables són buits.",
+          "unavailable": "No s'ha pogut contactar amb Holded, així que els desplegables són buits. Torna-ho a provar més tard."
+        }
       },
       "gravityForms": {
         "title": "Gravity Forms",
