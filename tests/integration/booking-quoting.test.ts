@@ -261,6 +261,25 @@ describe.skipIf(!runIntegrationTests)("booking quoting integration", () => {
     expect(client.getServicePriceCents).toHaveBeenCalledWith("svc-dc40");
   });
 
+  it("invoices the advance alone, because the deposit is held and not earned", async () => {
+    const booking = await approvedBooking();
+    const { client } = stubClient();
+
+    await runQuoteJob(job(booking.id), { client, config });
+
+    expect(client.createInvoice).toHaveBeenCalledWith(
+      expect.objectContaining({
+        items: [expect.objectContaining({ name: "Reserva" })],
+      }),
+    );
+
+    const invoice = await db.holdedDocument.findFirstOrThrow({
+      where: { bookingRequestId: booking.id, type: "RESERVE_INVOICE" },
+    });
+    // The advance, not the advance plus the deposit.
+    expect(invoice.totalCents).toBe(43_200);
+  });
+
   it("describes the stay and names its lines the way the account already does", async () => {
     const booking = await approvedBooking();
     const { client } = stubClient();
@@ -279,17 +298,16 @@ describe.skipIf(!runIntegrationTests)("booking quoting integration", () => {
     );
   });
 
-  it.each(["salesChannelId", "depositServiceId"] as const)(
-    "refuses to quote while %s is still unconfigured",
-    async (missing) => {
-      const booking = await approvedBooking();
-      const { client } = stubClient();
-      const incomplete = { ...config, [missing]: undefined };
+  it("refuses to quote while the sales channel is still unconfigured", async () => {
+    const booking = await approvedBooking();
+    const { client } = stubClient();
 
-      await expect(
-        runQuoteJob(job(booking.id), { client, config: incomplete }),
-      ).rejects.toMatchObject({ code: "incomplete_configuration" });
-      expect(client.createEstimate).not.toHaveBeenCalled();
-    },
-  );
+    await expect(
+      runQuoteJob(job(booking.id), {
+        client,
+        config: { ...config, salesChannelId: undefined },
+      }),
+    ).rejects.toMatchObject({ code: "incomplete_configuration" });
+    expect(client.createEstimate).not.toHaveBeenCalled();
+  });
 });

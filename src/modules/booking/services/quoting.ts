@@ -103,14 +103,13 @@ export async function runQuoteJob(
 
   // The settings screen allows saving the API key before the identifiers are
   // chosen, so completeness is enforced here rather than blocking that step.
-  if (!config.salesChannelId || !config.depositServiceId) {
+  if (!config.salesChannelId) {
     throw new QuotingError(
       "incomplete_configuration",
-      "Holded settings are missing the sales channel or the deposit service",
+      "Holded settings are missing the sales channel",
     );
   }
   const salesChannelId = config.salesChannelId;
-  const depositServiceId = config.depositServiceId;
 
   // Step 1 — contact. Skipped once the Holded identifier is known.
   let holdedContactId = booking.customer.holdedContactId;
@@ -252,14 +251,9 @@ export async function runQuoteJob(
       language: config.language,
       paymentMethodId: config.paymentMethodId,
       dueDate: paymentDueAt,
+      // The advance alone: the deposit is money held and returned, not income,
+      // so it is asked for but never invoiced.
       items: [
-        {
-          serviceId: depositServiceId,
-          units: 1,
-          price: centsToAmount(SECURITY_DEPOSIT_CENTS),
-          taxes: [ZERO_TAX_KEY],
-          description: DEPOSIT_LINE.description,
-        },
         {
           name: ADVANCE_LINE.name,
           units: 1,
@@ -277,7 +271,7 @@ export async function runQuoteJob(
         type: "RESERVE_INVOICE",
         holdedId: invoice.id,
         documentNumber: invoice.number,
-        totalCents: quote.amountToConfirmCents,
+        totalCents: quote.advanceCents,
       },
     });
   }

@@ -16,6 +16,9 @@ import type { ProviderHttpClient } from "@/lib/email/types";
  */
 export const HOLDED_BASE_URL = "https://api.holded.com/api/v2";
 export const HOLDED_TIMEOUT_MS = 15_000;
+
+/** Every document already in the account carries tax-inclusive line prices. */
+const TAX_INCLUDED = true;
 export const HOLDED_MAX_CATALOGUE_PAGES = 20;
 export const HOLDED_CATALOGUE_PAGE_SIZE = 100;
 /** A catalogue listing runs past 100 kB, well beyond the email default. */
@@ -637,7 +640,7 @@ export function createHoldedClient(
         notes: input.notes,
         language: input.language,
         currency: "EUR",
-        tax_included: false,
+        tax_included: TAX_INCLUDED,
         payment_method_id: input.paymentMethodId,
         items: input.items.map(toLine),
       });
@@ -660,6 +663,7 @@ export function createHoldedClient(
         notes: input.notes,
         language: input.language,
         currency: "EUR",
+        tax_included: TAX_INCLUDED,
         payment_method_id: input.paymentMethodId,
         items: input.items.map(toLine),
       });
@@ -668,7 +672,7 @@ export function createHoldedClient(
     async replaceEstimateLines(estimateId, items) {
       // Sending `items` replaces the whole collection; there is no line patch.
       await request("PUT", `/estimates/${estimateId}`, {
-        tax_included: false,
+        tax_included: TAX_INCLUDED,
         items: items.map(toLine),
       });
     },

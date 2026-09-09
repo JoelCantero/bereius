@@ -11,15 +11,21 @@ import type { GravityFormsClient, GravityFormsEntry } from "@/lib/gravity-forms/
 import { DEFAULT_GRAVITY_FORM_FIELDS as F } from "@/modules/booking/schema";
 import { INTAKE_SOURCE, runIntake } from "@/modules/booking/services/intake";
 
+/**
+ * Counted rather than random: two entries built in the same millisecond used to
+ * draw the same identifier, and the second one was skipped as a duplicate.
+ */
+let sequence = 0;
+
 function entry(overrides: Record<string, unknown> = {}): GravityFormsEntry {
-  const suffix = Math.random().toString(36).slice(2, 10);
+  const unique = `${Date.now()}${String((sequence += 1)).padStart(4, "0")}`;
   return {
-    id: `9${Date.now()}${Math.floor(Math.random() * 1000)}`,
+    id: `9${unique}`,
     date_created: "2026-09-09 11:56:32",
     [F.firstName]: "Ana",
     [F.lastName]: "Exemple",
     [F.organisation]: "",
-    [F.taxId]: ` x${suffix} `,
+    [F.taxId]: ` x${unique} `,
     [F.email]: "Group@Example.test",
     [F.phone]: "600000000",
     [F.addressLine]: "Carrer Example, 3",
