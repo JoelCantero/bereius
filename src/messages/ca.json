@@ -729,6 +729,7 @@
     "unlinked": "Sense vincular",
     "detail": {
       "back": "Torna als contractes",
+      "openInHolded": "Obre a Holded",
       "summary": "Pressupost",
       "contact": "Client a Holded",
       "linkedTo": "Vinculat a la sol·licitud de {name}.",
@@ -776,6 +777,7 @@
       "payments": "Pagaments",
       "history": "Historial",
       "noDocuments": "Encara no s'ha emès cap document.",
+      "openInHolded": "Obre a Holded",
       "noPayments": "Encara no s'ha registrat cap pagament.",
       "taxId": "NIF",
       "email": "Correu",

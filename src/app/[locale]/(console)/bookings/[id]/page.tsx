@@ -2,8 +2,10 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { getTranslations, setRequestLocale } from "next-intl/server";
+import { ExternalLink } from "lucide-react";
 
 import { noIndexMetadata } from "@/lib/seo";
+import { holdedEstimateUrl } from "@/lib/holded/links";
 import {
   createContactAction,
   linkEstimateAction,
@@ -261,7 +263,26 @@ export default async function BookingDetailPage({ params }: BookingDetailPagePro
             {booking.documents.map((document) => (
               <li key={document.id}>
                 {t(`documentTypes.${document.type}`)}
-                {document.documentNumber ? ` · ${document.documentNumber}` : ""}
+                {document.type === "ESTIMATE" ? (
+                  <>
+                    {" · "}
+                    <a
+                      href={holdedEstimateUrl(document.holdedId)}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="inline-flex items-center gap-1 hover:underline focus-visible:underline"
+                    >
+                      {document.documentNumber ?? t("detail.openInHolded")}
+                      <ExternalLink
+                        className="size-3.5 text-muted-foreground"
+                        aria-hidden="true"
+                      />
+                      <span className="sr-only">{t("detail.openInHolded")}</span>
+                    </a>
+                  </>
+                ) : document.documentNumber ? (
+                  ` · ${document.documentNumber}`
+                ) : null}
               </li>
             ))}
           </ul>

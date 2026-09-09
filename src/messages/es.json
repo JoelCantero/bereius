@@ -729,6 +729,7 @@
     "unlinked": "Sin vincular",
     "detail": {
       "back": "Volver a contratos",
+      "openInHolded": "Ver en Holded",
       "summary": "Presupuesto",
       "contact": "Cliente en Holded",
       "linkedTo": "Vinculado a la solicitud de {name}.",
@@ -776,6 +777,7 @@
       "payments": "Pagos",
       "history": "Historial",
       "noDocuments": "Todavía no se ha emitido ningún documento.",
+      "openInHolded": "Ver en Holded",
       "noPayments": "Todavía no se ha registrado ningún pago.",
       "taxId": "NIF",
       "email": "Correo",

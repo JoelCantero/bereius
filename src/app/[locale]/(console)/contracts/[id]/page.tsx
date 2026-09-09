@@ -1,9 +1,11 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { getTranslations, setRequestLocale } from "next-intl/server";
+import { ExternalLink } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Link } from "@/i18n/navigation";
+import { holdedEstimateUrl } from "@/lib/holded/links";
 import { noIndexMetadata } from "@/lib/seo";
 import { linkEstimateAction } from "@/modules/booking/actions/contact";
 import { AuthorizationError, requireBookingActor } from "@/modules/booking/authorization";
@@ -81,7 +83,18 @@ export default async function ContractDetailPage({ params }: ContractDetailPageP
     <main className="mx-auto flex w-full max-w-3xl flex-col gap-8 p-6">
       <div className="flex flex-col items-start gap-2">
         {back}
-        <h1 className="text-2xl font-semibold">{contract.number ?? contract.id}</h1>
+        <h1 className="text-2xl font-semibold">
+          <a
+            href={holdedEstimateUrl(contract.id)}
+            target="_blank"
+            rel="noreferrer"
+            className="inline-flex items-center gap-1.5 hover:underline focus-visible:underline"
+          >
+            {contract.number ?? contract.id}
+            <ExternalLink className="size-4 text-muted-foreground" aria-hidden="true" />
+            <span className="sr-only">{t("detail.openInHolded")}</span>
+          </a>
+        </h1>
         {detail.status === "linked" ? (
           <BookingStateBadge
             state={detail.link.state}

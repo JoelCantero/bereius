@@ -729,6 +729,7 @@
     "unlinked": "Not linked",
     "detail": {
       "back": "Back to contracts",
+      "openInHolded": "Open in Holded",
       "summary": "Estimate",
       "contact": "Customer in Holded",
       "linkedTo": "Linked to the request from {name}.",
@@ -776,6 +777,7 @@
       "payments": "Payments",
       "history": "History",
       "noDocuments": "No document has been issued yet.",
+      "openInHolded": "Open in Holded",
       "noPayments": "No payment has been recorded yet.",
       "taxId": "Tax identifier",
       "email": "Email",
