@@ -13,7 +13,7 @@ import type { OutboxJob } from "@/modules/booking/services/outbox";
 import { runQuoteJob } from "@/modules/booking/services/quoting";
 
 const config: HoldedConfig = {
-  accountingAccountId: "acct-1",
+  salesChannelId: "channel-1",
   depositServiceId: "svc-deposit",
   mailTemplateId: "tpl-1",
   paymentMethodId: "pay-1",
@@ -53,8 +53,8 @@ function stubClient(options: StubOptions = {}) {
     sendEstimate: vi.fn(async () => {
       track("sendEstimate", () => undefined);
     }),
-    createInvoiceFromEstimate: vi.fn(async () =>
-      track("createInvoiceFromEstimate", () => ({ id: `inv-${calls.length}`, number: "FAC-1" })),
+    createInvoice: vi.fn(async () =>
+      track("createInvoice", () => ({ id: `inv-${calls.length}`, number: "FAC-1" })),
     ),
     replaceEstimateLines: vi.fn(async () => {
       track("replaceEstimateLines", () => undefined);
@@ -138,7 +138,7 @@ describe.skipIf(!runIntegrationTests)("booking quoting integration", () => {
   it("does not duplicate the estimate when the invoice step fails and the job retries", async () => {
     const booking = await approvedBooking();
 
-    const failing = stubClient({ failOn: "createInvoiceFromEstimate" });
+    const failing = stubClient({ failOn: "createInvoice" });
     await expect(runQuoteJob(job(booking.id), { client: failing.client, config })).rejects.toThrow();
 
     const afterFailure = await db.holdedDocument.findMany({

@@ -204,14 +204,14 @@ export async function saveHoldedSettings(
 
     const parsed = z
       .object({
-        accountingAccountId: z.string().trim().min(1).optional(),
+        salesChannelId: z.string().trim().min(1).optional(),
         depositServiceId: z.string().trim().min(1).optional(),
         paymentMethodId: z.string().trim().min(1).optional(),
         language: z.string().trim().min(2).max(5),
         apiKey: z.string().optional(),
       })
       .parse({
-        accountingAccountId: formData.get("accountingAccountId") || undefined,
+        salesChannelId: formData.get("salesChannelId") || undefined,
         depositServiceId: formData.get("depositServiceId") || undefined,
         paymentMethodId: formData.get("paymentMethodId") || undefined,
         language: formData.get("language") ?? "ca",
@@ -227,7 +227,7 @@ export async function saveHoldedSettings(
     await saveIntegrationSettings({
       provider: "HOLDED",
       config: {
-        accountingAccountId: parsed.accountingAccountId,
+        salesChannelId: parsed.salesChannelId,
         depositServiceId: parsed.depositServiceId,
         mailTemplateId: typeof mailTemplateId === "string" ? mailTemplateId : undefined,
         paymentMethodId: parsed.paymentMethodId,

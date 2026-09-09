@@ -5,8 +5,8 @@ vi.mock("server-only", () => ({}));
 
 import {
   createHoldedClient,
+  HOLDED_BASE_URL,
   HOLDED_MAX_CATALOGUE_PAGES,
-  HOLDED_V2_BASE_URL,
 } from "@/lib/holded/client";
 import { EMAIL_RESPONSE_LIMIT_BYTES } from "@/lib/email/types";
 import { createHttpMailProvider } from "../helpers/http-mail-provider";
@@ -30,35 +30,36 @@ describe("Holded catalogue reads", () => {
 
     expect(options).toEqual([{ id: "svc-1", name: "Pensió completa" }]);
     const [request] = http.requests;
-    expect(request.logicalUrl.startsWith(`${HOLDED_V2_BASE_URL}/services?`)).toBe(true);
+    expect(request.logicalUrl.startsWith(`${HOLDED_BASE_URL}/services?`)).toBe(true);
     expect(request.headers.get("authorization")).toBe("Bearer secret-key");
   });
 
-  it.each(["accounting-accounts", "payment-methods"] as const)(
+  it.each(["sales-channels", "payment-methods"] as const)(
     "reads the %s catalogue from its own route",
     async (resource) => {
       const http = createHttpMailProvider([page({ items: [], has_more: false })]);
 
       await createHoldedClient("secret-key", http.client).listCatalogue(resource);
 
-      expect(http.requests[0].logicalUrl).toContain(`${HOLDED_V2_BASE_URL}/${resource}?`);
+      expect(http.requests[0].logicalUrl).toContain(`${HOLDED_BASE_URL}/${resource}?`);
     },
   );
 
-  it("asks for ledger accounts that have never moved, so a fresh one is offered", async () => {
+  it("labels a sales channel with the ledger account it posts to", async () => {
     const http = createHttpMailProvider([
-      page({ items: [{ id: "acc-1", number: 705, name: "Prestaciones de servicios" }] }),
+      page({
+        items: [{ id: "ch-1", name: "Casa de colònies Berea", account_num: 70500001 }],
+        has_more: false,
+      }),
     ]);
 
     const options = await createHoldedClient("k", http.client).listCatalogue(
-      "accounting-accounts",
+      "sales-channels",
     );
 
-    expect(http.requests[0].logicalUrl).toContain("include_empty=true");
     expect(options).toEqual([
-      { id: "acc-1", name: "705 · Prestaciones de servicios", number: 705 },
+      { id: "ch-1", name: "70500001 · Casa de colònies Berea", number: 70500001 },
     ]);
-    expect(http.requests).toHaveLength(1);
   });
 
   it("follows the cursor until the account is exhausted", async () => {
@@ -117,10 +118,20 @@ describe("Holded catalogue reads", () => {
     ]);
 
     const options = await createHoldedClient("k", http.client).listCatalogue(
-      "accounting-accounts",
+      "sales-channels",
     );
 
     expect(options).toHaveLength(456);
+  });
+
+  it("verifies the key against the API the whole client now uses", async () => {
+    const http = createHttpMailProvider([page({ items: [], has_more: false })]);
+
+    await createHoldedClient("k", http.client).ping();
+
+    expect(http.requests).toHaveLength(1);
+    expect(http.requests[0].logicalUrl).toContain(`${HOLDED_BASE_URL}/services`);
+    expect(http.requests[0].headers.get("authorization")).toBe("Bearer k");
   });
 
   it("reports a refused key instead of passing off an empty catalogue", async () => {
@@ -131,19 +142,5 @@ describe("Holded catalogue reads", () => {
     await expect(
       createHoldedClient("k", http.client).listCatalogue("services"),
     ).rejects.toMatchObject({ code: "unauthorized" });
-  });
-
-  it("verifies both API versions, because each is authenticated separately", async () => {
-    const http = createHttpMailProvider([
-      page({ items: [], has_more: false }),
-      page([]),
-    ]);
-
-    await createHoldedClient("k", http.client).ping();
-
-    expect(http.requests[0].logicalUrl).toContain(`${HOLDED_V2_BASE_URL}/services`);
-    expect(http.requests[0].headers.get("authorization")).toBe("Bearer k");
-    expect(http.requests[1].logicalUrl).toContain("/api/invoicing/v1/contacts");
-    expect(http.requests[1].headers.get("key")).toBe("k");
   });
 });

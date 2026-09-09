@@ -766,8 +766,8 @@
       "holded": {
         "title": "Holded",
         "apiKey": "Clau d'API",
-        "accountingAccountId": "Compte comptable d'ingressos",
-        "accountingAccountHint": "Compte del pla comptable on s'anoten els ingressos de les estades, normalment 705 Prestacions de serveis. S'aplica a les línies de bestreta i dipòsit, que no surten d'un servei.",
+        "salesChannelId": "Canal de venda",
+        "salesChannelHint": "Holded imputa cada línia a un canal de venda, i el canal determina el compte comptable d'ingressos. Per a les estades és «Casa de colònies Berea».",
         "depositServiceId": "Servei de dipòsit",
         "paymentMethodId": "Mètode de pagament",
         "language": "Idioma dels documents",

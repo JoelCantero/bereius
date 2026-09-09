@@ -20,6 +20,10 @@ import {
   type HoldedConfig,
 } from "@/modules/booking/services/settings";
 
+/** Holded identifies a rate by key, confirmed against the account's tax list. */
+const VAT_TAX_KEY = `s_iva_${VAT_PERCENT}`;
+const ZERO_TAX_KEY = "s_iva_0";
+
 export const QUOTE_JOB_KIND = "booking.quote";
 
 export function quoteJobKey(bookingRequestId: string): string {
@@ -101,13 +105,13 @@ export async function runQuoteJob(
 
   // The settings screen allows saving the API key before the identifiers are
   // chosen, so completeness is enforced here rather than blocking that step.
-  if (!config.accountingAccountId || !config.depositServiceId) {
+  if (!config.salesChannelId || !config.depositServiceId) {
     throw new QuotingError(
       "incomplete_configuration",
-      "Holded settings are missing the accounting account or the deposit service",
+      "Holded settings are missing the sales channel or the deposit service",
     );
   }
-  const accountingAccountId = config.accountingAccountId;
+  const salesChannelId = config.salesChannelId;
   const depositServiceId = config.depositServiceId;
 
   // Step 1 — contact. Skipped once the Holded identifier is known.
@@ -180,9 +184,11 @@ export async function runQuoteJob(
 
   const stayLine: HoldedDocumentLine = {
     serviceId,
-    accountingAccountId,
+    salesChannelId,
     units: quote.units,
-    desc: description,
+    price: centsToAmount(quote.unitPriceCents),
+    taxes: [VAT_TAX_KEY],
+    description,
   };
 
   // Step 3 — estimate.
@@ -191,7 +197,7 @@ export async function runQuoteJob(
 
   if (!estimateId) {
     const estimate = await client.createEstimate({
-      contactCode: booking.customer.taxId,
+      contactId: holdedContactId,
       description,
       notes,
       language: config.language,
@@ -221,29 +227,30 @@ export async function runQuoteJob(
   const paymentDueAt = booking.paymentDueAt ?? paymentDeadlineFrom(new Date());
 
   if (!booking.documents.some((doc) => doc.type === "RESERVE_INVOICE")) {
-    const invoice = await client.createInvoiceFromEstimate({
-      contactCode: booking.customer.taxId,
+    // v2 offers no way to reference the source estimate when the lines differ
+    // from it, so the link between the two lives in our own tables.
+    const invoice = await client.createInvoice({
+      contactId: holdedContactId,
       description,
       notes,
       language: config.language,
       paymentMethodId: config.paymentMethodId,
-      fromEstimateId: estimateId,
       dueDate: paymentDueAt,
       items: [
         {
           serviceId: depositServiceId,
           units: 1,
-          desc: "Refundable security deposit",
-          subtotal: centsToAmount(SECURITY_DEPOSIT_CENTS),
+          price: centsToAmount(SECURITY_DEPOSIT_CENTS),
+          taxes: [ZERO_TAX_KEY],
+          description: "Refundable security deposit",
         },
         {
           name: "Advance",
           units: 1,
-          desc: "30% of the stay total",
-          tax: VAT_PERCENT,
-          taxes: `s_iva_${VAT_PERCENT}`,
-          accountingAccountId,
-          subtotal: centsToAmount(quote.advanceNetCents),
+          price: centsToAmount(quote.advanceNetCents),
+          taxes: [VAT_TAX_KEY],
+          salesChannelId,
+          description: "30% of the stay total",
         },
       ],
     });
@@ -265,18 +272,18 @@ export async function runQuoteJob(
     {
       name: "Security deposit",
       units: 1,
-      desc: "Returned after the stay",
-      accountingAccountId,
-      subtotal: -centsToAmount(SECURITY_DEPOSIT_CENTS),
+      price: -centsToAmount(SECURITY_DEPOSIT_CENTS),
+      taxes: [ZERO_TAX_KEY],
+      salesChannelId,
+      description: "Returned after the stay",
     },
     {
       name: "Advance",
       units: 1,
-      desc: "30% of the stay total",
-      tax: VAT_PERCENT,
-      taxes: `s_iva_${VAT_PERCENT}`,
-      accountingAccountId,
-      subtotal: -centsToAmount(quote.advanceNetCents),
+      price: -centsToAmount(quote.advanceNetCents),
+      taxes: [VAT_TAX_KEY],
+      salesChannelId,
+      description: "30% of the stay total",
     },
   ]);
 

@@ -164,7 +164,7 @@ describe.skipIf(!runIntegrationTests)("booking integration settings", () => {
 
     const resolved = await resolveIntegration("HOLDED");
     expect(resolved.secret).toBe("holded-key");
-    expect(resolved.config.accountingAccountId).toBeUndefined();
+    expect(resolved.config.salesChannelId).toBeUndefined();
     expect(resolved.config.depositServiceId).toBeUndefined();
 
     await db.integrationSettings.deleteMany({ where: { provider: "HOLDED" } });

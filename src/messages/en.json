@@ -766,8 +766,8 @@
       "holded": {
         "title": "Holded",
         "apiKey": "API key",
-        "accountingAccountId": "Revenue account",
-        "accountingAccountHint": "The chart-of-accounts entry stay income posts to, usually 705 Services rendered. It applies to the advance and deposit lines, which come from no service.",
+        "salesChannelId": "Sales channel",
+        "salesChannelHint": "Holded posts each line to a sales channel, and the channel decides the revenue account. Stays belong to 'Casa de colònies Berea'.",
         "depositServiceId": "Deposit service",
         "paymentMethodId": "Payment method",
         "language": "Document language",

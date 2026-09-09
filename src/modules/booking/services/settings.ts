@@ -34,12 +34,23 @@ const gravityFormsConfigSchema = z
   })
   .strict();
 
-const holdedConfigSchema = z
-  .object({
+/** Dropped when the field turned out to name a sales channel, not a ledger account. */
+const RETIRED_HOLDED_KEYS = ["accountingAccountId"];
+
+const holdedConfigSchema = z.preprocess(
+  (value) => {
+    if (value === null || typeof value !== "object") return value;
+
+    const copy = { ...(value as Record<string, unknown>) };
+    for (const key of RETIRED_HOLDED_KEYS) delete copy[key];
+    return copy;
+  },
+  z
+    .object({
     // Optional so the API key can be saved first and the identifiers chosen
     // afterwards, once they can be offered as dropdowns. Quoting refuses to run
     // until they are present.
-    accountingAccountId: z.string().min(1).optional(),
+    salesChannelId: z.string().min(1).optional(),
     depositServiceId: z.string().min(1).optional(),
     // Holded publishes no catalogue for mail templates, so the screen cannot
     // offer a choice. Kept only so an already stored value survives a save.
@@ -51,8 +62,9 @@ const holdedConfigSchema = z
       z.string().regex(/^(?:dc|pc)(?:30|40|60|80)$/u),
       z.string().min(1),
     ),
-  })
-  .strict();
+    })
+    .strict(),
+);
 
 const bookingMailConfigSchema = z
   .object({
@@ -220,23 +232,12 @@ export type HoldedCatalogueStatus =
 export interface HoldedCatalogues {
   status: HoldedCatalogueStatus;
   services: HoldedOption[];
-  accounts: HoldedOption[];
+  salesChannels: HoldedOption[];
   paymentMethods: HoldedOption[];
 }
 
 function emptyCatalogues(status: HoldedCatalogueStatus): HoldedCatalogues {
-  return { status, services: [], accounts: [], paymentMethods: [] };
-}
-
-/**
- * Group 7 of the Spanish chart of accounts holds sales and income. Filtering by
- * number rather than by the group label keeps this independent of the language
- * the Holded account renders in.
- */
-const REVENUE_ACCOUNT_GROUP = 7;
-
-function isRevenueAccount(option: HoldedOption): boolean {
-  return option.number !== undefined && String(option.number).startsWith(String(REVENUE_ACCOUNT_GROUP));
+  return { status, services: [], salesChannels: [], paymentMethods: [] };
 }
 
 /**
@@ -255,20 +256,13 @@ export async function readHoldedCatalogues(): Promise<HoldedCatalogues> {
   }
 
   try {
-    const [services, accounts, paymentMethods] = await Promise.all([
+    const [services, salesChannels, paymentMethods] = await Promise.all([
       client.listCatalogue("services"),
-      client.listCatalogue("accounting-accounts"),
+      client.listCatalogue("sales-channels"),
       client.listCatalogue("payment-methods"),
     ]);
 
-    // The chart runs to hundreds of entries, most of them customer ledgers that
-    // could never carry stay income.
-    return {
-      status: "ok",
-      services,
-      accounts: accounts.filter(isRevenueAccount),
-      paymentMethods,
-    };
+    return { status: "ok", services, salesChannels, paymentMethods };
   } catch (error) {
     const refused =
       error instanceof HoldedError &&
