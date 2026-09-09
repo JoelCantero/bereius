@@ -53,7 +53,7 @@ async function seedBookingRequest(): Promise<SeededBooking> {
       `INSERT INTO "BookingRequest"
          ("id","gravityEntryId","customerId","state","boardType","startDate","endDate",
           "headcount","submittedAt","createdAt","updatedAt")
-       VALUES ($1,$2,$3,'RECEIVED','SELF_CATERING','2027-06-01','2027-06-03',40,NOW(),NOW(),NOW())`,
+       VALUES ($1,$2,$3,'IN_REVIEW','SELF_CATERING','2027-06-01','2027-06-03',40,NOW(),NOW(),NOW())`,
       [bookingId, `e2e-${suffix}`, customerId],
     );
   } finally {

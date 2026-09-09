@@ -13,7 +13,6 @@ import {
 import {
   approveBooking,
   cancelBooking,
-  openForReview,
   PaymentError,
   recordPayment,
   rejectBooking,
@@ -38,7 +37,7 @@ export type DecisionActionState =
 const decisionSchema = z.object({
   bookingRequestId: z.string().min(1),
   reason: z.string().trim().max(500).optional(),
-  expectedFrom: z.enum(["RECEIVED", "IN_REVIEW"]).optional(),
+  expectedFrom: z.enum(["IN_REVIEW"]).optional(),
 });
 
 const paymentSchema = z.object({
@@ -74,24 +73,6 @@ function toErrorState(error: unknown): DecisionActionState {
 function refresh(bookingRequestId: string) {
   revalidatePath("/bookings");
   revalidatePath(`/bookings/${bookingRequestId}`);
-}
-
-export async function openBookingForReview(
-  _previous: DecisionActionState,
-  formData: FormData,
-): Promise<DecisionActionState> {
-  try {
-    const actor = await requireBookingActor();
-    const input = decisionSchema.parse({
-      bookingRequestId: formData.get("bookingRequestId"),
-    });
-
-    await openForReview({ ...input, actorUserId: actor.userId });
-    refresh(input.bookingRequestId);
-    return { status: "done" };
-  } catch (error) {
-    return toErrorState(error);
-  }
 }
 
 export async function approveBookingAction(

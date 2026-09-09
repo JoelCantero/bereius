@@ -8,7 +8,6 @@ import { db } from "@/lib/db";
  * which is what makes an approval impossible to skip.
  */
 const ALLOWED_TRANSITIONS: Readonly<Record<BookingState, readonly BookingState[]>> = {
-  RECEIVED: ["IN_REVIEW", "REJECTED"],
   IN_REVIEW: ["APPROVED", "REJECTED"],
   APPROVED: ["AWAITING_PAYMENT", "CANCELLED"],
   AWAITING_PAYMENT: ["CONFIRMED", "EXPIRED", "CANCELLED"],

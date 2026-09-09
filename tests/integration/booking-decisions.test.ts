@@ -10,7 +10,6 @@ import { db } from "@/lib/db";
 import {
   approveBooking,
   cancelBooking,
-  openForReview,
   PaymentError,
   recordPayment,
   rejectBooking,
@@ -32,7 +31,7 @@ describe.skipIf(!runIntegrationTests)("booking decisions integration", () => {
     return user;
   }
 
-  async function booking(state: "RECEIVED" | "IN_REVIEW" | "AWAITING_PAYMENT" = "RECEIVED") {
+  async function booking(state: "IN_REVIEW" | "AWAITING_PAYMENT" = "IN_REVIEW") {
     const suffix = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
     const customer = await db.customer.create({
       data: {
@@ -139,13 +138,17 @@ describe.skipIf(!runIntegrationTests)("booking decisions integration", () => {
   it("refuses a decision taken from a stale screen", async () => {
     const actor = await operator();
     const request = await booking();
-    await openForReview({ bookingRequestId: request.id, actorUserId: actor.id });
+    await approveBooking({
+      bookingRequestId: request.id,
+      actorUserId: actor.id,
+      expectedFrom: "IN_REVIEW",
+    });
 
     await expect(
       approveBooking({
         bookingRequestId: request.id,
         actorUserId: actor.id,
-        expectedFrom: "RECEIVED",
+        expectedFrom: "IN_REVIEW",
       }),
     ).rejects.toMatchObject({ code: "state_changed" });
   });

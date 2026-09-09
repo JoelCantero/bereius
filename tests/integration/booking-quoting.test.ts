@@ -188,7 +188,7 @@ describe.skipIf(!runIntegrationTests)("booking quoting integration", () => {
     const booking = await approvedBooking();
     await db.bookingRequest.update({
       where: { id: booking.id },
-      data: { state: "RECEIVED" },
+      data: { state: "IN_REVIEW" },
     });
     const { client } = stubClient();
 
@@ -224,7 +224,7 @@ describe.skipIf(!runIntegrationTests)("booking quoting integration", () => {
     expect(client.getServicePriceCents).toHaveBeenCalledWith("svc-negotiated");
   });
 
-  it.each(["accountingAccountId", "depositServiceId"] as const)(
+  it.each(["salesChannelId", "depositServiceId"] as const)(
     "refuses to quote while %s is still unconfigured",
     async (missing) => {
       const booking = await approvedBooking();

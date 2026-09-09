@@ -5,12 +5,20 @@ import { db } from "@/lib/db";
 
 export const BOOKING_QUEUE_PAGE_SIZE = 25;
 
+/** Sorting is server-side so it orders the whole queue, not one page of it. */
+export const BOOKING_QUEUE_SORTS = ["submittedAt", "startDate", "state"] as const;
+
+export type BookingQueueSort = (typeof BOOKING_QUEUE_SORTS)[number];
+export type BookingQueueDirection = "asc" | "desc";
+
 export interface BookingQueueFilters {
   state?: BookingState;
   /** Matches customer name, tax identifier or email. */
   search?: string;
   from?: Date;
   to?: Date;
+  sort?: BookingQueueSort;
+  direction?: BookingQueueDirection;
 }
 
 export interface BookingQueueItem {
@@ -54,7 +62,9 @@ export async function listBookingQueue(
           }
         : {}),
     },
-    orderBy: [{ state: "asc" }, { createdAt: "desc" }],
+    orderBy: filters.sort
+      ? [{ [filters.sort]: filters.direction ?? "desc" }]
+      : [{ state: "asc" }, { submittedAt: "desc" }],
     take: BOOKING_QUEUE_PAGE_SIZE,
     select: {
       id: true,

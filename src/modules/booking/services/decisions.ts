@@ -12,7 +12,7 @@ export interface DecisionCommand {
   actorUserId: string;
   reason?: string;
   /** The state the operator saw, so a stale screen cannot overwrite a decision. */
-  expectedFrom?: "RECEIVED" | "IN_REVIEW";
+  expectedFrom?: "IN_REVIEW";
 }
 
 async function notify(
@@ -31,15 +31,6 @@ async function notify(
     to: booking.customer.email,
     subject,
     text,
-  });
-}
-
-export async function openForReview(command: DecisionCommand): Promise<void> {
-  await transitionBooking({
-    bookingRequestId: command.bookingRequestId,
-    to: "IN_REVIEW",
-    actorUserId: command.actorUserId,
-    expectedFrom: "RECEIVED",
   });
 }
 

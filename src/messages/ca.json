@@ -708,7 +708,7 @@
         "stay": "Estada",
         "group": "Grup",
         "state": "Estat",
-        "submitted": "Rebuda"
+        "submitted": "Data de sol·licitud"
       },
       "nights": "{count, plural, one {# nit} other {# nits}}",
       "people": "{count, plural, one {# persona} other {# persones}}",
@@ -739,7 +739,6 @@
       "systemActor": "Tasca programada"
     },
     "actions": {
-      "review": "Comença la revisió",
       "approve": "Aprova",
       "reject": "Rebutja",
       "cancel": "Cancel·la la reserva",
@@ -752,7 +751,6 @@
       "submit": "Desa"
     },
     "states": {
-      "RECEIVED": "Rebuda",
       "IN_REVIEW": "En revisió",
       "APPROVED": "Aprovada",
       "AWAITING_PAYMENT": "Esperant pagament",

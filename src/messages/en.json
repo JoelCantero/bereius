@@ -708,7 +708,7 @@
         "stay": "Stay",
         "group": "Group",
         "state": "State",
-        "submitted": "Received"
+        "submitted": "Request date"
       },
       "nights": "{count, plural, one {# night} other {# nights}}",
       "people": "{count, plural, one {# person} other {# people}}",
@@ -739,7 +739,6 @@
       "systemActor": "Scheduled job"
     },
     "actions": {
-      "review": "Start review",
       "approve": "Approve",
       "reject": "Reject",
       "cancel": "Cancel booking",
@@ -752,7 +751,6 @@
       "submit": "Save"
     },
     "states": {
-      "RECEIVED": "Received",
       "IN_REVIEW": "In review",
       "APPROVED": "Approved",
       "AWAITING_PAYMENT": "Awaiting payment",

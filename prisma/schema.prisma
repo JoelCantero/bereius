@@ -141,7 +141,6 @@ enum BoardType {
 }
 
 enum BookingState {
-  RECEIVED
   IN_REVIEW
   APPROVED
   AWAITING_PAYMENT
@@ -196,7 +195,7 @@ model BookingRequest {
   id             String       @id @default(cuid())
   gravityEntryId String       @unique
   customerId     String
-  state          BookingState @default(RECEIVED)
+  state          BookingState @default(IN_REVIEW)
   boardType      BoardType
   // Calendar dates, never timestamps: night counts must not depend on a time zone.
   startDate      DateTime     @db.Date

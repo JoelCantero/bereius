@@ -106,7 +106,7 @@ describe.skipIf(!runIntegrationTests)("booking intake integration", () => {
     expect(booking).toMatchObject({
       boardType: "SELF_CATERING",
       headcount: 40,
-      state: "RECEIVED",
+      state: "IN_REVIEW",
     });
     expect(booking.startDate.toISOString()).toBe("2027-11-19T00:00:00.000Z");
     expect(booking.endDate.toISOString()).toBe("2027-11-21T00:00:00.000Z");

@@ -708,7 +708,7 @@
         "stay": "Estancia",
         "group": "Grupo",
         "state": "Estado",
-        "submitted": "Recibida"
+        "submitted": "Fecha solicitud"
       },
       "nights": "{count, plural, one {# noche} other {# noches}}",
       "people": "{count, plural, one {# persona} other {# personas}}",
@@ -739,7 +739,6 @@
       "systemActor": "Trabajo programado"
     },
     "actions": {
-      "review": "Empezar revisión",
       "approve": "Aprobar",
       "reject": "Rechazar",
       "cancel": "Cancelar reserva",
@@ -752,7 +751,6 @@
       "submit": "Guardar"
     },
     "states": {
-      "RECEIVED": "Recibida",
       "IN_REVIEW": "En revisión",
       "APPROVED": "Aprobada",
       "AWAITING_PAYMENT": "Esperando pago",

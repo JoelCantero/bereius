@@ -83,11 +83,8 @@ Board type is an enumeration: full board (*pensio completa*, `pc`) or self-cater
 
 ```
                     ┌────────────┐
-                    │  received  │  form submitted, stored, acknowledged
-                    └─────┬──────┘
-                          │ operator opens it
-                    ┌─────▼──────┐
-              ┌─────│ in_review  │─────┐
+                    │ in_review  │  form submitted, stored, acknowledged
+              ┌─────│            │─────┐
               │     └────────────┘     │
      approve  │                        │ reject (reason required)
               │                        │

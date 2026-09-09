@@ -34,7 +34,7 @@ export function DecisionForm({
 }: {
   action: DecisionAction;
   bookingRequestId: string;
-  expectedFrom?: "RECEIVED" | "IN_REVIEW";
+  expectedFrom?: "IN_REVIEW";
   label: string;
   requiresReason?: boolean;
   variant?: "primary" | "secondary" | "danger";

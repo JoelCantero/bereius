@@ -17,7 +17,6 @@ import {
 } from "@/modules/booking/services/lifecycle";
 
 const ALL_STATES: readonly BookingState[] = [
-  "RECEIVED",
   "IN_REVIEW",
   "APPROVED",
   "AWAITING_PAYMENT",
@@ -30,8 +29,6 @@ const ALL_STATES: readonly BookingState[] = [
 ];
 
 const LEGAL_TRANSITIONS: ReadonlyArray<[BookingState, BookingState]> = [
-  ["RECEIVED", "IN_REVIEW"],
-  ["RECEIVED", "REJECTED"],
   ["IN_REVIEW", "APPROVED"],
   ["IN_REVIEW", "REJECTED"],
   ["APPROVED", "AWAITING_PAYMENT"],
@@ -114,8 +111,8 @@ describe.skipIf(!runIntegrationTests)("booking lifecycle integration", () => {
     // Guards against the matrix silently becoming permissive.
     expect(illegal.length).toBeGreaterThan(50);
 
-    const booking = await createBooking("RECEIVED");
-    for (const [from, to] of illegal.filter(([source]) => source === "RECEIVED")) {
+    const booking = await createBooking("IN_REVIEW");
+    for (const [from, to] of illegal.filter(([source]) => source === "IN_REVIEW")) {
       await expect(
         transitionBooking({
           bookingRequestId: booking.id,
@@ -124,16 +121,16 @@ describe.skipIf(!runIntegrationTests)("booking lifecycle integration", () => {
           reason: "attempted anyway",
         }),
       ).rejects.toMatchObject({ code: "illegal_transition" });
-      expect(from).toBe("RECEIVED");
+      expect(from).toBe("IN_REVIEW");
     }
 
     await expect(
       db.bookingRequest.findUniqueOrThrow({ where: { id: booking.id } }),
-    ).resolves.toMatchObject({ state: "RECEIVED" });
+    ).resolves.toMatchObject({ state: "IN_REVIEW" });
   });
 
   it("writes exactly one attributed audit row per transition", async () => {
-    const booking = await createBooking("RECEIVED");
+    const booking = await createBooking("IN_REVIEW");
     const operator = await db.user.create({
       data: {
         email: `operator-${Date.now()}@example.test`,
@@ -145,12 +142,12 @@ describe.skipIf(!runIntegrationTests)("booking lifecycle integration", () => {
     try {
       await transitionBooking({
         bookingRequestId: booking.id,
-        to: "IN_REVIEW",
+        to: "APPROVED",
         actorUserId: operator.id,
       });
       await transitionBooking({
         bookingRequestId: booking.id,
-        to: "APPROVED",
+        to: "AWAITING_PAYMENT",
         actorUserId: operator.id,
       });
 
@@ -161,8 +158,8 @@ describe.skipIf(!runIntegrationTests)("booking lifecycle integration", () => {
 
       expect(events).toHaveLength(2);
       expect(events.map((event) => [event.fromState, event.toState])).toEqual([
-        ["RECEIVED", "IN_REVIEW"],
         ["IN_REVIEW", "APPROVED"],
+        ["APPROVED", "AWAITING_PAYMENT"],
       ]);
       expect(events.every((event) => event.actorUserId === operator.id)).toBe(true);
     } finally {
@@ -171,7 +168,7 @@ describe.skipIf(!runIntegrationTests)("booking lifecycle integration", () => {
   });
 
   it("leaves no audit row when the transition is refused", async () => {
-    const booking = await createBooking("RECEIVED");
+    const booking = await createBooking("IN_REVIEW");
 
     await expect(
       transitionBooking({
@@ -187,7 +184,7 @@ describe.skipIf(!runIntegrationTests)("booking lifecycle integration", () => {
   });
 
   it("requires a reason to reject or cancel, and stores it", async () => {
-    const booking = await createBooking("RECEIVED");
+    const booking = await createBooking("IN_REVIEW");
 
     await expect(
       transitionBooking({
@@ -213,10 +210,10 @@ describe.skipIf(!runIntegrationTests)("booking lifecycle integration", () => {
   });
 
   it("refuses a decision taken against a stale state", async () => {
-    const booking = await createBooking("RECEIVED");
+    const booking = await createBooking("IN_REVIEW");
     await transitionBooking({
       bookingRequestId: booking.id,
-      to: "IN_REVIEW",
+      to: "APPROVED",
       actorUserId: null,
     });
 
@@ -226,13 +223,13 @@ describe.skipIf(!runIntegrationTests)("booking lifecycle integration", () => {
         to: "REJECTED",
         actorUserId: null,
         reason: "second operator, stale screen",
-        expectedFrom: "RECEIVED",
+        expectedFrom: "IN_REVIEW",
       }),
     ).rejects.toMatchObject({ code: "state_changed" });
 
     await expect(
       db.bookingRequest.findUniqueOrThrow({ where: { id: booking.id } }),
-    ).resolves.toMatchObject({ state: "IN_REVIEW" });
+    ).resolves.toMatchObject({ state: "APPROVED" });
   });
 
   it("refuses to move an unknown booking", async () => {
@@ -249,7 +246,7 @@ describe.skipIf(!runIntegrationTests)("booking lifecycle integration", () => {
     for (const state of ["COMPLETED", "REJECTED", "EXPIRED", "CANCELLED"] as const) {
       expect(isTerminal(state)).toBe(true);
     }
-    for (const state of ["RECEIVED", "IN_REVIEW", "APPROVED"] as const) {
+    for (const state of ["IN_REVIEW", "APPROVED"] as const) {
       expect(isTerminal(state)).toBe(false);
     }
   });

@@ -2,20 +2,39 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getTranslations, setRequestLocale } from "next-intl/server";
+import { ArrowDown, ArrowUp, ChevronsUpDown } from "lucide-react";
 
 import type { BookingState } from "@/generated/prisma/enums";
+import {
+  Table,
+  TableBody,
+  TableCaption,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { noIndexMetadata } from "@/lib/seo";
 import { AuthorizationError, requireBookingActor } from "@/modules/booking/authorization";
-import { listBookingQueue } from "@/modules/booking/services/queries";
+import {
+  BOOKING_QUEUE_SORTS,
+  listBookingQueue,
+  type BookingQueueDirection,
+  type BookingQueueSort,
+} from "@/modules/booking/services/queries";
 import { getLoginPathForLocale, parseLoginLocale } from "@/modules/login/schema";
 
 interface BookingsPageProps {
   params: Promise<{ locale: string }>;
-  searchParams: Promise<{ state?: string; q?: string }>;
+  searchParams: Promise<{
+    state?: string;
+    q?: string;
+    sort?: string;
+    dir?: string;
+  }>;
 }
 
 const BOOKING_STATES: readonly BookingState[] = [
-  "RECEIVED",
   "IN_REVIEW",
   "APPROVED",
   "AWAITING_PAYMENT",
@@ -38,6 +57,49 @@ function isBookingState(value: string | undefined): value is BookingState {
   return value !== undefined && BOOKING_STATES.includes(value as BookingState);
 }
 
+function isSort(value: string | undefined): value is BookingQueueSort {
+  return value !== undefined && BOOKING_QUEUE_SORTS.includes(value as BookingQueueSort);
+}
+
+/** Sorting lives in the URL, so it survives a reload and needs no client state. */
+function SortableHead({
+  column,
+  label,
+  sort,
+  direction,
+  filters,
+}: {
+  column: BookingQueueSort;
+  label: string;
+  sort: BookingQueueSort | undefined;
+  direction: BookingQueueDirection;
+  filters: { q?: string; state?: BookingState };
+}) {
+  const active = sort === column;
+  const params = new URLSearchParams({
+    sort: column,
+    dir: active && direction === "desc" ? "asc" : "desc",
+  });
+  if (filters.q) params.set("q", filters.q);
+  if (filters.state) params.set("state", filters.state);
+
+  const Icon = !active ? ChevronsUpDown : direction === "asc" ? ArrowUp : ArrowDown;
+
+  return (
+    <TableHead
+      aria-sort={active ? (direction === "asc" ? "ascending" : "descending") : "none"}
+    >
+      <Link
+        href={`?${params.toString()}`}
+        className="inline-flex items-center gap-1 outline-none hover:underline focus-visible:underline"
+      >
+        {label}
+        <Icon className="size-3.5 text-muted-foreground" aria-hidden="true" />
+      </Link>
+    </TableHead>
+  );
+}
+
 export default async function BookingsPage({ params, searchParams }: BookingsPageProps) {
   const locale = parseLoginLocale((await params).locale);
   setRequestLocale(locale);
@@ -57,9 +119,18 @@ export default async function BookingsPage({ params, searchParams }: BookingsPag
   const t = await getTranslations({ locale, namespace: "Bookings" });
   const dateFormat = new Intl.DateTimeFormat(locale, { dateStyle: "medium", timeZone: "UTC" });
 
-  const bookings = await listBookingQueue({
+  const sort = isSort(query.sort) ? query.sort : undefined;
+  const direction: BookingQueueDirection = query.dir === "asc" ? "asc" : "desc";
+  const filters = {
+    q: query.q,
     state: isBookingState(query.state) ? query.state : undefined,
-    search: query.q,
+  };
+
+  const bookings = await listBookingQueue({
+    state: filters.state,
+    search: filters.q,
+    sort,
+    direction,
   });
 
   return (
@@ -115,45 +186,72 @@ export default async function BookingsPage({ params, searchParams }: BookingsPag
             : t("queue.noneYet")}
         </p>
       ) : (
-        <table className="w-full border-collapse text-sm">
-          <caption className="sr-only">{t("queue.title")}</caption>
-          <thead>
-            <tr className="border-b border-zinc-300 text-left">
-              <th scope="col" className="py-2">{t("queue.columns.customer")}</th>
-              <th scope="col" className="py-2">{t("queue.columns.stay")}</th>
-              <th scope="col" className="py-2">{t("queue.columns.group")}</th>
-              <th scope="col" className="py-2">{t("queue.columns.state")}</th>
-              <th scope="col" className="py-2">
-                <span className="sr-only">{t("queue.open")}</span>
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            {bookings.map((booking) => (
-              <tr key={booking.id} className="border-b border-zinc-200">
-                <td className="py-2">
-                  <span className="font-medium">{booking.customerName}</span>
-                  <span className="block text-xs text-zinc-600">{booking.taxId}</span>
-                </td>
-                <td className="py-2">
-                  {dateFormat.format(booking.startDate)} – {dateFormat.format(booking.endDate)}
-                </td>
-                <td className="py-2">
-                  {t("queue.people", { count: booking.headcount })}
-                  <span className="block text-xs text-zinc-600">
-                    {t(`board.${booking.boardType as "SELF_CATERING" | "FULL_BOARD"}`)}
-                  </span>
-                </td>
-                <td className="py-2">{t(`states.${booking.state}`)}</td>
-                <td className="py-2 text-right">
-                  <Link href={`/bookings/${booking.id}`} className="underline">
-                    {t("queue.open")}
-                  </Link>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        <div className="overflow-hidden rounded-md border">
+          <Table>
+            <TableCaption className="sr-only">{t("queue.title")}</TableCaption>
+            <TableHeader>
+              <TableRow>
+                <TableHead>{t("queue.columns.customer")}</TableHead>
+                <SortableHead
+                  column="submittedAt"
+                  label={t("queue.columns.submitted")}
+                  sort={sort}
+                  direction={direction}
+                  filters={filters}
+                />
+                <SortableHead
+                  column="startDate"
+                  label={t("queue.columns.stay")}
+                  sort={sort}
+                  direction={direction}
+                  filters={filters}
+                />
+                <TableHead>{t("queue.columns.group")}</TableHead>
+                <SortableHead
+                  column="state"
+                  label={t("queue.columns.state")}
+                  sort={sort}
+                  direction={direction}
+                  filters={filters}
+                />
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {bookings.map((booking) => (
+                <TableRow
+                  key={booking.id}
+                  className="relative cursor-pointer focus-within:bg-muted/50 hover:bg-muted/50"
+                >
+                  <TableCell>
+                    {/* The link covers the row, so a click anywhere opens it while
+                        the keyboard still has a single, real target. */}
+                    <Link
+                      href={`/bookings/${booking.id}`}
+                      className="font-medium outline-none after:absolute after:inset-0 focus-visible:underline"
+                    >
+                      {booking.customerName}
+                    </Link>
+                    <span className="block text-xs text-muted-foreground">
+                      {booking.taxId}
+                    </span>
+                  </TableCell>
+                  <TableCell>{dateFormat.format(booking.submittedAt)}</TableCell>
+                  <TableCell>
+                    {dateFormat.format(booking.startDate)} –{" "}
+                    {dateFormat.format(booking.endDate)}
+                  </TableCell>
+                  <TableCell>
+                    {t("queue.people", { count: booking.headcount })}
+                    <span className="block text-xs text-muted-foreground">
+                      {t(`board.${booking.boardType as "SELF_CATERING" | "FULL_BOARD"}`)}
+                    </span>
+                  </TableCell>
+                  <TableCell>{t(`states.${booking.state}`)}</TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
       )}
     </main>
   );

@@ -7,7 +7,6 @@ import { noIndexMetadata } from "@/lib/seo";
 import {
   approveBookingAction,
   cancelBookingAction,
-  openBookingForReview,
   recordPaymentAction,
   rejectBookingAction,
 } from "@/modules/booking/actions/decisions";
@@ -178,15 +177,6 @@ export default async function BookingDetailPage({ params }: BookingDetailPagePro
           {t("detail.title")}
         </h2>
 
-        {booking.state === "RECEIVED" ? (
-          <DecisionForm
-            action={openBookingForReview}
-            bookingRequestId={booking.id}
-            label={t("actions.review")}
-            variant="secondary"
-          />
-        ) : null}
-
         {booking.state === "IN_REVIEW" ? (
           <DecisionForm
             action={approveBookingAction}
@@ -196,7 +186,7 @@ export default async function BookingDetailPage({ params }: BookingDetailPagePro
           />
         ) : null}
 
-        {booking.state === "RECEIVED" || booking.state === "IN_REVIEW" ? (
+        {booking.state === "IN_REVIEW" ? (
           <DecisionForm
             action={rejectBookingAction}
             bookingRequestId={booking.id}
