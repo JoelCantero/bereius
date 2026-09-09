@@ -765,6 +765,36 @@
       "SELF_CATERING": "Dret a cuina",
       "FULL_BOARD": "Pensió completa"
     },
+    "holdedContact": {
+      "title": "Contacte a Holded",
+      "no_key": "Configura la clau d'API de Holded per comprovar el contacte.",
+      "unavailable": "No s'ha pogut consultar Holded. Torna-ho a provar més tard.",
+      "missing": "Aquest NIF encara no existeix a Holded.",
+      "matches": "El contacte existeix i les dades coincideixen.",
+      "differs": "El contacte existeix, però aquestes dades no coincideixen.",
+      "create": "Crea el contacte a Holded",
+      "update": "Actualitza el contacte a Holded",
+      "field": "Dada",
+      "ours": "A la sol·licitud",
+      "theirs": "A Holded",
+      "fields": {
+        "name": "Nom",
+        "email": "Correu",
+        "phone": "Telèfon",
+        "addressLine": "Adreça",
+        "city": "Població",
+        "province": "Província",
+        "postalCode": "Codi postal",
+        "country": "País"
+      }
+    },
+    "holdedEstimates": {
+      "title": "Pressupostos del contacte a Holded",
+      "none": "Aquest contacte no té pressupostos a Holded.",
+      "hint": "El pressupost és el contracte, així que vincular-ne un aprova la sol·licitud.",
+      "link": "Vincula a aquesta sol·licitud",
+      "linked": "Vinculat"
+    },
     "documentTypes": {
       "ESTIMATE": "Pressupost",
       "RESERVE_INVOICE": "Factura de reserva",

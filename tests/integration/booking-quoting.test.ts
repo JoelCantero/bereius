@@ -43,9 +43,10 @@ function stubClient(options: StubOptions = {}) {
     listCatalogue: vi.fn(async () => track("listCatalogue", () => [])),
     findContactByTaxId: vi.fn(async () => track("findContactByTaxId", () => null)),
     createContact: vi.fn(async () => track("createContact", () => ({ id: "contact-1" }))),
-    updateContactEmail: vi.fn(async () => {
-      track("updateContactEmail", () => undefined);
+    updateContact: vi.fn(async () => {
+      track("updateContact", () => undefined);
     }),
+    listEstimatesByContact: vi.fn(async () => track("listEstimatesByContact", () => [])),
     getServicePriceCents: vi.fn(async () => track("getServicePriceCents", () => 1_800)),
     createEstimate: vi.fn(async () =>
       track("createEstimate", () => ({ id: `est-${calls.length}`, number: "PRE-1" })),

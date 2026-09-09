@@ -52,11 +52,49 @@ export class HoldedError extends Error {
 const contactSchema = z
   .object({
     id: z.string().min(1),
+    name: z.string().nullish(),
     code: z.string().nullish(),
     email: z.string().nullish(),
-    name: z.string().nullish(),
+    phone: z.string().nullish(),
+    mobile: z.string().nullish(),
+    bill_address: z
+      .object({
+        address: z.string().nullish(),
+        city: z.string().nullish(),
+        province: z.string().nullish(),
+        postal_code: z.string().nullish(),
+        country: z.string().nullish(),
+      })
+      .nullish(),
   })
   .catchall(z.unknown());
+
+const estimateSummarySchema = z
+  .object({
+    id: z.string().min(1),
+    document_number: z.string().nullish(),
+    description: z.string().nullish(),
+    date: z.string().nullish(),
+    total: z.union([z.string(), z.number()]).nullish(),
+    status: z.string().nullish(),
+    contact_id: z.string().nullish(),
+  })
+  .catchall(z.unknown());
+
+function toContact(raw: z.infer<typeof contactSchema>): HoldedContact {
+  return {
+    id: raw.id,
+    name: raw.name?.trim() || "",
+    taxId: raw.code?.trim() || null,
+    email: raw.email?.trim() || null,
+    phone: raw.phone?.trim() || raw.mobile?.trim() || null,
+    addressLine: raw.bill_address?.address?.trim() || null,
+    city: raw.bill_address?.city?.trim() || null,
+    province: raw.bill_address?.province?.trim() || null,
+    postalCode: raw.bill_address?.postal_code?.trim() || null,
+    country: raw.bill_address?.country?.trim() || null,
+  };
+}
 
 const serviceSchema = z
   .object({
@@ -125,6 +163,30 @@ export interface HoldedDocumentResult {
   number: string | null;
 }
 
+/** What the booking screen compares against; not the whole Holded record. */
+export interface HoldedContact {
+  id: string;
+  name: string;
+  taxId: string | null;
+  email: string | null;
+  /** Holded keeps two numbers and n8n filled the mobile one. */
+  phone: string | null;
+  addressLine: string | null;
+  city: string | null;
+  province: string | null;
+  postalCode: string | null;
+  country: string | null;
+}
+
+export interface HoldedEstimateSummary {
+  id: string;
+  number: string | null;
+  description: string | null;
+  date: string | null;
+  total: string | null;
+  status: string | null;
+}
+
 export interface HoldedClient {
   /** Cheapest authenticated call, used by the settings screen. */
   ping(): Promise<void>;
@@ -133,9 +195,10 @@ export interface HoldedClient {
    * key from an account that genuinely holds no entries.
    */
   listCatalogue(resource: HoldedCatalogueResource): Promise<HoldedOption[]>;
-  findContactByTaxId(taxId: string): Promise<{ id: string; email: string | null } | null>;
+  findContactByTaxId(taxId: string): Promise<HoldedContact | null>;
   createContact(input: HoldedContactInput): Promise<{ id: string }>;
-  updateContactEmail(contactId: string, email: string): Promise<void>;
+  updateContact(contactId: string, input: HoldedContactInput): Promise<void>;
+  listEstimatesByContact(contactId: string): Promise<HoldedEstimateSummary[]>;
   getServicePriceCents(serviceId: string): Promise<number>;
   createEstimate(input: HoldedDocumentInput): Promise<HoldedDocumentResult>;
   sendEstimate(estimateId: string, emails: string[], mailTemplateId?: string): Promise<void>;
@@ -368,7 +431,36 @@ export function createHoldedClient(
       }
 
       const [match] = parsed.data.items;
-      return match ? { id: match.id, email: match.email?.trim() || null } : null;
+      return match ? toContact(match) : null;
+    },
+
+    async listEstimatesByContact(contactId) {
+      const query = new URLSearchParams({ contact_id: contactId, limit: "100" });
+      const payload = await request("GET", `/estimates?${query.toString()}`);
+      const parsed = z
+        .object({ items: z.array(estimateSummarySchema) })
+        .catchall(z.unknown())
+        .safeParse(payload);
+
+      if (!parsed.success) {
+        throw new HoldedError(
+          "malformed_response",
+          "Holded estimate list did not match the expected shape",
+        );
+      }
+
+      return parsed.data.items
+        // Filtered again locally, so a server that ignored the parameter cannot
+        // put another customer's estimate in front of an operator.
+        .filter((item) => item.contact_id === contactId)
+        .map((item) => ({
+          id: item.id,
+          number: item.document_number?.trim() || null,
+          description: item.description?.trim() || null,
+          date: item.date ?? null,
+          total: item.total === null || item.total === undefined ? null : String(item.total),
+          status: item.status ?? null,
+        }));
     },
 
     async createContact(input) {
@@ -399,10 +491,10 @@ export function createHoldedClient(
     },
 
     /**
-     * The endpoint replaces every mutable field, so the contact is read back and
-     * returned whole; sending the email alone would blank the rest.
+     * A partial write blanks every field it omits — the tax id and the whole
+     * billing address included — so the record is read back and merged.
      */
-    async updateContactEmail(contactId, email) {
+    async updateContact(contactId, input) {
       const current = await request("GET", `/contacts/${contactId}`);
       const parsed = contactSchema.safeParse(current);
 
@@ -413,9 +505,35 @@ export function createHoldedClient(
         );
       }
 
-      const mutable = { ...parsed.data };
-      delete (mutable as { id?: unknown }).id;
-      await request("PUT", `/contacts/${contactId}`, { ...mutable, email });
+      const before = parsed.data as Record<string, unknown>;
+      const record = (value: unknown) =>
+        value && typeof value === "object" && "num" in value
+          ? (value as { num: number }).num
+          : undefined;
+
+      await request("PUT", `/contacts/${contactId}`, {
+        // Read back so the accounting defaults and bank details survive; the
+        // records are objects when read and plain numbers when written.
+        ...before,
+        id: undefined,
+        created_at: undefined,
+        updated_at: undefined,
+        rate: undefined,
+        client_record: record(before.client_record),
+        supplier_record: record(before.supplier_record),
+        name: input.name,
+        code: input.code,
+        email: input.email,
+        phone: input.phone ?? null,
+        bill_address: {
+          ...(typeof before.bill_address === "object" ? before.bill_address : {}),
+          address: input.address ?? null,
+          city: input.city ?? null,
+          postal_code: input.postalCode ?? null,
+          province: input.province ?? null,
+          country: input.country ?? null,
+        },
+      });
     },
 
     async getServicePriceCents(serviceId) {

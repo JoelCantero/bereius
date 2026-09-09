@@ -5,13 +5,20 @@ import { getTranslations, setRequestLocale } from "next-intl/server";
 
 import { noIndexMetadata } from "@/lib/seo";
 import {
+  createContactAction,
+  linkEstimateAction,
+  updateContactAction,
+} from "@/modules/booking/actions/contact";
+import {
   approveBookingAction,
   cancelBookingAction,
   recordPaymentAction,
   rejectBookingAction,
 } from "@/modules/booking/actions/decisions";
 import { AuthorizationError, requireBookingActor } from "@/modules/booking/authorization";
+import { ContactSyncButton } from "@/modules/booking/components/contact-sync";
 import { DecisionForm, PaymentForm } from "@/modules/booking/components/decision-forms";
+import { inspectCustomerContact } from "@/modules/booking/services/contact-sync";
 import { getBookingDetail } from "@/modules/booking/services/queries";
 import { getLoginPathForLocale, parseLoginLocale } from "@/modules/login/schema";
 
@@ -57,6 +64,10 @@ export default async function BookingDetailPage({ params }: BookingDetailPagePro
     booking.advanceCents !== null && booking.depositCents !== null
       ? booking.advanceCents + booking.depositCents
       : null;
+
+  const contact = await inspectCustomerContact(booking.id);
+  const linkedEstimateId =
+    booking.documents.find((document) => document.type === "ESTIMATE")?.holdedId ?? null;
 
   return (
     <main className="mx-auto flex w-full max-w-4xl flex-col gap-8 p-6">
@@ -110,7 +121,106 @@ export default async function BookingDetailPage({ params }: BookingDetailPagePro
             </>
           ) : null}
         </dl>
+
+        <div className="flex flex-col gap-2 rounded-md border border-zinc-200 p-3 text-sm">
+          <p className="font-medium">{t("holdedContact.title")}</p>
+
+          {contact.status === "no_key" || contact.status === "unavailable" ? (
+            <p className="text-zinc-600">{t(`holdedContact.${contact.status}`)}</p>
+          ) : null}
+
+          {contact.status === "missing" ? (
+            <>
+              <p className="text-zinc-600">{t("holdedContact.missing")}</p>
+              <ContactSyncButton
+                action={createContactAction}
+                bookingRequestId={booking.id}
+                label={t("holdedContact.create")}
+              />
+            </>
+          ) : null}
+
+          {contact.status === "matches" ? (
+            <p className="text-green-700">{t("holdedContact.matches")}</p>
+          ) : null}
+
+          {contact.status === "differs" ? (
+            <>
+              <p className="text-amber-700">{t("holdedContact.differs")}</p>
+              <table className="w-full text-left text-xs">
+                <thead>
+                  <tr className="text-zinc-600">
+                    <th scope="col" className="py-1">{t("holdedContact.field")}</th>
+                    <th scope="col" className="py-1">{t("holdedContact.ours")}</th>
+                    <th scope="col" className="py-1">{t("holdedContact.theirs")}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {contact.differences.map((difference) => (
+                    <tr key={difference.field} className="border-t border-zinc-100">
+                      <td className="py-1 text-zinc-600">
+                        {t(`holdedContact.fields.${difference.field}`)}
+                      </td>
+                      <td className="py-1">{difference.ours ?? "—"}</td>
+                      <td className="py-1">{difference.theirs ?? "—"}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              <ContactSyncButton
+                action={updateContactAction}
+                bookingRequestId={booking.id}
+                label={t("holdedContact.update")}
+              />
+            </>
+          ) : null}
+        </div>
       </section>
+
+      {contact.status === "matches" || contact.status === "differs" ? (
+        <section aria-labelledby="estimates-heading" className="flex flex-col gap-2">
+          <h2 id="estimates-heading" className="text-lg font-medium">
+            {t("holdedEstimates.title")}
+          </h2>
+          <p className="text-sm text-zinc-600">{t("holdedEstimates.hint")}</p>
+
+          {contact.estimates.length === 0 ? (
+            <p className="text-sm text-zinc-600">{t("holdedEstimates.none")}</p>
+          ) : (
+            <ul className="flex flex-col gap-2 text-sm">
+              {contact.estimates.map((estimate) => (
+                <li
+                  key={estimate.id}
+                  className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-zinc-200 p-2"
+                >
+                  <span>
+                    <span className="font-medium">{estimate.number ?? estimate.id}</span>
+                    {estimate.description ? ` · ${estimate.description}` : ""}
+                    <span className="block text-xs text-zinc-600">
+                      {[estimate.date, estimate.total ? `${estimate.total} €` : null]
+                        .filter(Boolean)
+                        .join(" · ")}
+                    </span>
+                  </span>
+                  {linkedEstimateId === estimate.id ? (
+                    <span className="text-xs text-green-700">
+                      {t("holdedEstimates.linked")}
+                    </span>
+                  ) : (
+                    <ContactSyncButton
+                      action={linkEstimateAction}
+                      bookingRequestId={booking.id}
+                      holdedId={estimate.id}
+                      label={t("holdedEstimates.link")}
+                      variant="secondary"
+                    />
+                  )}
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+      ) : null}
 
       <section aria-labelledby="amounts-heading" className="flex flex-col gap-1">
         <h2 id="amounts-heading" className="text-lg font-medium">

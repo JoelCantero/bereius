@@ -117,27 +117,26 @@ export async function runQuoteJob(
   // Step 1 — contact. Skipped once the Holded identifier is known.
   let holdedContactId = booking.customer.holdedContactId;
   if (!holdedContactId) {
+    const details = {
+      name: booking.customer.name,
+      code: booking.customer.taxId,
+      email: booking.customer.email,
+      phone: booking.customer.phone,
+      address: booking.customer.addressLine,
+      city: booking.customer.city,
+      province: booking.customer.province,
+      postalCode: booking.customer.postalCode,
+      country: booking.customer.country,
+    };
     const existing = await client.findContactByTaxId(booking.customer.taxId);
 
     if (existing) {
       holdedContactId = existing.id;
       if (existing.email?.toLowerCase() !== booking.customer.email.toLowerCase()) {
-        await client.updateContactEmail(existing.id, booking.customer.email);
+        await client.updateContact(existing.id, details);
       }
     } else {
-      holdedContactId = (
-        await client.createContact({
-          name: booking.customer.name,
-          code: booking.customer.taxId,
-          email: booking.customer.email,
-          phone: booking.customer.phone,
-          address: booking.customer.addressLine,
-          city: booking.customer.city,
-          province: booking.customer.province,
-          postalCode: booking.customer.postalCode,
-          country: booking.customer.country,
-        })
-      ).id;
+      holdedContactId = (await client.createContact(details)).id;
     }
 
     await db.customer.update({

@@ -765,6 +765,36 @@
       "SELF_CATERING": "Self-catering",
       "FULL_BOARD": "Full board"
     },
+    "holdedContact": {
+      "title": "Holded contact",
+      "no_key": "Configure the Holded API key to check the contact.",
+      "unavailable": "Holded could not be reached. Try again shortly.",
+      "missing": "This tax id does not exist in Holded yet.",
+      "matches": "The contact exists and the details agree.",
+      "differs": "The contact exists, but these details do not agree.",
+      "create": "Create the contact in Holded",
+      "update": "Update the contact in Holded",
+      "field": "Detail",
+      "ours": "On the request",
+      "theirs": "In Holded",
+      "fields": {
+        "name": "Name",
+        "email": "Email",
+        "phone": "Phone",
+        "addressLine": "Address",
+        "city": "City",
+        "province": "Province",
+        "postalCode": "Postal code",
+        "country": "Country"
+      }
+    },
+    "holdedEstimates": {
+      "title": "Holded estimates for this contact",
+      "none": "This contact has no estimates in Holded.",
+      "hint": "The estimate is the contract, so linking one approves the request.",
+      "link": "Link to this request",
+      "linked": "Linked"
+    },
     "documentTypes": {
       "ESTIMATE": "Estimate",
       "RESERVE_INVOICE": "Reserve invoice",

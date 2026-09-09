@@ -765,6 +765,36 @@
       "SELF_CATERING": "Derecho a cocina",
       "FULL_BOARD": "Pensión completa"
     },
+    "holdedContact": {
+      "title": "Contacto en Holded",
+      "no_key": "Configura la clave de API de Holded para comprobar el contacto.",
+      "unavailable": "No se ha podido consultar Holded. Inténtalo de nuevo más tarde.",
+      "missing": "Este NIF no existe todavía en Holded.",
+      "matches": "El contacto existe y los datos coinciden.",
+      "differs": "El contacto existe, pero estos datos no coinciden.",
+      "create": "Crear contacto en Holded",
+      "update": "Actualizar contacto en Holded",
+      "field": "Dato",
+      "ours": "En la solicitud",
+      "theirs": "En Holded",
+      "fields": {
+        "name": "Nombre",
+        "email": "Correo",
+        "phone": "Teléfono",
+        "addressLine": "Dirección",
+        "city": "Población",
+        "province": "Provincia",
+        "postalCode": "Código postal",
+        "country": "País"
+      }
+    },
+    "holdedEstimates": {
+      "title": "Presupuestos del contacto en Holded",
+      "none": "Este contacto no tiene presupuestos en Holded.",
+      "hint": "El presupuesto es el contrato, así que vincular uno aprueba la solicitud.",
+      "link": "Vincular a esta solicitud",
+      "linked": "Vinculado"
+    },
     "documentTypes": {
       "ESTIMATE": "Presupuesto",
       "RESERVE_INVOICE": "Factura de reserva",
