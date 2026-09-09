@@ -32,9 +32,9 @@ description: "Task list for Berea Booking Manager — Phase 1"
 
 **Purpose**: Confirm a clean baseline and land the configuration surface the rest of the work depends on.
 
-- [ ] T001 Verify the baseline is green before changing anything: run `pnpm install`, `docker compose up -d --wait db`, `pnpm db:deploy`, then `pnpm lint`, `pnpm typecheck` and `pnpm test`
-- [ ] T002 Add `nodemailer` and its types as dependencies, and record the justification already stated in plan.md Complexity Tracking
-- [ ] T003 Extend `src/lib/env.ts` with `HOLDED_API_KEY`, `GRAVITY_FORMS_API_URL`, `GRAVITY_FORMS_CONSUMER_KEY`, `GRAVITY_FORMS_CONSUMER_SECRET`, `GRAVITY_FORMS_FORM_ID` and `BOOKING_MAIL_KEY`, validated with Zod and failing fast at startup; mirror them in `.env.example` with comments and no real values
+- [X] T001 Verify the baseline is green before changing anything: run `pnpm install`, `docker compose up -d --wait db`, `pnpm db:deploy`, then `pnpm lint`, `pnpm typecheck` and `pnpm test`
+- [X] T002 Add `nodemailer` and its types as dependencies, and record the justification already stated in plan.md Complexity Tracking; narrow the SMTP guards in `tests/unit/email-migration.test.ts` to the account email path per the amendment recorded in spec.md
+- [X] T003 Extend `src/lib/env.ts` with `BOOKING_ENABLED`, `HOLDED_API_KEY`, `GRAVITY_FORMS_API_URL`, `GRAVITY_FORMS_CONSUMER_KEY`, `GRAVITY_FORMS_CONSUMER_SECRET`, `GRAVITY_FORMS_FORM_ID` and `BOOKING_MAIL_KEY`, validated with Zod and failing fast at startup; mirror them in `.env.example` with comments and no real values
 
 ---
 

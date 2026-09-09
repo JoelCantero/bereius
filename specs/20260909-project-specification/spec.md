@@ -207,6 +207,26 @@ Account mail and booking mail are separate concerns and must not share configura
 Keeping them apart means a misconfigured booking mailbox can never lock operators out of the
 application, and changing the public sender address does not require a redeploy.
 
+### Amendment to the HTTP provider migration
+
+Feature `20260819-http-email-providers` retired SMTP from this codebase. Its FR-043 forbids a silent
+SMTP fallback and FR-048 requires removing Nodemailer. That decision was about **account mail**: the
+concern was an authentication path quietly degrading to a second transport when the HTTP provider
+fails.
+
+The booking channel is a narrow, deliberate exception, and it does not weaken that intent:
+
+- It is never a fallback. Account mail cannot reach it, and a booking send failure never retries
+  through Brevo.
+- It carries no authentication material — no sign-in link, no access code.
+- It exists because `hola@berea.cat` belongs to the organisation's own mail server, and sending as
+  that address through Brevo would require authenticating the live root domain and editing an SPF
+  record that currently ends in `-all`.
+
+The architectural guards in `tests/unit/email-migration.test.ts` are narrowed accordingly: SMTP
+remains forbidden in `src/lib/email` and in every account flow, and the `smtp-server` fixture stays
+banned outright.
+
 ### Booking mail settings
 
 An administrator configures the booking channel from a settings screen: host, port, TLS mode,

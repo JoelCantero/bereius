@@ -60,10 +60,14 @@ describe("completed HTTP email migration", () => {
     );
   });
 
-  it("contains no application or E2E SMTP/Nodemailer path", async () => {
-    const sourceFiles = (await filesUnder(path.join(root, "src"))).filter((file) =>
-      /\.(?:ts|tsx)$/.test(file),
-    );
+  it("keeps SMTP out of the account email path", async () => {
+    // The booking channel under src/lib/mail sends as the organisation's own
+    // mailbox and is never a fallback for account mail, which is what FR-043 of
+    // the HTTP provider migration forbids.
+    const bookingChannel = path.join(root, "src/lib/mail");
+    const sourceFiles = (await filesUnder(path.join(root, "src")))
+      .filter((file) => /\.(?:ts|tsx)$/.test(file))
+      .filter((file) => !file.startsWith(bookingChannel + path.sep));
     const e2eFiles = (await filesUnder(path.join(root, "tests/e2e"))).filter((file) =>
       /\.(?:ts|mjs)$/.test(file),
     );
@@ -71,6 +75,17 @@ describe("completed HTTP email migration", () => {
 
     expect(source).not.toMatch(/(?:from|require\s*\()\s*["'](?:nodemailer|smtp-server)/i);
     expect(source).not.toMatch(/\b(?:E2E_)?SMTP_[A-Z0-9_]+\b|\bAUTH_EMAIL_ENABLED\b/);
+  });
+
+  it("keeps the account email providers free of any SMTP transport", async () => {
+    const providerFiles = (await filesUnder(path.join(root, "src/lib/email"))).filter(
+      (file) => /\.(?:ts|tsx)$/.test(file),
+    );
+    const source = await combinedContents(providerFiles);
+
+    // Brevo's HTTP endpoint path contains "smtp", so match the transport itself
+    // rather than the word.
+    expect(source).not.toMatch(/nodemailer|createTransport/i);
   });
 
   it("contains no legacy runtime or deployment variable", async () => {
@@ -90,18 +105,17 @@ describe("completed HTTP email migration", () => {
     );
   });
 
-  it("installs no direct or transitive Nodemailer/SMTP fixture package", async () => {
+  it("installs no SMTP test fixture package", async () => {
     const packageJson = await readFile(path.join(root, "package.json"), "utf8");
     const workspace = await readFile(path.join(root, "pnpm-workspace.yaml"), "utf8");
     const lockfile = await readFile(path.join(root, "pnpm-lock.yaml"), "utf8");
     const manifests = `${packageJson}\n${workspace}`;
 
-    expect(manifests).not.toMatch(
-      /(?:^|[\s"'])@?types\/nodemailer|(?:^|[\s"'])nodemailer(?:@|["':])|smtp-server/i,
-    );
-    expect(lockfile).not.toMatch(
-      /^  (?:'@types\/nodemailer@|nodemailer@|smtp-server@)/m,
-    );
+    // `nodemailer` is now a legitimate dependency of the booking mail channel.
+    // `smtp-server` was only ever a fixture for the retired account SMTP tests,
+    // and reintroducing it would mean SMTP crept back into that path.
+    expect(manifests).not.toMatch(/smtp-server/i);
+    expect(lockfile).not.toMatch(/^  smtp-server@/m);
   });
 
   it("adds no provider webhook or runtime endpoint override", async () => {
