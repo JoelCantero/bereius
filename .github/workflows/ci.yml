@@ -39,6 +39,7 @@ jobs:
       contents: read
       actions: read
     outputs:
+      code: ${{ steps.filter.outputs.code }}
       email_preview: ${{ steps.filter.outputs.email_preview }}
       images: ${{ steps.filter.outputs.images }}
       tree: ${{ steps.prior.outputs.tree }}
@@ -94,10 +95,12 @@ jobs:
         run: |
           set -Eeuo pipefail
 
+          code=false
           email_preview=false
           images=false
 
           if [[ "$EVENT_NAME" == "workflow_dispatch" || -z "$BASE_SHA" || "$BASE_SHA" =~ ^0+$ ]]; then
+            code=true
             email_preview=true
             images=true
           else
@@ -108,6 +111,16 @@ jobs:
             fi
 
             while IFS= read -r file; do
+              # Anything outside this documentation allowlist counts as code and
+              # runs the full gate. The allowlist is deliberately narrow.
+              case "$file" in
+                specs/*|*.md|LICENSE)
+                  ;;
+                *)
+                  code=true
+                  ;;
+              esac
+
               case "$file" in
                 emails/*|src/lib/email/*|tests/e2e/email-preview-catalog.spec.ts|package.json|pnpm-lock.yaml|pnpm-workspace.yaml|tsconfig.json|.github/workflows/ci.yml)
                   email_preview=true
@@ -122,6 +135,7 @@ jobs:
             done < <(git diff --name-only "$range")
           fi
 
+          echo "code=$code" >> "$GITHUB_OUTPUT"
           echo "email_preview=$email_preview" >> "$GITHUB_OUTPUT"
           echo "images=$images" >> "$GITHUB_OUTPUT"
 
@@ -166,7 +180,7 @@ jobs:
   tests:
     name: Tests and coverage
     needs: changes
-    if: needs.changes.outputs.validate == 'true'
+    if: needs.changes.outputs.validate == 'true' && needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     env:
@@ -215,7 +229,7 @@ jobs:
   e2e:
     name: Production end-to-end
     needs: changes
-    if: needs.changes.outputs.validate == 'true'
+    if: needs.changes.outputs.validate == 'true' && needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 15
 
@@ -394,6 +408,7 @@ jobs:
         shell: bash
         env:
           VALIDATE: ${{ needs.changes.outputs.validate }}
+          CODE: ${{ needs.changes.outputs.code }}
           CHANGES_RESULT: ${{ needs.changes.result }}
           QUALITY_RESULT: ${{ needs.quality.result }}
           TESTS_RESULT: ${{ needs.tests.result }}
@@ -426,15 +441,30 @@ jobs:
             exit 0
           fi
 
-          for required_result in \
-            "$QUALITY_RESULT" \
-            "$TESTS_RESULT" \
-            "$E2E_RESULT"; do
-            if [[ "$required_result" != "success" ]]; then
-              echo "A required CI job finished with status '$required_result'." >&2
-              exit 1
-            fi
-          done
+          if [[ "$QUALITY_RESULT" != "success" ]]; then
+            echo "A required CI job finished with status '$QUALITY_RESULT'." >&2
+            exit 1
+          fi
+
+          # Documentation-only changes cannot alter test or build outcomes, so
+          # those gates are skipped. Skipping is only ever acceptable there:
+          # once any non-documentation file changes, both must have succeeded.
+          if [[ "$CODE" == "true" ]]; then
+            for required_result in "$TESTS_RESULT" "$E2E_RESULT"; do
+              if [[ "$required_result" != "success" ]]; then
+                echo "A required CI job finished with status '$required_result'." >&2
+                exit 1
+              fi
+            done
+          else
+            for documentation_result in "$TESTS_RESULT" "$E2E_RESULT"; do
+              if [[ "$documentation_result" != "skipped" ]]; then
+                echo "A documentation-only run unexpectedly executed a code gate with status '$documentation_result'." >&2
+                exit 1
+              fi
+            done
+            echo "Documentation-only change: static quality and SpecKit compliance were still enforced."
+          fi
 
           for conditional_result in "$EMAIL_PREVIEW_RESULT" "$IMAGES_RESULT"; do
             if [[ "$conditional_result" != "success" && "$conditional_result" != "skipped" ]]; then
