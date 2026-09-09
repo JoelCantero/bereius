@@ -73,6 +73,7 @@ routing and isolation are out of scope for this version.
 | `CalendarEvent` | Block pushed to the WordPress calendar for a confirmed booking. |
 | `AuditEvent` | Append-only record of every transition: actor, timestamp, previous and new state, reason. |
 | `BookingMailSettings` | SMTP configuration for the booking mail channel, with the password encrypted at rest. |
+| `IntegrationSettings` | Administrator-managed credentials for Holded, Gravity Forms and the bank connection, encrypted at rest. |
 | `IntegrationJob` | Outbox entry for an outbound Holded or calendar call, with attempt count and status. |
 
 Board type is an enumeration: full board (*pensio completa*, `pc`) or self-catering (*dret a cuina*,
@@ -438,8 +439,8 @@ a booking is never released while a valid payment sits unread.
 
 ### Security and data protection
 
-- The Enable Banking private key is a secret read through `src/lib/env.ts`. It is never persisted in
-  the database, never logged, and never included in an export. In the retired workflow it sat in
+- The Enable Banking private key is a secret configured from the settings screen and stored
+  encrypted. It is never logged and never included in an export. In the retired workflow it sat in
   clear text inside the workflow definition, which is how it ended up in an exported file.
 - Session identifiers are credentials and are treated as such.
 - Bank transactions carry third-party personal data, including payer names. Only the fields needed
@@ -466,9 +467,8 @@ a booking is never released while a valid payment sits unread.
 ### Non-functional
 
 - All untrusted input validated with Zod at the boundary.
-- Holded, Gravity Forms and Enable Banking credentials read through `src/lib/env.ts`; never logged.
-- Booking SMTP credentials stored encrypted at rest, write-only from the settings screen, excluded
-  from logs and exports.
+- Integration credentials stored encrypted at rest, write-only from the settings screen, excluded
+  from logs and exports; the envelope key is read through `src/lib/env.ts` and never persisted.
 - Personal data (tax identifier, address, phone) redacted in structured logs.
 - Booking data anonymised on the schedule in *Data retention*.
 - Interface localised in Catalan, Spanish and English through the existing `next-intl` setup.
@@ -521,15 +521,24 @@ Four distinct secrets exist, each with a different blast radius:
 
 | Secret | If leaked | Storage |
 |---|---|---|
-| Enable Banking RSA private key | Read access to the bank account | Environment only |
-| Holded API key | Read and write on invoicing, including issuing documents | Environment only |
-| Gravity Forms API credentials | Read access to every form submission | Environment only |
-| Booking SMTP password | Ability to send mail as the organisation | Database, encrypted at rest |
+| Booking envelope key | Nothing on its own; it decrypts the stored credentials | Environment only |
+| Enable Banking RSA private key | Read access to the bank account | Database, encrypted |
+| Holded API key | Read and write on invoicing, including issuing documents | Database, encrypted |
+| Gravity Forms API credentials | Read access to every form submission | Database, encrypted |
+| Booking SMTP password | Ability to send mail as the organisation | Database, encrypted |
 
-The SMTP password is the only one persisted, because it is configured through the interface. It is
-write-only from the settings screen, excluded from logs and exports, and encrypted with a key held
-in the environment. Storing it in the database is a deliberate trade for operator autonomy, and it
-is the least damaging of the four to lose.
+Every integration credential is configured by an administrator from the settings screen and stored
+encrypted, so changing a provider key never requires a redeploy. The environment holds exactly one
+booking secret: the envelope key that encrypts the rest. It has to live outside the database it
+protects, otherwise the encryption is decorative.
+
+The consequence is explicit: a database dump alone yields nothing usable, and the envelope key alone
+yields nothing either. An attacker needs both. In exchange for that operator autonomy, the key
+becomes the single most valuable secret in the deployment, and rotating it means re-encrypting every
+stored credential.
+
+Stored credentials are write-only from the interface: the settings screen shows whether a value is
+set, never what it is, and no credential appears in a log, an error message or an export.
 
 ### Exposure surfaces
 
@@ -541,6 +550,17 @@ is the least damaging of the four to lose.
 - **Bank access is read-only** under PSD2 account information scope. The application cannot initiate
   a payment even if fully compromised.
 - **Structured logs redact** tax identifiers, addresses and phone numbers.
+
+### Integration settings
+
+Holded, Gravity Forms, the booking mailbox and the bank connection are all configured from an
+administrator-only settings area rather than from deployment configuration. Each integration reports
+whether it is configured and reachable, and a *test connection* action validates credentials at the
+moment they are entered instead of at the first scheduled run.
+
+An integration that is not configured is simply inactive: the scheduled jobs skip it and the
+corresponding screens say so. There is no separate enable flag to fall out of step with the
+credentials.
 
 ## Threats & Abuse Cases
 
@@ -554,6 +574,7 @@ is the least damaging of the four to lose.
 | Replayed or duplicated form entries | Duplicate bookings and duplicate Holded documents | Idempotency keyed on the Gravity Forms entry identifier; the cursor advances only after commit |
 | Enumeration of the iCalendar feed URL | Occupancy calendar disclosed | Feed carries no personal data; occupancy is already public on the website |
 | Leak of the SMTP password from the database | Mail sent impersonating the organisation | Encrypted at rest with an environment-held key; never rendered back to the browser |
+| Database dump containing every integration credential | Full access to invoicing, form submissions and the bank | Credentials are encrypted with an envelope key held only in the environment, so a dump alone is not enough |
 | Holded call storm from retry loops | API quota exhausted, documents duplicated | Outbox with bounded attempts and backoff; every operation idempotent per booking |
 | Consent expiry unnoticed | Payments silently stop being detected and bookings expire unpaid | Expiry tracked, administrators warned in advance, connection state visible in settings |
 | Personal data retained indefinitely | Regulatory exposure, larger breach impact | Scheduled anonymisation on the retention schedule |

@@ -36,13 +36,7 @@ describe("validateEnv", () => {
     delete process.env.MAIL_API_BASE_URL;
     delete process.env.MAIL_FROM_NAME;
     delete process.env.TRUST_PROXY_HEADERS;
-    delete process.env.BOOKING_ENABLED;
-    delete process.env.HOLDED_API_KEY;
-    delete process.env.GRAVITY_FORMS_API_URL;
-    delete process.env.GRAVITY_FORMS_CONSUMER_KEY;
-    delete process.env.GRAVITY_FORMS_CONSUMER_SECRET;
-    delete process.env.GRAVITY_FORMS_FORM_ID;
-    delete process.env.BOOKING_MAIL_KEY;
+    delete process.env.BOOKING_SECRET_KEY;
     Object.assign(process.env, validBrandEnv);
   });
 
@@ -394,7 +388,7 @@ describe("validateEnv", () => {
   });
 
   describe("booking pipeline", () => {
-    const bookingKey = Buffer.alloc(32, 7).toString("base64");
+    const secretKey = Buffer.alloc(32, 7).toString("base64");
 
     function setRequiredEnv() {
       process.env.PROJECT_NAME = "test-app";
@@ -403,97 +397,62 @@ describe("validateEnv", () => {
       process.env.NEXTAUTH_URL = "https://app.example.com";
     }
 
-    function setBookingEnv() {
-      process.env.BOOKING_ENABLED = "true";
-      process.env.HOLDED_API_KEY = "holded-key";
-      process.env.GRAVITY_FORMS_API_URL = "https://berea.test/wp-json/gf/v2";
-      process.env.GRAVITY_FORMS_CONSUMER_KEY = "gf-key";
-      process.env.GRAVITY_FORMS_CONSUMER_SECRET = "gf-secret";
-      process.env.GRAVITY_FORMS_FORM_ID = "3";
-      process.env.BOOKING_MAIL_KEY = bookingKey;
-    }
-
-    it("is disabled by default, so credentials alone never enable it", () => {
+    it("leaves the envelope key unset when it is not provided", () => {
       setRequiredEnv();
-      process.env.HOLDED_API_KEY = "holded-key";
-      process.env.BOOKING_MAIL_KEY = bookingKey;
 
-      expect(validateEnv(process.env).BOOKING).toEqual({ enabled: false });
+      expect(validateEnv(process.env).BOOKING).toEqual({ secretKey: null });
     });
 
-    it("normalizes a complete configuration and decodes the mail key", () => {
+    it("decodes a valid envelope key at startup", () => {
       setRequiredEnv();
-      setBookingEnv();
+      process.env.BOOKING_SECRET_KEY = secretKey;
 
-      const booking = validateEnv(process.env).BOOKING;
-
-      expect(booking).toMatchObject({
-        enabled: true,
-        holded: { apiKey: "holded-key" },
-        gravityForms: {
-          apiUrl: "https://berea.test/wp-json/gf/v2",
-          consumerKey: "gf-key",
-          consumerSecret: "gf-secret",
-          formId: "3",
-        },
-      });
-      expect(booking.enabled && booking.mailSecretKey).toEqual(
-        Buffer.from(bookingKey, "base64"),
+      expect(validateEnv(process.env).BOOKING.secretKey).toEqual(
+        Buffer.from(secretKey, "base64"),
       );
     });
-
-    it.each([
-      "HOLDED_API_KEY",
-      "GRAVITY_FORMS_API_URL",
-      "GRAVITY_FORMS_CONSUMER_KEY",
-      "GRAVITY_FORMS_CONSUMER_SECRET",
-      "GRAVITY_FORMS_FORM_ID",
-      "BOOKING_MAIL_KEY",
-    ])("rejects an enabled pipeline missing %s", (field) => {
-      setRequiredEnv();
-      setBookingEnv();
-      delete process.env[field];
-
-      expect(() => validateEnv(process.env)).toThrow(new RegExp(field));
-    });
-
-    it.each(["http://berea.test/wp-json/gf/v2", "not-a-url"])(
-      "rejects a non-HTTPS Gravity Forms URL %j",
-      (url) => {
-        setRequiredEnv();
-        setBookingEnv();
-        process.env.GRAVITY_FORMS_API_URL = url;
-
-        expect(() => validateEnv(process.env)).toThrow(/GRAVITY_FORMS_API_URL/);
-      },
-    );
 
     it.each([
       Buffer.alloc(16, 1).toString("base64"),
       Buffer.alloc(64, 1).toString("base64"),
       "not base64 at all !!",
-    ])("rejects a booking mail key that is not 32 bytes %j", (key) => {
+    ])("rejects an envelope key that is not 32 bytes %j", (key) => {
       setRequiredEnv();
-      setBookingEnv();
-      process.env.BOOKING_MAIL_KEY = key;
+      process.env.BOOKING_SECRET_KEY = key;
 
-      expect(() => validateEnv(process.env)).toThrow(/BOOKING_MAIL_KEY/);
+      expect(() => validateEnv(process.env)).toThrow(/BOOKING_SECRET_KEY/);
     });
 
-    it("keeps booking credentials out of validation failures", () => {
+    it("keeps the envelope key out of validation failures", () => {
       setRequiredEnv();
-      setBookingEnv();
-      process.env.GRAVITY_FORMS_CONSUMER_SECRET = "super-secret-value";
-      process.env.BOOKING_MAIL_KEY = "too-short";
+      process.env.BOOKING_SECRET_KEY = "short-but-secret-looking-value";
 
       try {
         validateEnv(process.env);
         expect.unreachable("expected validation to fail");
       } catch (error) {
         const output = String(error);
-        expect(output).toContain("BOOKING_MAIL_KEY");
-        expect(output).not.toContain("super-secret-value");
-        expect(output).not.toContain("holded-key");
+        expect(output).toContain("BOOKING_SECRET_KEY");
+        expect(output).not.toContain("short-but-secret-looking-value");
+      }
+    });
+
+    it("exposes no integration credential, because they are application settings", () => {
+      setRequiredEnv();
+      process.env.BOOKING_SECRET_KEY = secretKey;
+
+      const env = validateEnv(process.env);
+
+      expect(Object.keys(env.BOOKING)).toEqual(["secretKey"]);
+      for (const removed of [
+        "BOOKING_ENABLED",
+        "HOLDED_API_KEY",
+        "GRAVITY_FORMS_API_URL",
+        "GRAVITY_FORMS_CONSUMER_KEY",
+        "GRAVITY_FORMS_CONSUMER_SECRET",
+        "GRAVITY_FORMS_FORM_ID",
+      ]) {
+        expect(env).not.toHaveProperty(removed);
       }
     });
   });

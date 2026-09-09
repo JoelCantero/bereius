@@ -55,91 +55,42 @@ export type MailConfig =
   | BrevoMailConfig
   | MailjetMailConfig;
 
-/** AES-256-GCM key length for the stored booking SMTP password. */
-export const BOOKING_MAIL_KEY_BYTES = 32;
+/** AES-256-GCM key length for booking credentials stored in the database. */
+export const BOOKING_SECRET_KEY_BYTES = 32;
 
-interface DisabledBookingConfig {
-  enabled: false;
+export interface BookingConfig {
+  /**
+   * Envelope key for booking settings. Every other booking credential is
+   * configured in the application and stored encrypted with it, so the key must
+   * live outside the database it protects.
+   */
+  secretKey: Buffer | null;
 }
 
-export interface EnabledBookingConfig {
-  enabled: true;
-  holded: { apiKey: string };
-  gravityForms: {
-    apiUrl: string;
-    consumerKey: string;
-    consumerSecret: string;
-    formId: string;
-  };
-  /** Decoded at startup so an unusable key fails fast rather than at first send. */
-  mailSecretKey: Buffer;
-}
-
-export type BookingConfig = DisabledBookingConfig | EnabledBookingConfig;
-
-function decodeBookingMailKey(value: string): Buffer | null {
+function decodeBookingSecretKey(value: string): Buffer | null {
   let decoded: Buffer;
   try {
     decoded = Buffer.from(value, "base64");
   } catch {
     return null;
   }
-  return decoded.length === BOOKING_MAIL_KEY_BYTES ? decoded : null;
+  return decoded.length === BOOKING_SECRET_KEY_BYTES ? decoded : null;
 }
 
 function validateBookingConfig(
-  env: Partial<Record<BookingEnvField, string>> & { BOOKING_ENABLED: boolean },
+  env: { BOOKING_SECRET_KEY?: string },
   context: z.RefinementCtx,
 ): void {
-  if (!env.BOOKING_ENABLED) return;
+  if (env.BOOKING_SECRET_KEY === undefined) return;
 
-  for (const field of [
-    "HOLDED_API_KEY",
-    "GRAVITY_FORMS_CONSUMER_KEY",
-    "GRAVITY_FORMS_CONSUMER_SECRET",
-    "GRAVITY_FORMS_FORM_ID",
-  ] as const) {
-    if (env[field] === undefined) {
-      context.addIssue({
-        code: "custom",
-        path: [field],
-        message: `${field} is required when booking is enabled`,
-      });
-    }
-  }
-
-  const gravityFormsUrl = env.GRAVITY_FORMS_API_URL;
-  if (
-    gravityFormsUrl === undefined ||
-    !z.url().safeParse(gravityFormsUrl).success ||
-    new URL(gravityFormsUrl).protocol !== "https:"
-  ) {
+  if (decodeBookingSecretKey(env.BOOKING_SECRET_KEY) === null) {
     context.addIssue({
       code: "custom",
-      path: ["GRAVITY_FORMS_API_URL"],
-      message: "GRAVITY_FORMS_API_URL must be an HTTPS URL",
-    });
-  }
-
-  if (
-    env.BOOKING_MAIL_KEY === undefined ||
-    decodeBookingMailKey(env.BOOKING_MAIL_KEY) === null
-  ) {
-    context.addIssue({
-      code: "custom",
-      path: ["BOOKING_MAIL_KEY"],
-      message: `BOOKING_MAIL_KEY must be ${BOOKING_MAIL_KEY_BYTES} bytes encoded as base64 (use \`openssl rand -base64 ${BOOKING_MAIL_KEY_BYTES}\`)`,
+      path: ["BOOKING_SECRET_KEY"],
+      message: `BOOKING_SECRET_KEY must be ${BOOKING_SECRET_KEY_BYTES} bytes encoded as base64 (use \`openssl rand -base64 ${BOOKING_SECRET_KEY_BYTES}\`)`,
     });
   }
 }
-
-type BookingEnvField =
-  | "HOLDED_API_KEY"
-  | "GRAVITY_FORMS_API_URL"
-  | "GRAVITY_FORMS_CONSUMER_KEY"
-  | "GRAVITY_FORMS_CONSUMER_SECRET"
-  | "GRAVITY_FORMS_FORM_ID"
-  | "BOOKING_MAIL_KEY";
 
 const rawEnvSchema = z
   .object({
@@ -194,16 +145,7 @@ const rawEnvSchema = z
       emptyToUndefined,
       z.enum(["true", "false"]).default("false").transform((value) => value === "true"),
     ),
-    BOOKING_ENABLED: z.preprocess(
-      emptyToUndefined,
-      z.enum(["true", "false"]).default("false").transform((value) => value === "true"),
-    ),
-    HOLDED_API_KEY: optionalString,
-    GRAVITY_FORMS_API_URL: optionalString,
-    GRAVITY_FORMS_CONSUMER_KEY: optionalString,
-    GRAVITY_FORMS_CONSUMER_SECRET: optionalString,
-    GRAVITY_FORMS_FORM_ID: optionalString,
-    BOOKING_MAIL_KEY: optionalString,
+    BOOKING_SECRET_KEY: optionalString,
   })
   .superRefine((env, context) => {
     const senderName = env.PROJECT_NAME.trim();
@@ -353,19 +295,11 @@ const envSchema = rawEnvSchema.transform((env): Env => {
     ACCOUNT_DATA_EXPORT_TIMEOUT_MS: env.ACCOUNT_DATA_EXPORT_TIMEOUT_MS,
     TRUST_PROXY_HEADERS: env.TRUST_PROXY_HEADERS,
     BRAND: brand,
-    BOOKING: env.BOOKING_ENABLED
-      ? ({
-          enabled: true,
-          holded: { apiKey: env.HOLDED_API_KEY! },
-          gravityForms: {
-            apiUrl: env.GRAVITY_FORMS_API_URL!,
-            consumerKey: env.GRAVITY_FORMS_CONSUMER_KEY!,
-            consumerSecret: env.GRAVITY_FORMS_CONSUMER_SECRET!,
-            formId: env.GRAVITY_FORMS_FORM_ID!,
-          },
-          mailSecretKey: decodeBookingMailKey(env.BOOKING_MAIL_KEY!)!,
-        } satisfies EnabledBookingConfig)
-      : ({ enabled: false } as const),
+    BOOKING: {
+      secretKey: env.BOOKING_SECRET_KEY
+        ? decodeBookingSecretKey(env.BOOKING_SECRET_KEY)
+        : null,
+    } satisfies BookingConfig,
   };
 
   if (!env.MAIL_ENABLED) {

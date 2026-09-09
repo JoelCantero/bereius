@@ -37,7 +37,7 @@ classification are inherited rather than reimplemented.
 Auth.js (NextAuth 4, patched), next-intl, Pino. One new runtime dependency: `nodemailer` for the SMTP
 booking channel — see Complexity Tracking.
 
-**Storage**: PostgreSQL via Prisma. Seven new tables and one new column on `User`. No existing table
+**Storage**: PostgreSQL via Prisma. Eight new tables and one new column on `User`. No existing table
 is altered beyond that column.
 
 **Money**: integer minor units (cents) stored as `Int`. Rounding is explicit at the boundary where an
@@ -66,11 +66,12 @@ there is no second build.
 
 **CI/CD**: GitHub Actions. No pipeline change beyond the existing gates covering the new code.
 
-**Secrets**: Three new environment secrets — Holded API key, Gravity Forms API credentials, and
-`BOOKING_MAIL_KEY`, the AES-256-GCM key that encrypts the stored SMTP password. All read through
-`src/lib/env.ts`. The SMTP password itself is deliberately not an environment variable: it is
-configured through the interface, and stored encrypted, so an operator can change the mailbox without
-a redeploy.
+**Secrets**: One new environment secret, `BOOKING_SECRET_KEY`: the AES-256-GCM envelope key that
+encrypts every stored integration credential. Read through `src/lib/env.ts`. The Holded API key, the
+Gravity Forms credentials and the booking SMTP password are deliberately **not** environment
+variables: administrators configure them in the application and they are stored encrypted, so
+changing a provider key never requires a redeploy. The envelope key must stay outside the database
+it protects.
 
 **Observability**: Existing Pino logger. New structured events for intake batches (entries read,
 created, skipped), state transitions, outbox attempts with outcome class, and Holded call outcomes.
@@ -99,8 +100,8 @@ worker must be idempotent and safe to restart mid-batch. No booking may reach a 
 without an audit record. Personal data must never appear in logs or in the calendar feed.
 
 **Scale/Scope**: Single-instance self-hosted deployment; tens of booking requests per month. Scope
-for this phase: 1 migration, 7 tables, 1 domain module, 2 integration clients, 1 worker service,
-3 screens, 3 message catalogues.
+for this phase: 1 migration, 8 tables, 1 domain module, 2 integration clients, 1 worker service,
+4 screens, 3 message catalogues.
 
 ## Constitution Check
 
@@ -111,8 +112,8 @@ for this phase: 1 migration, 7 tables, 1 domain module, 2 integration clients, 1
 | I. Docker-First, Portable by Default | One new service built from the existing image; no host path, no host-specific configuration | PASS |
 | II. Separate by Operational Responsibility | Scheduled and retryable work moves to a `worker`, which is exactly the separation this principle calls for; the split is operational, not an artificial layer | PASS |
 | III. Reverse Proxy and Network Isolation | The worker joins `internal` only and publishes no port; no new ingress surface | PASS |
-| IV. VPS Migration as Design Constraint | New service and secrets are declarative; the migration checklist gains three environment variables and one service | PASS |
-| V. Secrets Never Committed | Three new environment secrets, none committed; the SMTP password is encrypted at rest with an environment-held key | PASS |
+| IV. VPS Migration as Design Constraint | New service and secrets are declarative; the migration checklist gains one environment variable and one service | PASS |
+| V. Secrets Never Committed | One new environment secret, not committed; every integration credential is stored encrypted with it rather than deployed | PASS |
 | VI. Data Persistence, Backups, Restore | Additive migration only; backup and restore procedure unchanged; corrective forward migration defined | PASS |
 | VII. Minimal, Boring, Maintainable Stack | One new dependency (`nodemailer`), justified below; integration clients reuse the existing provider HTTP pattern rather than adding SDKs | PASS |
 | VIII. Health, Logs, Resource Awareness | Structured events for intake, transitions and outbox outcomes; the worker logs failures and shuts down gracefully | PASS |

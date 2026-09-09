@@ -34,7 +34,7 @@ description: "Task list for Berea Booking Manager — Phase 1"
 
 - [X] T001 Verify the baseline is green before changing anything: run `pnpm install`, `docker compose up -d --wait db`, `pnpm db:deploy`, then `pnpm lint`, `pnpm typecheck` and `pnpm test`
 - [X] T002 Add `nodemailer` and its types as dependencies, and record the justification already stated in plan.md Complexity Tracking; narrow the SMTP guards in `tests/unit/email-migration.test.ts` to the account email path per the amendment recorded in spec.md
-- [X] T003 Extend `src/lib/env.ts` with `BOOKING_ENABLED`, `HOLDED_API_KEY`, `GRAVITY_FORMS_API_URL`, `GRAVITY_FORMS_CONSUMER_KEY`, `GRAVITY_FORMS_CONSUMER_SECRET`, `GRAVITY_FORMS_FORM_ID` and `BOOKING_MAIL_KEY`, validated with Zod and failing fast at startup; mirror them in `.env.example` with comments and no real values
+- [X] T003 Reduce the booking environment surface to a single secret: `BOOKING_SECRET_KEY`, the AES-256-GCM envelope key, validated with Zod and decoded at startup so an unusable value fails fast; every integration credential is an application setting instead. Mirror it in `.env.example` with comments and no real value
 
 ---
 
@@ -44,7 +44,7 @@ description: "Task list for Berea Booking Manager — Phase 1"
 
 **CRITICAL**: No capability work can begin until this phase is complete.
 
-- [ ] T004 Add the booking models and enums to `prisma/schema.prisma` per data-model.md: `Customer`, `BookingRequest`, `HoldedDocument`, `Payment`, `BookingAuditEvent`, `IntegrationJob`, `BookingMailSettings`, plus `BookingState`, `BoardType`, `DocumentType`, `IntegrationJobStatus` and `UserRole`; add `role UserRole @default(OPERATOR)` to `User` without touching its other fields
+- [ ] T004 Add the booking models and enums to `prisma/schema.prisma` per data-model.md: `Customer`, `BookingRequest`, `HoldedDocument`, `Payment`, `BookingAuditEvent`, `IntegrationJob`, `IntegrationSettings`, `BookingMailSettings`, plus `BookingState`, `BoardType`, `DocumentType`, `IntegrationJobStatus` and `UserRole`; add `role UserRole @default(OPERATOR)` to `User` without touching its other fields
 - [ ] T005 Add indexes for the read paths that exist: `BookingRequest` on `(state, createdAt)` and on `gravityEntryId` (unique), `IntegrationJob` on `(status, runAfter)`, `Customer` on `taxId` (unique)
 - [ ] T006 Create the forward-only migration with `pnpm db:migrate --name add_booking_pipeline` and confirm the generated SQL only creates tables, types and one nullable-safe column with a default — no rewrite, no backfill
 - [ ] T007 Implement the state machine in `src/modules/booking/services/lifecycle.ts`: allowed transitions only, reason required for reject and cancel, and every transition writing a `BookingAuditEvent` inside the same transaction as the state change
@@ -97,9 +97,9 @@ description: "Task list for Berea Booking Manager — Phase 1"
 
 **Purpose**: A configurable SMTP sender, independent from the account mail provider.
 
-- [ ] T022 Implement AES-256-GCM encryption helpers in `src/lib/mail/secret.ts` using Node `crypto` and `BOOKING_MAIL_KEY`, with the plaintext never returned once stored
+- [ ] T022 Implement AES-256-GCM encryption helpers in `src/lib/mail/secret.ts` using Node `crypto` and `BOOKING_SECRET_KEY`, with the plaintext never returned once stored
 - [ ] T023 Implement the SMTP transport in `src/lib/mail/smtp.ts` and a `sendTest` operation used by the settings screen, keeping the transport out of the request path by dispatching through the outbox
-- [ ] T024 Build the settings screen and Server Action in `src/modules/booking/components/mail-settings-form.tsx` and `src/modules/booking/actions/mail-settings.ts`: administrator-only, password write-only, a send-test action that reports the failure reason without leaking the credential
+- [ ] T024 Build the integration settings screens and Server Actions in `src/modules/booking/components/` and `src/modules/booking/actions/settings.ts`: administrator-only, covering Holded, Gravity Forms and the booking mailbox; every credential write-only, each with a test-connection action that reports the failure reason without leaking the credential
 - [ ] T025 Write unit tests in `tests/unit/booking-mail-settings.test.ts` proving the password is never present in a returned object, a log line or an error message, and that saving without changing the password preserves the stored one
 
 ---
@@ -124,7 +124,7 @@ description: "Task list for Berea Booking Manager — Phase 1"
 **Purpose**: Retire n8n only once the replacement is proven.
 
 - [ ] T034 Run both systems in parallel against production data for one review cycle, comparing the amounts the application computes with the amounts n8n produces, and record the comparison
-- [ ] T035 Switch off the n8n workflows, revoke the credentials they used, and update `README.md` with the new operational picture: the worker service, the three new secrets and the booking settings screen
+- [ ] T035 Switch off the n8n workflows, revoke the credentials they used, and update `README.md` with the new operational picture: the worker service, the `BOOKING_SECRET_KEY` secret and the integration settings screens
 - [ ] T036 Run the full gate before opening the pull request: `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm test:e2e` and `pnpm audit:prod`
 
 ---
