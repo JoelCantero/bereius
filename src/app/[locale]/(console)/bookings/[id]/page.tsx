@@ -18,6 +18,7 @@ import {
 import { AuthorizationError, requireBookingActor } from "@/modules/booking/authorization";
 import { ContactSyncButton } from "@/modules/booking/components/contact-sync";
 import { DecisionForm, PaymentForm } from "@/modules/booking/components/decision-forms";
+import { BookingStateBadge } from "@/modules/booking/components/state-badge";
 import { inspectCustomerContact } from "@/modules/booking/services/contact-sync";
 import { getBookingDetail } from "@/modules/booking/services/queries";
 import { getLoginPathForLocale, parseLoginLocale } from "@/modules/login/schema";
@@ -71,12 +72,15 @@ export default async function BookingDetailPage({ params }: BookingDetailPagePro
 
   return (
     <main className="mx-auto flex w-full max-w-4xl flex-col gap-8 p-6">
-      <div className="flex flex-col gap-2">
+      <div className="flex flex-col items-start gap-2">
         <Link href="/bookings" className="text-sm underline">
           {t("detail.back")}
         </Link>
         <h1 className="text-2xl font-semibold">{booking.customer.name}</h1>
-        <p className="text-sm text-zinc-600">{t(`states.${booking.state}`)}</p>
+        <BookingStateBadge
+          state={booking.state}
+          label={t(`states.${booking.state}`)}
+        />
       </div>
 
       <section aria-labelledby="stay-heading" className="flex flex-col gap-2">

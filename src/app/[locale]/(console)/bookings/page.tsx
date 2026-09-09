@@ -17,6 +17,7 @@ import {
 import { noIndexMetadata } from "@/lib/seo";
 import { AuthorizationError, requireBookingActor } from "@/modules/booking/authorization";
 import { QueueFilters } from "@/modules/booking/components/queue-filters";
+import { BookingStateBadge } from "@/modules/booking/components/state-badge";
 import {
   BOOKING_QUEUE_SORTS,
   listBookingQueue,
@@ -193,7 +194,7 @@ export default async function BookingsPage({ params, searchParams }: BookingsPag
                   key={booking.id}
                   className="relative cursor-pointer focus-within:bg-muted/50 hover:bg-muted/50"
                 >
-                  <TableCell>
+                  <TableCell className="whitespace-normal">
                     {/* The link covers the row, so a click anywhere opens it while
                         the keyboard still has a single, real target. */}
                     <Link
@@ -207,17 +208,22 @@ export default async function BookingsPage({ params, searchParams }: BookingsPag
                     </span>
                   </TableCell>
                   <TableCell>{dateFormat.format(booking.submittedAt)}</TableCell>
-                  <TableCell>
+                  <TableCell className="whitespace-normal">
                     {dateFormat.format(booking.startDate)} –{" "}
                     {dateFormat.format(booking.endDate)}
                   </TableCell>
-                  <TableCell>
+                  <TableCell className="whitespace-normal">
                     {t("queue.people", { count: booking.headcount })}
                     <span className="block text-xs text-muted-foreground">
                       {t(`board.${booking.boardType as "SELF_CATERING" | "FULL_BOARD"}`)}
                     </span>
                   </TableCell>
-                  <TableCell>{t(`states.${booking.state}`)}</TableCell>
+                  <TableCell>
+                    <BookingStateBadge
+                      state={booking.state}
+                      label={t(`states.${booking.state}`)}
+                    />
+                  </TableCell>
                 </TableRow>
               ))}
             </TableBody>
