@@ -9,6 +9,18 @@ import { GRAVITY_FORM_FIELD_KEYS } from "@/modules/booking/schema";
 /** Mirrors the Prisma enum: a client module must not import from the server. */
 type IntegrationProvider = "HOLDED" | "GRAVITY_FORMS" | "BOOKING_MAIL";
 
+export interface CatalogueOption {
+  id: string;
+  name: string;
+}
+
+export interface HoldedCatalogueOptions {
+  services: CatalogueOption[];
+  accounts: CatalogueOption[];
+  paymentMethods: CatalogueOption[];
+  mailTemplates: CatalogueOption[];
+}
+
 type SettingsAction = (
   previous: SettingsActionState,
   formData: FormData,
@@ -78,6 +90,54 @@ function Field({
   );
 }
 
+/**
+ * A dropdown when the catalogue could be read from Holded, a text field when it
+ * could not. Configuration must never depend on a list call succeeding.
+ */
+function Choice({
+  name,
+  label,
+  options,
+  defaultValue,
+  required = false,
+  emptyLabel,
+}: {
+  name: string;
+  label: string;
+  options: CatalogueOption[];
+  defaultValue?: string;
+  required?: boolean;
+  emptyLabel: string;
+}) {
+  if (options.length === 0) {
+    return (
+      <Field name={name} label={label} defaultValue={defaultValue} required={required} />
+    );
+  }
+
+  return (
+    <div className="flex flex-col gap-1">
+      <label htmlFor={name} className="text-sm font-medium">
+        {label}
+      </label>
+      <select
+        id={name}
+        name={name}
+        required={required}
+        defaultValue={defaultValue ?? ""}
+        className="rounded-md border border-zinc-300 p-2 text-sm"
+      >
+        <option value="">{emptyLabel}</option>
+        {options.map((option) => (
+          <option key={option.id} value={option.id}>
+            {option.name}
+          </option>
+        ))}
+      </select>
+    </div>
+  );
+}
+
 function TestButton({
   provider,
   onTest,
@@ -110,11 +170,13 @@ export function HoldedSettingsForm({
   onTest,
   config,
   hasSecret,
+  catalogues,
 }: {
   action: SettingsAction;
   onTest: (provider: IntegrationProvider) => Promise<SettingsActionState>;
   config: Record<string, unknown> | null;
   hasSecret: boolean;
+  catalogues: HoldedCatalogueOptions;
 }) {
   const t = useTranslations("Bookings.settings");
   const [state, formAction, pending] = useActionState(action, IDLE);
@@ -126,6 +188,13 @@ export function HoldedSettingsForm({
         {t("holded.title")}
       </h2>
 
+      {hasSecret && catalogues.services.length === 0 ? (
+        <p className="text-sm text-amber-700">{t("holded.cataloguesUnavailable")}</p>
+      ) : null}
+      {!hasSecret ? (
+        <p className="text-sm text-zinc-600">{t("holded.keyFirst")}</p>
+      ) : null}
+
       <form action={formAction} className="flex flex-col gap-3">
         <Field
           name="apiKey"
@@ -133,27 +202,35 @@ export function HoldedSettingsForm({
           label={t("holded.apiKey")}
           hint={hasSecret ? t("secretStored") : t("secretHint")}
         />
-        <Field
+        <Choice
           name="accountingAccountId"
           label={t("holded.accountingAccountId")}
+          options={catalogues.accounts}
           required
           defaultValue={String(config?.accountingAccountId ?? "")}
+          emptyLabel={t("choose")}
         />
-        <Field
+        <Choice
           name="depositServiceId"
           label={t("holded.depositServiceId")}
+          options={catalogues.services}
           required
           defaultValue={String(config?.depositServiceId ?? "")}
+          emptyLabel={t("choose")}
         />
-        <Field
+        <Choice
           name="mailTemplateId"
           label={t("holded.mailTemplateId")}
+          options={catalogues.mailTemplates}
           defaultValue={String(config?.mailTemplateId ?? "")}
+          emptyLabel={t("choose")}
         />
-        <Field
+        <Choice
           name="paymentMethodId"
           label={t("holded.paymentMethodId")}
+          options={catalogues.paymentMethods}
           defaultValue={String(config?.paymentMethodId ?? "")}
+          emptyLabel={t("choose")}
         />
         <Field
           name="language"
@@ -166,11 +243,13 @@ export function HoldedSettingsForm({
           <legend className="text-sm font-medium">{t("holded.services")}</legend>
           <div className="grid grid-cols-2 gap-3">
             {RATE_SKUS.map((sku) => (
-              <Field
+              <Choice
                 key={sku}
                 name={`service.${sku}`}
                 label={sku}
+                options={catalogues.services}
                 defaultValue={services[sku] ?? ""}
+                emptyLabel={t("choose")}
               />
             ))}
           </div>

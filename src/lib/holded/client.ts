@@ -94,9 +94,21 @@ export interface HoldedInvoiceInput extends HoldedEstimateInput {
   dueDate: Date;
 }
 
+export interface HoldedOption {
+  id: string;
+  name: string;
+}
+
 export interface HoldedClient {
   /** Cheapest authenticated call, used by the settings screen. */
   ping(): Promise<void>;
+  listServices(): Promise<HoldedOption[]>;
+  /**
+   * Best-effort lookup for the settings dropdowns. Returns an empty list when
+   * the endpoint is unavailable, so the screen degrades to a free-text field
+   * instead of failing.
+   */
+  listOptions(resource: string): Promise<HoldedOption[]>;
   findContactByTaxId(taxId: string): Promise<{ id: string; email: string | null } | null>;
   createContact(input: HoldedContactInput): Promise<{ id: string }>;
   updateContactEmail(contactId: string, email: string): Promise<void>;
@@ -133,6 +145,24 @@ function classify(outcome: ProviderHttpOutcome): HoldedError | null {
 
 function toCents(amount: number): number {
   return Math.round(amount * 100);
+}
+
+const optionSchema = z
+  .object({ id: z.union([z.string(), z.number()]).transform(String) })
+  .catchall(z.unknown());
+
+/** Holded names a resource differently per endpoint, so several keys are tried. */
+function readOptions(payload: unknown): HoldedOption[] {
+  const parsed = z.array(optionSchema).safeParse(payload);
+  if (!parsed.success) return [];
+
+  return parsed.data.map((item) => {
+    const label = ["name", "desc", "title", "sku"]
+      .map((key) => item[key])
+      .find((value) => typeof value === "string" && value.trim().length > 0);
+
+    return { id: item.id, name: typeof label === "string" ? label : item.id };
+  });
 }
 
 export function createHoldedClient(
@@ -175,6 +205,19 @@ export function createHoldedClient(
   return {
     async ping() {
       await request("GET", "/contacts?page=1");
+    },
+
+    async listServices() {
+      return readOptions(await request("GET", "/services"));
+    },
+
+    async listOptions(resource) {
+      try {
+        return readOptions(await request("GET", `/${resource}`));
+      } catch {
+        // The settings screen falls back to a text field rather than failing.
+        return [];
+      }
     },
 
     /**

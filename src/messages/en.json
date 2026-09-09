@@ -768,7 +768,9 @@
         "mailTemplateId": "Mail template id",
         "paymentMethodId": "Payment method id",
         "language": "Document language",
-        "services": "Service id per rate"
+        "services": "Service id per rate",
+        "keyFirst": "Save the API key first and the identifiers become dropdowns.",
+        "cataloguesUnavailable": "Holded did not return the lists, so identifiers stay as text fields."
       },
       "gravityForms": {
         "title": "Gravity Forms",
@@ -810,7 +812,8 @@
         "HOLDED": "Holded",
         "GRAVITY_FORMS": "Gravity Forms",
         "BOOKING_MAIL": "Notification email"
-      }
+      },
+      "choose": "Choose an option"
     }
   }
 }

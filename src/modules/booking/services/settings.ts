@@ -9,6 +9,7 @@ import {
   openSecret,
   sealSecret,
 } from "@/lib/booking/secrets";
+import { createHoldedClient, type HoldedOption } from "@/lib/holded/client";
 import {
   DEFAULT_GRAVITY_FORM_FIELDS,
   gravityFormFieldMapSchema,
@@ -199,6 +200,45 @@ export async function readIntegrationConfig(
   return row?.config && typeof row.config === "object"
     ? (row.config as Record<string, unknown>)
     : null;
+}
+
+export interface HoldedCatalogues {
+  services: HoldedOption[];
+  accounts: HoldedOption[];
+  paymentMethods: HoldedOption[];
+  mailTemplates: HoldedOption[];
+}
+
+const EMPTY_CATALOGUES: HoldedCatalogues = {
+  services: [],
+  accounts: [],
+  paymentMethods: [],
+  mailTemplates: [],
+};
+
+/**
+ * Loads what the settings dropdowns need once a Holded key is stored.
+ *
+ * Every list is best-effort: an unconfigured or unreachable Holded leaves the
+ * screen usable with plain text fields rather than blocking configuration.
+ */
+export async function readHoldedCatalogues(): Promise<HoldedCatalogues> {
+  let client;
+  try {
+    const { secret } = await resolveIntegration("HOLDED");
+    client = createHoldedClient(secret);
+  } catch {
+    return EMPTY_CATALOGUES;
+  }
+
+  const [services, accounts, paymentMethods, mailTemplates] = await Promise.all([
+    client.listServices().catch(() => []),
+    client.listOptions("expensesaccounts"),
+    client.listOptions("paymentmethods"),
+    client.listOptions("mailtemplates"),
+  ]);
+
+  return { services, accounts, paymentMethods, mailTemplates };
 }
 
 /**

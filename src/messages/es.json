@@ -768,7 +768,9 @@
         "mailTemplateId": "Id de plantilla de correo",
         "paymentMethodId": "Id de método de pago",
         "language": "Idioma de los documentos",
-        "services": "Id de servicio por tarifa"
+        "services": "Id de servicio por tarifa",
+        "keyFirst": "Guarda primero la clave de API y los identificadores pasarán a ser desplegables.",
+        "cataloguesUnavailable": "Holded no ha devuelto las listas, así que los identificadores siguen siendo campos de texto."
       },
       "gravityForms": {
         "title": "Gravity Forms",
@@ -810,7 +812,8 @@
         "HOLDED": "Holded",
         "GRAVITY_FORMS": "Gravity Forms",
         "BOOKING_MAIL": "Correo de notificaciones"
-      }
+      },
+      "choose": "Elige una opción"
     }
   }
 }

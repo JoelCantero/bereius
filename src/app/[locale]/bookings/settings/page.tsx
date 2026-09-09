@@ -19,6 +19,7 @@ import {
 import { DEFAULT_GRAVITY_FORM_FIELDS } from "@/modules/booking/schema";
 import {
   listIntegrationStatus,
+  readHoldedCatalogues,
   readIntegrationConfig,
 } from "@/modules/booking/services/settings";
 import { getLoginPathForLocale, parseLoginLocale } from "@/modules/login/schema";
@@ -54,11 +55,12 @@ export default async function BookingSettingsPage({ params }: SettingsPageProps)
   const queue = await getTranslations({ locale, namespace: "Bookings.queue" });
   const dateFormat = new Intl.DateTimeFormat(locale, { dateStyle: "medium" });
 
-  const [statuses, holded, gravityForms, mail] = await Promise.all([
+  const [statuses, holded, gravityForms, mail, catalogues] = await Promise.all([
     listIntegrationStatus(),
     readIntegrationConfig("HOLDED"),
     readIntegrationConfig("GRAVITY_FORMS"),
     readIntegrationConfig("BOOKING_MAIL"),
+    readHoldedCatalogues(),
   ]);
 
   const statusFor = (provider: "HOLDED" | "GRAVITY_FORMS" | "BOOKING_MAIL") =>
@@ -92,6 +94,7 @@ export default async function BookingSettingsPage({ params }: SettingsPageProps)
         onTest={testIntegration}
         config={holded}
         hasSecret={statusFor("HOLDED")?.hasSecret ?? false}
+        catalogues={catalogues}
       />
 
       <GravityFormsSettingsForm
