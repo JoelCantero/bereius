@@ -1,20 +1,8 @@
 "use client";
 
-import { useState, useTransition } from "react";
-import {
-  Check,
-  Globe,
-  LogIn,
-  LogOut,
-  Moon,
-  Sun,
-  UserPlus,
-  UserRound,
-} from "lucide-react";
-import { signOut } from "next-auth/react";
+import { Check, Globe, LogIn, Moon, Sun, UserPlus } from "lucide-react";
 import { useTheme } from "next-themes";
 
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { getPathname, Link, usePathname } from "@/i18n/navigation";
 import {
   NavigationMenu,
@@ -29,17 +17,11 @@ import { cn } from "@/lib/utils";
 
 interface AppNavigationProps {
   authenticated: boolean;
-  user?: {
-    image: string | null;
-    initials: string;
-  };
   locale: "en" | "es" | "ca";
   labels: {
     ariaLabel: string;
-    account?: string;
     login: string;
     signup: string;
-    logout: string;
     toggleTheme: string;
     language: string;
   };
@@ -53,24 +35,12 @@ const languages = [
 
 export function AppNavigation({
   authenticated,
-  user,
   locale,
   labels,
 }: AppNavigationProps) {
-  const [isPending, startTransition] = useTransition();
-  const [failedImage, setFailedImage] = useState<string | null>(null);
   const { resolvedTheme, setTheme } = useTheme();
   const pathname = usePathname();
-  const homePath = locale === "en" ? "/" : `/${locale}`;
   const currentLanguage = languages.find((language) => language.locale === locale);
-  const accountPath = locale === "en" ? "/account" : `/${locale}/account`;
-  const isAccountRoute = pathname === accountPath;
-
-  function logout() {
-    startTransition(() => {
-      void signOut({ callbackUrl: homePath });
-    });
-  }
 
   return (
     <NavigationMenu
@@ -78,65 +48,8 @@ export function AppNavigation({
       className="min-w-0 max-w-full justify-end"
     >
       <NavigationMenuList className="w-auto flex-nowrap justify-end">
-        {authenticated ? (
-          <NavigationMenuItem>
-            <NavigationMenuTrigger
-              aria-label={labels.account}
-              className="size-9 overflow-hidden rounded-full p-0 [&>svg]:hidden"
-            >
-              <Avatar className="size-9">
-                <AvatarFallback className="text-xs">{user?.initials ?? "?"}</AvatarFallback>
-                {user?.image && failedImage !== user.image ? (
-                  <AvatarImage
-                    className="absolute inset-0"
-                    src={user.image}
-                    alt=""
-                    referrerPolicy="no-referrer"
-                    onError={() => setFailedImage(user.image)}
-                  />
-                ) : null}
-              </Avatar>
-            </NavigationMenuTrigger>
-            <NavigationMenuContent>
-              <ul className="grid w-[200px]">
-                <li>
-                  {labels.account ? (
-                    <NavigationMenuLink
-                      className="w-full justify-start text-left"
-                      render={
-                        <Link
-                          href="/account"
-                          className="flex-row items-center gap-2"
-                          aria-current={isAccountRoute ? "page" : undefined}
-                        />
-                      }
-                    >
-                      <UserRound aria-hidden="true" />
-                      {labels.account}
-                    </NavigationMenuLink>
-                  ) : null}
-                  <NavigationMenuLink
-                    aria-disabled={isPending}
-                    className={cn(
-                      "w-full cursor-pointer flex-row items-center justify-start gap-2 text-left",
-                      isPending && "pointer-events-none opacity-50",
-                    )}
-                    render={
-                      <button
-                        type="button"
-                        disabled={isPending}
-                        onClick={logout}
-                      />
-                    }
-                  >
-                    <LogOut aria-hidden="true" />
-                    {labels.logout}
-                  </NavigationMenuLink>
-                </li>
-              </ul>
-            </NavigationMenuContent>
-          </NavigationMenuItem>
-        ) : (
+        {/* Signed-in users reach their account through the console sidebar. */}
+        {authenticated ? null : (
           <>
             <NavigationMenuItem>
               <NavigationMenuLink

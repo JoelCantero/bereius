@@ -20,7 +20,7 @@ import {
   SidebarMenuItem,
   useSidebar,
 } from "@/components/ui/sidebar";
-import { Link } from "@/i18n/navigation";
+import { Link, usePathname } from "@/i18n/navigation";
 import {
   iconFor,
   type ConsoleLink,
@@ -39,6 +39,7 @@ export function NavUser({
   homeHref: string;
 }) {
   const { isMobile } = useSidebar();
+  const pathname = usePathname();
   const [isPending, startTransition] = useTransition();
 
   return (
@@ -112,11 +113,18 @@ export function NavUser({
             <DropdownMenuGroup>
               {links.map((link) => {
                 const Icon = iconFor(link.href);
+                const active = pathname === link.href;
 
                 return (
                   <DropdownMenuItem
                     key={link.href}
-                    render={<Link href={link.href} className="flex-row items-center" />}
+                    render={
+                      <Link
+                        href={link.href}
+                        className="flex-row items-center"
+                        aria-current={active ? "page" : undefined}
+                      />
+                    }
                   >
                     <Icon aria-hidden="true" />
                     {link.label}

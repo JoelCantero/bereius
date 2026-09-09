@@ -73,7 +73,7 @@ vi.mock("@/modules/account/deletion/components/delete-account-dialog", () => ({
 
 import AccountDataPage, {
   generateMetadata,
-} from "@/app/[locale]/account/data/page";
+} from "@/app/[locale]/(console)/account/data/page";
 
 describe("personal data export protected page", () => {
   beforeEach(() => {

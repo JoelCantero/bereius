@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -31,10 +31,8 @@ import { AppNavigation } from "@/components/app-navigation";
 
 const labels = {
   ariaLabel: "Account navigation",
-  account: "Account",
   login: "Login",
   signup: "Sign up",
-  logout: "Log out",
   toggleTheme: "Toggle dark mode",
   language: "Select language",
 };
@@ -68,44 +66,20 @@ describe("AppNavigation", () => {
       "href",
       "/signup",
     );
-    expect(screen.queryByRole("button", { name: labels.logout })).not.toBeInTheDocument();
     expect(document.querySelector('[data-slot="separator"]')).toBeInTheDocument();
   });
 
-  it("shows account and logout inside one avatar menu and preserves locale", async () => {
-    mocks.signOut.mockResolvedValue(undefined);
+  it("offers a signed-in visitor no account controls, since the console holds them", () => {
     mocks.pathname = "/es/account";
-    render(
-      <AppNavigation
-        authenticated
-        user={{ image: "https://example.com/avatar.jpg", initials: "JC" }}
-        locale="es"
-        labels={labels}
-      />,
-    );
+    render(<AppNavigation authenticated locale="es" labels={labels} />);
 
     expect(screen.queryByRole("link", { name: labels.login })).not.toBeInTheDocument();
     expect(screen.queryByRole("link", { name: labels.signup })).not.toBeInTheDocument();
-    const avatarTrigger = screen.getByRole("button", { name: labels.account });
-    expect(avatarTrigger.querySelector("img")).toHaveAttribute(
-      "src",
-      "https://example.com/avatar.jpg",
-    );
-    fireEvent.error(avatarTrigger.querySelector("img")!);
-    expect(avatarTrigger).toHaveTextContent("JC");
-    expect(avatarTrigger.querySelector("img")).not.toBeInTheDocument();
-
-    await userEvent.click(avatarTrigger);
-    const accountLink = screen.getByRole("link", { name: labels.account });
-    expect(accountLink).toHaveAttribute("href", "/account");
-    expect(accountLink).toHaveAttribute("aria-current", "page");
-    expect(accountLink).toHaveClass("w-full", "justify-start");
-
-    const logoutButton = screen.getByRole("button", { name: labels.logout });
-    expect(logoutButton).toHaveAttribute("data-slot", "navigation-menu-link");
-    expect(logoutButton).toHaveClass("w-full", "justify-start");
-    await userEvent.click(logoutButton);
-    expect(mocks.signOut).toHaveBeenCalledWith({ callbackUrl: "/es" });
+    expect(screen.queryByRole("img")).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: labels.toggleTheme }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: labels.language })).toBeInTheDocument();
   });
 
   it("switches from the resolved light theme to dark mode", async () => {

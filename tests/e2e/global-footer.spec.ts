@@ -151,12 +151,14 @@ async function expectPageContract(
     name: target.accountNavigation,
   });
   if (authenticated) {
+    // The account menu moved to the console sidebar; the header keeps only
+    // the language and theme controls.
     await expect(
       accountNavigation.getByRole("button", {
         name: target.accountLabel,
         exact: true,
       }),
-    ).toBeVisible();
+    ).toHaveCount(0);
     await expect(
       accountNavigation.getByRole("link", {
         name: target.loginLabel,

@@ -54,11 +54,13 @@ test("renders authenticated profile, supports update+reload, and checks accessib
     page.getByText(process.env.PROJECT_NAME ?? "playwright", { exact: true }),
   ).toBeVisible();
   await expect(page.getByRole("navigation", { name: "Account navigation" })).toBeVisible();
-  await page.getByRole("button", { name: "Account" }).click();
-  await expect(page.getByRole("link", { name: "Account" })).toHaveAttribute(
+  // The account lives in the console sidebar rather than the header.
+  await page.getByRole("button", { name: "Account menu" }).click();
+  await expect(page.getByRole("menuitem", { name: "Profile" })).toHaveAttribute(
     "aria-current",
     "page",
   );
+  await page.keyboard.press("Escape");
   await expect(page.getByRole("heading", { name: "Profile" })).toBeVisible();
   const avatar = page.getByLabel("Profile avatar");
   await expect(avatar).toContainText("PU");
