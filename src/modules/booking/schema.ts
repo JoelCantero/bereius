@@ -3,6 +3,20 @@ import { z } from "zod";
 import type { BoardType } from "@/generated/prisma/enums";
 
 /**
+ * Stands in for a stored credential so the field looks filled without the
+ * secret ever reaching the browser. Bullets cannot occur in a real credential,
+ * so a submission carrying them means the operator left the field untouched.
+ */
+export const STORED_SECRET_PLACEHOLDER = "••••••••••••";
+
+/** Distinguishes "leave the stored credential alone" from a genuine new one. */
+export function submittedSecret(value: string | undefined): string | undefined {
+  const trimmed = value?.trim();
+  if (!trimmed || trimmed.includes("•")) return undefined;
+  return trimmed;
+}
+
+/**
  * Which Gravity Forms field holds each piece of a booking request.
  *
  * Mapped by identifier rather than by label, so renaming a label in the form

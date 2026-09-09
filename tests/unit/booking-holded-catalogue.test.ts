@@ -8,6 +8,7 @@ import {
   HOLDED_MAX_CATALOGUE_PAGES,
   HOLDED_V2_BASE_URL,
 } from "@/lib/holded/client";
+import { EMAIL_RESPONSE_LIMIT_BYTES } from "@/lib/email/types";
 import { createHttpMailProvider } from "../helpers/http-mail-provider";
 
 function page(body: unknown) {
@@ -33,7 +34,7 @@ describe("Holded catalogue reads", () => {
     expect(request.headers.get("authorization")).toBe("Bearer secret-key");
   });
 
-  it.each(["expenses-accounts", "payment-methods"] as const)(
+  it.each(["accounting-accounts", "payment-methods"] as const)(
     "reads the %s catalogue from its own route",
     async (resource) => {
       const http = createHttpMailProvider([page({ items: [], has_more: false })]);
@@ -43,6 +44,22 @@ describe("Holded catalogue reads", () => {
       expect(http.requests[0].logicalUrl).toContain(`${HOLDED_V2_BASE_URL}/${resource}?`);
     },
   );
+
+  it("asks for ledger accounts that have never moved, so a fresh one is offered", async () => {
+    const http = createHttpMailProvider([
+      page({ items: [{ id: "acc-1", number: 705, name: "Prestaciones de servicios" }] }),
+    ]);
+
+    const options = await createHoldedClient("k", http.client).listCatalogue(
+      "accounting-accounts",
+    );
+
+    expect(http.requests[0].logicalUrl).toContain("include_empty=true");
+    expect(options).toEqual([
+      { id: "acc-1", name: "705 · Prestaciones de servicios", number: 705 },
+    ]);
+    expect(http.requests).toHaveLength(1);
+  });
 
   it("follows the cursor until the account is exhausted", async () => {
     const http = createHttpMailProvider([
@@ -83,6 +100,27 @@ describe("Holded catalogue reads", () => {
       { id: "b", name: "b" },
       { id: "c", name: "c" },
     ]);
+  });
+
+  it("reads a chart of accounts far larger than the email response budget", async () => {
+    const items = Array.from({ length: 456 }, (_, index) => ({
+      id: `acc-${index}`,
+      number: 40000000 + index,
+      name: "Cuenta con un nombre suficientemente largo para abultar la respuesta",
+      group: "Clientes y proveedores",
+    }));
+    const body = JSON.stringify({ items });
+    expect(Buffer.byteLength(body)).toBeGreaterThan(EMAIL_RESPONSE_LIMIT_BYTES);
+
+    const http = createHttpMailProvider([
+      { status: 200, headers: { "content-type": "application/json" }, body },
+    ]);
+
+    const options = await createHoldedClient("k", http.client).listCatalogue(
+      "accounting-accounts",
+    );
+
+    expect(options).toHaveLength(456);
   });
 
   it("reports a refused key instead of passing off an empty catalogue", async () => {

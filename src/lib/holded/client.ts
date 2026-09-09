@@ -21,10 +21,12 @@ export const HOLDED_TIMEOUT_MS = 15_000;
 export const HOLDED_MAX_CONTACT_PAGES = 20;
 export const HOLDED_MAX_CATALOGUE_PAGES = 20;
 export const HOLDED_CATALOGUE_PAGE_SIZE = 100;
+/** A full chart of accounts runs past 100 kB, well over the email default. */
+export const HOLDED_CATALOGUE_RESPONSE_LIMIT_BYTES = 4_194_304;
 
 export const HOLDED_CATALOGUE_RESOURCES = [
   "services",
-  "expenses-accounts",
+  "accounting-accounts",
   "payment-methods",
 ] as const;
 
@@ -112,6 +114,8 @@ export interface HoldedInvoiceInput extends HoldedEstimateInput {
 export interface HoldedOption {
   id: string;
   name: string;
+  /** Chart-of-accounts number, absent on catalogues that have none. */
+  number?: number;
 }
 
 export interface HoldedClient {
@@ -185,7 +189,13 @@ function readCataloguePage(payload: unknown) {
       .map((key) => item[key])
       .find((value) => typeof value === "string" && value.trim().length > 0);
 
-    return { id: item.id, name: typeof label === "string" ? label.trim() : item.id };
+    const named = typeof label === "string" ? label.trim() : item.id;
+    // A ledger account is recognised by its number, not by its name alone.
+    const number = item.number;
+
+    return typeof number === "number"
+      ? { id: item.id, name: `${number} · ${named}`, number }
+      : { id: item.id, name: named };
   });
 
   return { options, cursor: parsed.data.has_more ? (parsed.data.cursor ?? null) : null };
@@ -195,12 +205,17 @@ export function createHoldedClient(
   apiKey: string,
   httpClient: ProviderHttpClient = nativeProviderHttpClient,
 ): HoldedClient {
-  async function send(logicalUrl: string, init: Record<string, unknown>): Promise<unknown> {
+  async function send(
+    logicalUrl: string,
+    init: Record<string, unknown>,
+    maxResponseBytes?: number,
+  ): Promise<unknown> {
     const outcome = await executeProviderRequest({
       client: httpClient,
       logicalUrl,
       init,
       timeoutMs: HOLDED_TIMEOUT_MS,
+      maxResponseBytes,
     });
 
     const failure = classify(outcome);
@@ -233,13 +248,17 @@ export function createHoldedClient(
   }
 
   async function requestV2(path: string): Promise<unknown> {
-    return send(`${HOLDED_V2_BASE_URL}${path}`, {
-      method: "GET",
-      headers: {
-        accept: "application/json",
-        authorization: `Bearer ${apiKey}`,
+    return send(
+      `${HOLDED_V2_BASE_URL}${path}`,
+      {
+        method: "GET",
+        headers: {
+          accept: "application/json",
+          authorization: `Bearer ${apiKey}`,
+        },
       },
-    });
+      HOLDED_CATALOGUE_RESPONSE_LIMIT_BYTES,
+    );
   }
 
   return {
@@ -255,9 +274,13 @@ export function createHoldedClient(
       let cursor: string | null = null;
 
       for (let page = 0; page < HOLDED_MAX_CATALOGUE_PAGES; page += 1) {
-        const query = new URLSearchParams({
-          limit: String(HOLDED_CATALOGUE_PAGE_SIZE),
-        });
+        // The chart of accounts is returned whole, and hides accounts that have
+        // never moved unless asked otherwise.
+        const query = new URLSearchParams(
+          resource === "accounting-accounts"
+            ? { include_empty: "true" }
+            : { limit: String(HOLDED_CATALOGUE_PAGE_SIZE) },
+        );
         if (cursor) query.set("cursor", cursor);
 
         const payload: unknown = await requestV2(`/${resource}?${query.toString()}`);

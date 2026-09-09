@@ -4,7 +4,10 @@ import { useActionState } from "react";
 import { useTranslations } from "next-intl";
 
 import type { SettingsActionState } from "@/modules/booking/actions/settings";
-import { GRAVITY_FORM_FIELD_KEYS } from "@/modules/booking/schema";
+import {
+  GRAVITY_FORM_FIELD_KEYS,
+  STORED_SECRET_PLACEHOLDER,
+} from "@/modules/booking/schema";
 
 /** Mirrors the Prisma enum: a client module must not import from the server. */
 type IntegrationProvider = "HOLDED" | "GRAVITY_FORMS" | "BOOKING_MAIL";
@@ -110,6 +113,7 @@ function Choice({
   required = false,
   emptyLabel,
   unavailableLabel,
+  hint,
 }: {
   name: string;
   label: string;
@@ -118,11 +122,13 @@ function Choice({
   required?: boolean;
   emptyLabel: string;
   unavailableLabel: string;
+  hint?: string;
 }) {
   const unavailable = options.length === 0;
   // A disabled control submits nothing, which would wipe a stored value, so the
   // current one rides along in a hidden field.
   const keepsCurrentValue = unavailable && Boolean(defaultValue);
+  const hintId = hint ? `${name}-hint` : undefined;
 
   return (
     <div className="flex flex-col gap-1">
@@ -135,6 +141,7 @@ function Choice({
         required={required && !unavailable}
         disabled={unavailable}
         defaultValue={defaultValue ?? ""}
+        aria-describedby={hintId}
         className="rounded-md border border-zinc-300 p-2 text-sm disabled:bg-zinc-100 disabled:text-zinc-500"
       >
         {unavailable ? (
@@ -150,6 +157,11 @@ function Choice({
           </>
         )}
       </select>
+      {hint ? (
+        <p id={hintId} className="text-xs text-zinc-600">
+          {hint}
+        </p>
+      ) : null}
       {keepsCurrentValue ? (
         <input type="hidden" name={name} value={defaultValue} />
       ) : null}
@@ -227,6 +239,7 @@ export function HoldedSettingsForm({
           name="apiKey"
           type="password"
           label={t("holded.apiKey")}
+          defaultValue={hasSecret ? STORED_SECRET_PLACEHOLDER : undefined}
           hint={hasSecret ? t("secretStored") : t("secretHint")}
         />
         <Choice
@@ -236,6 +249,7 @@ export function HoldedSettingsForm({
           defaultValue={String(config?.accountingAccountId ?? "")}
           emptyLabel={t("choose")}
           unavailableLabel={unavailableLabel}
+          hint={t("holded.accountingAccountHint")}
         />
         <Choice
           name="depositServiceId"
@@ -345,6 +359,7 @@ export function GravityFormsSettingsForm({
           name="consumerSecret"
           type="password"
           label={t("gravityForms.consumerSecret")}
+          defaultValue={hasSecret ? STORED_SECRET_PLACEHOLDER : undefined}
           hint={hasSecret ? t("secretStored") : t("secretHint")}
         />
 
@@ -448,6 +463,7 @@ export function BookingMailSettingsForm({
           name="password"
           type="password"
           label={t("mail.password")}
+          defaultValue={hasSecret ? STORED_SECRET_PLACEHOLDER : undefined}
           hint={hasSecret ? t("secretStored") : t("secretHint")}
         />
 

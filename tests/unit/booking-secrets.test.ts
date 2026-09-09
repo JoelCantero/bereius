@@ -16,6 +16,10 @@ import {
   openSecret,
   sealSecret,
 } from "@/lib/booking/secrets";
+import {
+  STORED_SECRET_PLACEHOLDER,
+  submittedSecret,
+} from "@/modules/booking/schema";
 
 describe("booking secret storage", () => {
   it("round-trips a credential", () => {
@@ -88,5 +92,19 @@ describe("booking secret storage", () => {
     } catch (error) {
       expect(String(error)).not.toContain("super-secret-credential");
     }
+  });
+});
+
+describe("credential submissions from the settings screen", () => {
+  it("reads the placeholder as leave the stored credential alone", () => {
+    expect(submittedSecret(STORED_SECRET_PLACEHOLDER)).toBeUndefined();
+  });
+
+  it.each([undefined, "", "   "])("treats %o as no change", (value) => {
+    expect(submittedSecret(value)).toBeUndefined();
+  });
+
+  it("accepts a genuine replacement", () => {
+    expect(submittedSecret("  new-api-key  ")).toBe("new-api-key");
   });
 });

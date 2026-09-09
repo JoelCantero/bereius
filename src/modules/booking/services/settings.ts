@@ -14,6 +14,7 @@ import {
   HoldedError,
   type HoldedOption,
 } from "@/lib/holded/client";
+import { logger } from "@/lib/logger";
 import {
   DEFAULT_GRAVITY_FORM_FIELDS,
   gravityFormFieldMapSchema,
@@ -228,6 +229,17 @@ function emptyCatalogues(status: HoldedCatalogueStatus): HoldedCatalogues {
 }
 
 /**
+ * Group 7 of the Spanish chart of accounts holds sales and income. Filtering by
+ * number rather than by the group label keeps this independent of the language
+ * the Holded account renders in.
+ */
+const REVENUE_ACCOUNT_GROUP = 7;
+
+function isRevenueAccount(option: HoldedOption): boolean {
+  return option.number !== undefined && String(option.number).startsWith(String(REVENUE_ACCOUNT_GROUP));
+}
+
+/**
  * Loads what the settings dropdowns need once a Holded key is stored.
  *
  * The status is reported rather than swallowed: an operator who cannot see a
@@ -245,15 +257,30 @@ export async function readHoldedCatalogues(): Promise<HoldedCatalogues> {
   try {
     const [services, accounts, paymentMethods] = await Promise.all([
       client.listCatalogue("services"),
-      client.listCatalogue("expenses-accounts"),
+      client.listCatalogue("accounting-accounts"),
       client.listCatalogue("payment-methods"),
     ]);
 
-    return { status: "ok", services, accounts, paymentMethods };
+    // The chart runs to hundreds of entries, most of them customer ledgers that
+    // could never carry stay income.
+    return {
+      status: "ok",
+      services,
+      accounts: accounts.filter(isRevenueAccount),
+      paymentMethods,
+    };
   } catch (error) {
     const refused =
       error instanceof HoldedError &&
       (error.code === "unauthorized" || error.code === "not_found");
+
+    logger.warn(
+      {
+        event: "booking_holded_catalogue_failed",
+        code: error instanceof HoldedError ? error.code : "unexpected",
+      },
+      "holded catalogue read failed",
+    );
 
     return emptyCatalogues(refused ? "unauthorized" : "unavailable");
   }

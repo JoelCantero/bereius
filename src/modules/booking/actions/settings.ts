@@ -15,7 +15,7 @@ import {
   AuthorizationError,
   requireBookingActor,
 } from "@/modules/booking/authorization";
-import { GRAVITY_FORM_FIELD_KEYS } from "@/modules/booking/schema";
+import { GRAVITY_FORM_FIELD_KEYS, submittedSecret } from "@/modules/booking/schema";
 import {
   IntegrationSettingsError,
   listIntegrationStatus,
@@ -106,7 +106,7 @@ export async function saveBookingMailSettings(
       password: formData.get("password") ?? undefined,
     });
 
-    const password = parsed.password?.trim();
+    const password = submittedSecret(parsed.password);
 
     await saveIntegrationSettings({
       provider: "BOOKING_MAIL",
@@ -117,7 +117,7 @@ export async function saveBookingMailSettings(
         username: parsed.username,
         fromEmail: parsed.fromEmail,
       },
-      secret: password ? password : undefined,
+      secret: password,
       updatedById: actor.userId,
     });
 
@@ -206,7 +206,7 @@ export async function saveHoldedSettings(
         apiKey: formData.get("apiKey") ?? undefined,
       });
 
-    const apiKey = parsed.apiKey?.trim();
+    const apiKey = submittedSecret(parsed.apiKey);
     // The form no longer offers this, because Holded exposes no catalogue to
     // pick it from; carried over so saving does not silently discard it.
     const existing = await readIntegrationConfig("HOLDED");
@@ -222,7 +222,7 @@ export async function saveHoldedSettings(
         language: parsed.language,
         serviceIdsBySku,
       },
-      secret: apiKey ? apiKey : undefined,
+      secret: apiKey,
       updatedById: actor.userId,
     });
 
@@ -265,7 +265,7 @@ export async function saveGravityFormsSettings(
         consumerSecret: formData.get("consumerSecret") ?? undefined,
       });
 
-    const consumerSecret = parsed.consumerSecret?.trim();
+    const consumerSecret = submittedSecret(parsed.consumerSecret);
 
     await saveIntegrationSettings({
       provider: "GRAVITY_FORMS",
