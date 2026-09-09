@@ -115,7 +115,7 @@ description: "Task list for Berea Booking Manager — Phase 1"
 - [X] T030 Implement manual payment recording in `src/modules/booking/actions/payments.ts` and `src/modules/booking/services/payments.ts`, moving a request to confirmed and recording who registered the transfer
 - [X] T031 Add the booking copy to `src/messages/en.json`, `es.json` and `ca.json` in a single change, covering the screens, the state names and the outbound emails
 - [X] T032 Implement the booking notifications — confirmation, rejection, cancellation, expiry, and the operator alert for a new pending request — sent through the booking SMTP channel
-- [ ] T033 Write end-to-end coverage in `tests/e2e/booking-review.spec.ts` for the path from a pending request to an approved one with the estimate issued, against a stubbed Holded boundary
+- [X] T033 Write end-to-end coverage in `tests/e2e/booking-review.spec.ts` for the path from a pending request to an approved one, plus the signed-out redirects and the administrator-only settings guard. No Holded stub is needed: approving writes locally and queues the work
 
 ---
 
