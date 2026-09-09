@@ -700,7 +700,7 @@
       "empty": "Ninguna solicitud coincide con este filtro.",
       "noneYet": "Todavía no hay solicitudes. Entran desde Gravity Forms cada hora.",
       "searchLabel": "Buscar por nombre, NIF o correo",
-      "searchAction": "Buscar",
+      "count": "{count, plural, one {# solicitud} other {# solicitudes}}",
       "stateLabel": "Estado",
       "allStates": "Todos los estados",
       "columns": {

@@ -700,7 +700,7 @@
       "empty": "Cap sol·licitud coincideix amb aquest filtre.",
       "noneYet": "Encara no hi ha sol·licituds. Arriben des de Gravity Forms cada hora.",
       "searchLabel": "Cerca per nom, NIF o correu",
-      "searchAction": "Cerca",
+      "count": "{count, plural, one {# sol·licitud} other {# sol·licituds}}",
       "stateLabel": "Estat",
       "allStates": "Tots els estats",
       "columns": {

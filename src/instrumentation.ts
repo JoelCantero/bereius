@@ -21,9 +21,9 @@ export function register(): void {
   }
 
   // Node runtime only: the Edge runtime has no database access and no timers
-  // that outlive a request.
+  // that outlive a request. Every Node instance runs it; the outbox claims jobs
+  // atomically and intake is idempotent per entry, so duplicates are harmless.
   if (process.env.NEXT_RUNTIME !== "nodejs") return;
-  if (process.env.BOOKING_SCHEDULER !== "true") return;
 
   // Deliberately not awaited: environment validation above must stay
   // synchronous so a malformed configuration fails before readiness.

@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/table";
 import { noIndexMetadata } from "@/lib/seo";
 import { AuthorizationError, requireBookingActor } from "@/modules/booking/authorization";
+import { QueueFilters } from "@/modules/booking/components/queue-filters";
 import {
   BOOKING_QUEUE_SORTS,
   listBookingQueue,
@@ -137,46 +138,16 @@ export default async function BookingsPage({ params, searchParams }: BookingsPag
     <main className="mx-auto flex w-full max-w-5xl flex-col gap-6 p-6">
       <h1 className="text-2xl font-semibold">{t("queue.title")}</h1>
 
-      <form method="get" className="flex flex-wrap items-end gap-3">
-        <div className="flex flex-col gap-1">
-          <label htmlFor="q" className="text-sm font-medium">
-            {t("queue.searchLabel")}
-          </label>
-          <input
-            id="q"
-            name="q"
-            type="search"
-            defaultValue={query.q ?? ""}
-            className="rounded-md border border-zinc-300 p-2 text-sm"
-          />
-        </div>
+      <QueueFilters
+        states={BOOKING_STATES}
+        search={filters.q ?? ""}
+        state={filters.state}
+      />
 
-        <div className="flex flex-col gap-1">
-          <label htmlFor="state" className="text-sm font-medium">
-            {t("queue.stateLabel")}
-          </label>
-          <select
-            id="state"
-            name="state"
-            defaultValue={query.state ?? ""}
-            className="rounded-md border border-zinc-300 p-2 text-sm"
-          >
-            <option value="">{t("queue.allStates")}</option>
-            {BOOKING_STATES.map((state) => (
-              <option key={state} value={state}>
-                {t(`states.${state}`)}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        <button
-          type="submit"
-          className="rounded-md bg-zinc-900 px-4 py-2 text-sm font-medium text-white"
-        >
-          {t("queue.searchAction")}
-        </button>
-      </form>
+      {/* Filtering happens as the operator types, so the count is announced. */}
+      <p role="status" className="text-sm text-muted-foreground">
+        {t("queue.count", { count: bookings.length })}
+      </p>
 
       {bookings.length === 0 ? (
         <p className="text-sm text-zinc-600">

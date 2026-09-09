@@ -78,7 +78,7 @@ description: "Task list for Berea Booking Manager — Phase 1"
 
 - [X] T015 Implement `src/modules/booking/services/outbox.ts`: enqueue a job with a payload and an idempotency key derived from the booking, claim jobs atomically so two runs cannot process the same row, apply bounded attempts with exponential backoff, and move exhausted jobs to a dead state that is visible rather than silent
 - [X] T016 Implement the scheduler in `src/modules/booking/services/scheduler.ts`: hourly intake, outbox drain, daily expiry of requests past the three-day deadline; log every run with counts and outcomes; shut down gracefully on `SIGTERM` without abandoning a claimed job
-- [X] T017 Start the scheduler from `src/instrumentation.ts` behind the `BOOKING_SCHEDULER` flag, and pass the flag plus `BOOKING_SECRET_KEY` through `docker-compose.prod.yml`. A separate `worker` container was rejected: it needs a bundler with a native binary to resolve the `@/` aliases, and the outbox already claims jobs atomically, so co-locating is safe rather than merely convenient
+- [X] T017 Start the scheduler from `src/instrumentation.ts` on every Node instance, and pass `BOOKING_SECRET_KEY` through `docker-compose.prod.yml`. A separate `worker` container was rejected: it needs a bundler with a native binary to resolve the `@/` aliases, and the outbox already claims jobs atomically, so co-locating is safe rather than merely convenient
 - [X] T018 Write integration tests in `tests/integration/booking-outbox.test.ts` proving that a claimed job is not claimed twice, that a failing job is retried with backoff and eventually parked, and that a successful job is never executed a second time
 
 ---

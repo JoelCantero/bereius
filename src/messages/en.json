@@ -700,7 +700,7 @@
       "empty": "No booking requests match this filter.",
       "noneYet": "No requests yet. They arrive from Gravity Forms every hour.",
       "searchLabel": "Search by name, tax identifier or email",
-      "searchAction": "Search",
+      "count": "{count, plural, one {# request} other {# requests}}",
       "stateLabel": "State",
       "allStates": "All states",
       "columns": {
