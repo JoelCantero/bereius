@@ -65,10 +65,10 @@ description: "Task list for Berea Booking Manager — Phase 1"
 
 **Purpose**: Read submissions from Gravity Forms hourly, idempotently.
 
-- [ ] T011 Implement the Gravity Forms client in `src/lib/gravity-forms/client.ts` using the `executeProviderRequest` pattern from `src/lib/email/`, with ascending entry-id paging, an explicit timeout and a response size limit
-- [ ] T012 Define the entry schema in `src/modules/booking/schema.ts` with Zod, mapping **by field identifier** and documenting the identifier-to-meaning correspondence in a comment; reject entries that do not match rather than importing partial data
-- [ ] T013 Implement `src/modules/booking/services/intake.ts`: read entries after the stored cursor, create `BookingRequest` and `Customer` rows, and advance the cursor only after the batch is committed
-- [ ] T014 Write integration tests in `tests/integration/booking-intake.test.ts` proving that reprocessing the same entry creates nothing new, that the cursor does not advance when the transaction fails, and that a malformed entry is recorded as rejected without blocking the rest of the batch
+- [X] T011 Implement the Gravity Forms client in `src/lib/gravity-forms/client.ts` using the `executeProviderRequest` pattern from `src/lib/email/`, with ascending entry-id paging, an explicit timeout and a response size limit
+- [X] T012 Define the entry schema in `src/modules/booking/schema.ts` with Zod, mapping **by field identifier** for form 2 and documenting the correspondence; the form's own computed nights, units, total and SKU are deliberately ignored because they are client-supplied and observably wrong in live entries
+- [X] T013 Implement `src/modules/booking/services/intake.ts`: read entries after the stored cursor, create `BookingRequest` and `Customer` rows, and advance the cursor entry by entry, only after each is committed
+- [X] T014 Write integration tests in `tests/integration/booking-intake.test.ts` proving that reprocessing the same entry creates nothing new, that the cursor does not advance past an entry that fails, and that a malformed entry is recorded as rejected without blocking the rest of the batch
 
 ---
 
@@ -97,7 +97,7 @@ description: "Task list for Berea Booking Manager — Phase 1"
 
 **Purpose**: A configurable SMTP sender, independent from the account mail provider.
 
-- [ ] T022 Implement AES-256-GCM encryption helpers in `src/lib/mail/secret.ts` using Node `crypto` and `BOOKING_SECRET_KEY`, with the plaintext never returned once stored
+- [X] T022 Implement AES-256-GCM envelope encryption in `src/lib/booking/secrets.ts` using Node `crypto` and `BOOKING_SECRET_KEY`, plus `src/modules/booking/services/settings.ts` for storing and resolving integration credentials; brought forward because intake cannot read credentials until they can be stored
 - [ ] T023 Implement the SMTP transport in `src/lib/mail/smtp.ts` and a `sendTest` operation used by the settings screen, keeping the transport out of the request path by dispatching through the outbox
 - [ ] T024 Build the integration settings screens and Server Actions in `src/modules/booking/components/` and `src/modules/booking/actions/settings.ts`: administrator-only, covering Holded, Gravity Forms and the booking mailbox; every credential write-only, each with a test-connection action that reports the failure reason without leaking the credential
 - [ ] T025 Write unit tests in `tests/unit/booking-mail-settings.test.ts` proving the password is never present in a returned object, a log line or an error message, and that saving without changing the password preserves the stored one
