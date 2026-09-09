@@ -186,10 +186,11 @@
     "title": "Consola",
     "subtitle": "Todo lo que gestiona esta aplicación, en un solo sitio.",
     "toggleSidebar": "Mostrar u ocultar la navegación",
+    "userMenu": "Menú de la cuenta",
+    "logout": "Cerrar sesión",
     "sections": {
       "bookings": "Reservas",
-      "account": "Cuenta",
-      "legal": "Legal"
+      "account": "Cuenta"
     },
     "links": {
       "queue": {
@@ -211,14 +212,6 @@
       "data": {
         "label": "Datos personales",
         "description": "Descarga una copia de todo lo que guardamos sobre ti."
-      },
-      "terms": {
-        "label": "Términos",
-        "description": "Condiciones del servicio."
-      },
-      "privacy": {
-        "label": "Privacidad",
-        "description": "Cómo se tratan los datos personales."
       }
     }
   },

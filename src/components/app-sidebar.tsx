@@ -1,19 +1,9 @@
 "use client";
 
 import {
-  CalendarCheck,
-  FileText,
-  LayoutGrid,
-  type LucideIcon,
-  Plug,
-  ScrollText,
-  ShieldCheck,
-  UserRound,
-} from "lucide-react";
-
-import {
   Sidebar,
   SidebarContent,
+  SidebarFooter,
   SidebarGroup,
   SidebarGroupContent,
   SidebarGroupLabel,
@@ -22,39 +12,27 @@ import {
   SidebarMenuItem,
   SidebarRail,
 } from "@/components/ui/sidebar";
+import {
+  iconFor,
+  type ConsoleLink,
+  type ConsoleSection,
+  type ConsoleUser,
+} from "@/components/console-sections";
+import { NavUser } from "@/components/nav-user";
 import { Link, usePathname } from "@/i18n/navigation";
-
-export type ConsoleSectionKey = "bookings" | "account" | "legal";
-
-export interface ConsoleLink {
-  href: string;
-  label: string;
-  description: string;
-}
-
-export interface ConsoleSection {
-  key: ConsoleSectionKey;
-  label: string;
-  links: ConsoleLink[];
-}
-
-/** Kept beside the route so the server can pass plain, serialisable sections. */
-const ICONS: Record<string, LucideIcon> = {
-  "/bookings": CalendarCheck,
-  "/bookings/settings": Plug,
-  "/account": UserRound,
-  "/account/security": ShieldCheck,
-  "/account/data": FileText,
-  "/terms": ScrollText,
-  "/privacy": ScrollText,
-};
 
 export function AppSidebar({
   sections,
-  toggleLabel,
+  user,
+  userLinks,
+  homeHref,
+  labels,
 }: {
   sections: ConsoleSection[];
-  toggleLabel: string;
+  user: ConsoleUser;
+  userLinks: ConsoleLink[];
+  homeHref: string;
+  labels: { toggle: string; menu: string; logout: string };
 }) {
   const pathname = usePathname();
 
@@ -76,7 +54,7 @@ export function AppSidebar({
             <SidebarGroupContent>
               <SidebarMenu>
                 {section.links.map((link) => {
-                  const Icon = ICONS[link.href] ?? LayoutGrid;
+                  const Icon = iconFor(link.href);
                   const active = pathname === link.href;
 
                   return (
@@ -103,7 +81,16 @@ export function AppSidebar({
         ))}
       </SidebarContent>
 
-      <SidebarRail aria-label={toggleLabel} title={toggleLabel} />
+      <SidebarFooter>
+        <NavUser
+          user={user}
+          links={userLinks}
+          homeHref={homeHref}
+          labels={{ menu: labels.menu, logout: labels.logout }}
+        />
+      </SidebarFooter>
+
+      <SidebarRail aria-label={labels.toggle} title={labels.toggle} />
     </Sidebar>
   );
 }

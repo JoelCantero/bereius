@@ -1,8 +1,10 @@
 import { render, screen, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
-const mocks = vi.hoisted(() => ({ pathname: "/bookings" }));
+const mocks = vi.hoisted(() => ({ pathname: "/bookings", signOut: vi.fn() }));
 
+vi.mock("next-auth/react", () => ({ signOut: mocks.signOut }));
 vi.mock("@/i18n/navigation", () => ({
   Link: ({
     href,
@@ -16,35 +18,50 @@ vi.mock("@/i18n/navigation", () => ({
   usePathname: () => mocks.pathname,
 }));
 
-import { AppSidebar, type ConsoleSection } from "@/components/app-sidebar";
+import { AppSidebar } from "@/components/app-sidebar";
+import type { ConsoleLink, ConsoleSection } from "@/components/console-sections";
 import { SidebarProvider } from "@/components/ui/sidebar";
 
 const sections: ConsoleSection[] = [
   {
     key: "bookings",
     label: "Reservas",
-    links: [
-      { href: "/bookings", label: "Cola", description: "Revisa solicitudes." },
-      {
-        href: "/bookings/settings",
-        label: "Integraciones",
-        description: "Credenciales.",
-      },
-    ],
-  },
-  {
-    key: "account",
-    label: "Cuenta",
-    links: [{ href: "/account", label: "Perfil", description: "Tu nombre." }],
+    links: [{ href: "/bookings", label: "Cola", description: "Revisa solicitudes." }],
   },
 ];
 
-function renderSidebar(given: ConsoleSection[] = sections) {
+const userLinks: ConsoleLink[] = [
+  { href: "/account", label: "Perfil", description: "Tu nombre." },
+  { href: "/bookings/settings", label: "Integraciones", description: "Credenciales." },
+];
+
+function renderSidebar(links: ConsoleLink[] = userLinks) {
   return render(
     <SidebarProvider>
-      <AppSidebar sections={given} toggleLabel="Mostrar u ocultar la navegación" />
+      <AppSidebar
+        sections={sections}
+        userLinks={links}
+        homeHref="/es"
+        labels={{
+          toggle: "Mostrar u ocultar la navegación",
+          menu: "Menú de la cuenta",
+          logout: "Cerrar sesión",
+        }}
+        user={{
+          name: "Joel Cantero",
+          email: "joel@example.test",
+          image: null,
+          initials: "JC",
+        }}
+      />
     </SidebarProvider>,
   );
+}
+
+/** Base UI opens on pointer events that jsdom lacks, so the keyboard drives it. */
+async function openUserMenu() {
+  screen.getByRole("button", { name: "Menú de la cuenta" }).focus();
+  await userEvent.keyboard("{Enter}");
 }
 
 describe("console sidebar", () => {
@@ -70,28 +87,38 @@ describe("console sidebar", () => {
       "aria-current",
       "page",
     );
-    expect(screen.getByRole("link", { name: "Perfil" })).not.toHaveAttribute(
-      "aria-current",
+  });
+
+  it("keeps the account and the settings behind the user menu", async () => {
+    renderSidebar();
+
+    expect(screen.queryByRole("menuitem", { name: "Perfil" })).toBeNull();
+    await openUserMenu();
+
+    expect(screen.getByRole("menuitem", { name: "Perfil" })).toHaveAttribute(
+      "href",
+      "/account",
+    );
+    expect(screen.getByRole("menuitem", { name: "Integraciones" })).toHaveAttribute(
+      "href",
+      "/bookings/settings",
     );
   });
 
-  it("shows only what the caller passed, so a role cannot leak a link", () => {
-    renderSidebar([
-      {
-        key: "bookings",
-        label: "Reservas",
-        links: [{ href: "/bookings", label: "Cola", description: "Revisa solicitudes." }],
-      },
-    ]);
+  it("shows only what the caller passed, so a role cannot leak a link", async () => {
+    renderSidebar([{ href: "/account", label: "Perfil", description: "Tu nombre." }]);
 
-    expect(screen.queryByRole("link", { name: "Integraciones" })).toBeNull();
+    await openUserMenu();
+
+    expect(screen.queryByRole("menuitem", { name: "Integraciones" })).toBeNull();
   });
 
-  it("names the collapse control instead of leaving the shipped English label", () => {
+  it("returns to the localised home page after signing out", async () => {
     renderSidebar();
 
-    expect(
-      screen.getByRole("button", { name: "Mostrar u ocultar la navegación" }),
-    ).toBeInTheDocument();
+    await openUserMenu();
+    await userEvent.click(screen.getByRole("menuitem", { name: "Cerrar sesión" }));
+
+    expect(mocks.signOut).toHaveBeenCalledWith({ callbackUrl: "/es" });
   });
 });

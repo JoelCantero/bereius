@@ -1,12 +1,15 @@
 import type { Metadata } from "next";
+import { getServerSession } from "next-auth";
 import { getTranslations, setRequestLocale } from "next-intl/server";
 
-import type { ConsoleSection } from "@/components/app-sidebar";
+import type { ConsoleLink, ConsoleSection } from "@/components/console-sections";
 import { ConsoleShell } from "@/components/console-shell";
-import { Link } from "@/i18n/navigation";
+import { getPathname, Link } from "@/i18n/navigation";
+import { authOptions } from "@/lib/auth";
 import { parseLoginLocale } from "@/modules/login/schema";
 import { getEnv } from "@/lib/env";
 import { publicPageMetadata } from "@/lib/seo";
+import { getProfileInitials } from "@/modules/account/initials";
 import { requireBookingActor } from "@/modules/booking/authorization";
 
 type HomePageProps = { params: Promise<{ locale: string }> };
@@ -48,68 +51,71 @@ export default async function Home({ params }: HomePageProps) {
   }
 
   const console = await getTranslations("Console");
-  const sections: ConsoleSection[] = [
+  const session = await getServerSession(authOptions);
+  const email = session?.user?.email ?? "";
+
+  const bookings: ConsoleSection = {
+    key: "bookings",
+    label: console("sections.bookings"),
+    links: [
+      {
+        href: "/bookings",
+        label: console("links.queue.label"),
+        description: console("links.queue.description"),
+      },
+    ],
+  };
+
+  // Settings and the account live in the user menu, next to signing out.
+  const userLinks: ConsoleLink[] = [
     {
-      key: "bookings",
-      label: console("sections.bookings"),
-      links: [
-        {
-          href: "/bookings",
-          label: console("links.queue.label"),
-          description: console("links.queue.description"),
-        },
-        ...(actor.role === "ADMINISTRATOR"
-          ? [
-              {
-                href: "/bookings/settings",
-                label: console("links.integrations.label"),
-                description: console("links.integrations.description"),
-              },
-            ]
-          : []),
-      ],
+      href: "/account",
+      label: console("links.profile.label"),
+      description: console("links.profile.description"),
     },
     {
-      key: "account",
-      label: console("sections.account"),
-      links: [
-        {
-          href: "/account",
-          label: console("links.profile.label"),
-          description: console("links.profile.description"),
-        },
-        {
-          href: "/account/security",
-          label: console("links.security.label"),
-          description: console("links.security.description"),
-        },
-        {
-          href: "/account/data",
-          label: console("links.data.label"),
-          description: console("links.data.description"),
-        },
-      ],
+      href: "/account/security",
+      label: console("links.security.label"),
+      description: console("links.security.description"),
     },
     {
-      key: "legal",
-      label: console("sections.legal"),
-      links: [
-        {
-          href: "/terms",
-          label: console("links.terms.label"),
-          description: console("links.terms.description"),
-        },
-        {
-          href: "/privacy",
-          label: console("links.privacy.label"),
-          description: console("links.privacy.description"),
-        },
-      ],
+      href: "/account/data",
+      label: console("links.data.label"),
+      description: console("links.data.description"),
     },
+    ...(actor.role === "ADMINISTRATOR"
+      ? [
+          {
+            href: "/bookings/settings",
+            label: console("links.integrations.label"),
+            description: console("links.integrations.description"),
+          },
+        ]
+      : []),
+  ];
+
+  const cards: ConsoleSection[] = [
+    bookings,
+    { key: "account", label: console("sections.account"), links: userLinks },
   ];
 
   return (
-    <ConsoleShell sections={sections} toggleLabel={console("toggleSidebar")}>
+    <ConsoleShell
+      sections={[bookings]}
+      userLinks={userLinks}
+      homeHref={getPathname({ href: "/", locale })}
+      labels={{
+        toggle: console("toggleSidebar"),
+        menu: console("userMenu"),
+        logout: console("logout"),
+      }}
+      user={{
+        name: session?.user?.name ?? email,
+        email,
+        image: session?.user?.image ?? null,
+        initials: getProfileInitials({ name: session?.user?.name ?? null, email }),
+      }}
+    >
       <main className="flex w-full flex-1 flex-col gap-8 p-6">
         <div className="flex flex-col gap-2">
           <h1 className="text-3xl font-semibold tracking-tight text-black dark:text-zinc-50">
@@ -118,7 +124,7 @@ export default async function Home({ params }: HomePageProps) {
           <p className="text-zinc-600 dark:text-zinc-400">{console("subtitle")}</p>
         </div>
 
-        {sections.map((section) => (
+        {cards.map((section) => (
           <section key={section.key} aria-labelledby={`section-${section.key}`}>
             <h2
               id={`section-${section.key}`}

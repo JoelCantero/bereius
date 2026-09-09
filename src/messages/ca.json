@@ -186,10 +186,11 @@
     "title": "Consola",
     "subtitle": "Tot el que gestiona aquesta aplicació, en un sol lloc.",
     "toggleSidebar": "Mostra o amaga la navegació",
+    "userMenu": "Menú del compte",
+    "logout": "Tanca la sessió",
     "sections": {
       "bookings": "Reserves",
-      "account": "Compte",
-      "legal": "Legal"
+      "account": "Compte"
     },
     "links": {
       "queue": {
@@ -211,14 +212,6 @@
       "data": {
         "label": "Dades personals",
         "description": "Descarrega una còpia de tot el que en guardem."
-      },
-      "terms": {
-        "label": "Termes",
-        "description": "Condicions del servei."
-      },
-      "privacy": {
-        "label": "Privadesa",
-        "description": "Com es tracten les dades personals."
       }
     }
   },

@@ -186,10 +186,11 @@
     "title": "Console",
     "subtitle": "Everything this application manages, in one place.",
     "toggleSidebar": "Show or hide the navigation",
+    "userMenu": "Account menu",
+    "logout": "Log out",
     "sections": {
       "bookings": "Bookings",
-      "account": "Account",
-      "legal": "Legal"
+      "account": "Account"
     },
     "links": {
       "queue": {
@@ -211,14 +212,6 @@
       "data": {
         "label": "Personal data",
         "description": "Export a copy of everything held about you."
-      },
-      "terms": {
-        "label": "Terms",
-        "description": "Terms of service."
-      },
-      "privacy": {
-        "label": "Privacy",
-        "description": "How personal data is handled."
       }
     }
   },
