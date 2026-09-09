@@ -659,5 +659,93 @@
         }
       }
     }
+  },
+  "Bookings": {
+    "queue": {
+      "title": "Booking requests",
+      "description": "Review and decide on booking requests.",
+      "empty": "No booking requests match this filter.",
+      "searchLabel": "Search by name, tax identifier or email",
+      "searchAction": "Search",
+      "stateLabel": "State",
+      "allStates": "All states",
+      "columns": {
+        "customer": "Customer",
+        "stay": "Stay",
+        "group": "Group",
+        "state": "State",
+        "submitted": "Received"
+      },
+      "nights": "{count, plural, one {# night} other {# nights}}",
+      "people": "{count, plural, one {# person} other {# people}}",
+      "open": "Open"
+    },
+    "detail": {
+      "title": "Booking request",
+      "description": "Full detail of a booking request.",
+      "notFound": "This booking request does not exist.",
+      "back": "Back to the queue",
+      "stay": "Stay",
+      "customer": "Customer",
+      "amounts": "Amounts",
+      "documents": "Holded documents",
+      "payments": "Payments",
+      "history": "History",
+      "noDocuments": "No document has been issued yet.",
+      "noPayments": "No payment has been recorded yet.",
+      "taxId": "Tax identifier",
+      "email": "Email",
+      "phone": "Phone",
+      "address": "Address",
+      "advance": "Advance",
+      "deposit": "Security deposit",
+      "toConfirm": "Total to confirm",
+      "paymentDue": "Payment due",
+      "pendingQuote": "Amounts appear once the estimate has been issued.",
+      "systemActor": "Scheduled job"
+    },
+    "actions": {
+      "review": "Start review",
+      "approve": "Approve",
+      "reject": "Reject",
+      "cancel": "Cancel booking",
+      "reasonLabel": "Reason",
+      "reasonHint": "Recorded in the history and sent to the requester.",
+      "recordPayment": "Record payment",
+      "amountLabel": "Amount received (EUR)",
+      "receivedAtLabel": "Received on",
+      "referenceLabel": "Transfer reference",
+      "submit": "Save"
+    },
+    "states": {
+      "RECEIVED": "Received",
+      "IN_REVIEW": "In review",
+      "APPROVED": "Approved",
+      "AWAITING_PAYMENT": "Awaiting payment",
+      "CONFIRMED": "Confirmed",
+      "INVOICED": "Invoiced",
+      "COMPLETED": "Completed",
+      "REJECTED": "Rejected",
+      "EXPIRED": "Expired",
+      "CANCELLED": "Cancelled"
+    },
+    "board": {
+      "SELF_CATERING": "Self-catering",
+      "FULL_BOARD": "Full board"
+    },
+    "documentTypes": {
+      "ESTIMATE": "Estimate",
+      "RESERVE_INVOICE": "Reserve invoice",
+      "FINAL_INVOICE": "Final invoice"
+    },
+    "errors": {
+      "unauthenticated": "Your session has expired. Sign in again.",
+      "forbidden": "You do not have permission for this action.",
+      "invalid": "Check the values and try again.",
+      "state_changed": "Someone else changed this booking. Reload to see the current state.",
+      "reason_required": "A reason is required.",
+      "amount_mismatch": "The amount does not match what is owed to the cent. Review it by hand.",
+      "unknown": "The action could not be completed."
+    }
   }
 }

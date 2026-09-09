@@ -659,5 +659,93 @@
         }
       }
     }
+  },
+  "Bookings": {
+    "queue": {
+      "title": "Sol·licituds de reserva",
+      "description": "Revisa i decideix sobre les sol·licituds de reserva.",
+      "empty": "Cap sol·licitud coincideix amb aquest filtre.",
+      "searchLabel": "Cerca per nom, NIF o correu",
+      "searchAction": "Cerca",
+      "stateLabel": "Estat",
+      "allStates": "Tots els estats",
+      "columns": {
+        "customer": "Client",
+        "stay": "Estada",
+        "group": "Grup",
+        "state": "Estat",
+        "submitted": "Rebuda"
+      },
+      "nights": "{count, plural, one {# nit} other {# nits}}",
+      "people": "{count, plural, one {# persona} other {# persones}}",
+      "open": "Obre"
+    },
+    "detail": {
+      "title": "Sol·licitud de reserva",
+      "description": "Detall complet d'una sol·licitud de reserva.",
+      "notFound": "Aquesta sol·licitud de reserva no existeix.",
+      "back": "Torna a la llista",
+      "stay": "Estada",
+      "customer": "Client",
+      "amounts": "Imports",
+      "documents": "Documents de Holded",
+      "payments": "Pagaments",
+      "history": "Historial",
+      "noDocuments": "Encara no s'ha emès cap document.",
+      "noPayments": "Encara no s'ha registrat cap pagament.",
+      "taxId": "NIF",
+      "email": "Correu",
+      "phone": "Telèfon",
+      "address": "Adreça",
+      "advance": "Bestreta",
+      "deposit": "Dipòsit",
+      "toConfirm": "Total per confirmar",
+      "paymentDue": "Venciment del pagament",
+      "pendingQuote": "Els imports apareixen quan s'emet el pressupost.",
+      "systemActor": "Tasca programada"
+    },
+    "actions": {
+      "review": "Comença la revisió",
+      "approve": "Aprova",
+      "reject": "Rebutja",
+      "cancel": "Cancel·la la reserva",
+      "reasonLabel": "Motiu",
+      "reasonHint": "Queda a l'historial i s'envia al sol·licitant.",
+      "recordPayment": "Registra el pagament",
+      "amountLabel": "Import rebut (EUR)",
+      "receivedAtLabel": "Rebut el",
+      "referenceLabel": "Concepte de la transferència",
+      "submit": "Desa"
+    },
+    "states": {
+      "RECEIVED": "Rebuda",
+      "IN_REVIEW": "En revisió",
+      "APPROVED": "Aprovada",
+      "AWAITING_PAYMENT": "Esperant pagament",
+      "CONFIRMED": "Confirmada",
+      "INVOICED": "Facturada",
+      "COMPLETED": "Completada",
+      "REJECTED": "Rebutjada",
+      "EXPIRED": "Caducada",
+      "CANCELLED": "Cancel·lada"
+    },
+    "board": {
+      "SELF_CATERING": "Dret a cuina",
+      "FULL_BOARD": "Pensió completa"
+    },
+    "documentTypes": {
+      "ESTIMATE": "Pressupost",
+      "RESERVE_INVOICE": "Factura de reserva",
+      "FINAL_INVOICE": "Factura final"
+    },
+    "errors": {
+      "unauthenticated": "La teva sessió ha caducat. Torna a iniciar sessió.",
+      "forbidden": "No tens permís per a aquesta acció.",
+      "invalid": "Revisa els valors i torna-ho a provar.",
+      "state_changed": "Una altra persona ha canviat aquesta reserva. Recarrega per veure l'estat actual.",
+      "reason_required": "Cal un motiu.",
+      "amount_mismatch": "L'import no coincideix al cèntim amb el que es deu. Revisa-ho a mà.",
+      "unknown": "No s'ha pogut completar l'acció."
+    }
   }
 }

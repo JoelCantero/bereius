@@ -659,5 +659,93 @@
         }
       }
     }
+  },
+  "Bookings": {
+    "queue": {
+      "title": "Solicitudes de reserva",
+      "description": "Revisa y decide sobre las solicitudes de reserva.",
+      "empty": "Ninguna solicitud coincide con este filtro.",
+      "searchLabel": "Buscar por nombre, NIF o correo",
+      "searchAction": "Buscar",
+      "stateLabel": "Estado",
+      "allStates": "Todos los estados",
+      "columns": {
+        "customer": "Cliente",
+        "stay": "Estancia",
+        "group": "Grupo",
+        "state": "Estado",
+        "submitted": "Recibida"
+      },
+      "nights": "{count, plural, one {# noche} other {# noches}}",
+      "people": "{count, plural, one {# persona} other {# personas}}",
+      "open": "Abrir"
+    },
+    "detail": {
+      "title": "Solicitud de reserva",
+      "description": "Detalle completo de una solicitud de reserva.",
+      "notFound": "Esta solicitud de reserva no existe.",
+      "back": "Volver a la lista",
+      "stay": "Estancia",
+      "customer": "Cliente",
+      "amounts": "Importes",
+      "documents": "Documentos de Holded",
+      "payments": "Pagos",
+      "history": "Historial",
+      "noDocuments": "Todavía no se ha emitido ningún documento.",
+      "noPayments": "Todavía no se ha registrado ningún pago.",
+      "taxId": "NIF",
+      "email": "Correo",
+      "phone": "Teléfono",
+      "address": "Dirección",
+      "advance": "Paga y señal",
+      "deposit": "Fianza",
+      "toConfirm": "Total para confirmar",
+      "paymentDue": "Vencimiento del pago",
+      "pendingQuote": "Los importes aparecen cuando se emite el presupuesto.",
+      "systemActor": "Trabajo programado"
+    },
+    "actions": {
+      "review": "Empezar revisión",
+      "approve": "Aprobar",
+      "reject": "Rechazar",
+      "cancel": "Cancelar reserva",
+      "reasonLabel": "Motivo",
+      "reasonHint": "Queda en el historial y se envía al solicitante.",
+      "recordPayment": "Registrar pago",
+      "amountLabel": "Importe recibido (EUR)",
+      "receivedAtLabel": "Recibido el",
+      "referenceLabel": "Concepto de la transferencia",
+      "submit": "Guardar"
+    },
+    "states": {
+      "RECEIVED": "Recibida",
+      "IN_REVIEW": "En revisión",
+      "APPROVED": "Aprobada",
+      "AWAITING_PAYMENT": "Esperando pago",
+      "CONFIRMED": "Confirmada",
+      "INVOICED": "Facturada",
+      "COMPLETED": "Completada",
+      "REJECTED": "Rechazada",
+      "EXPIRED": "Caducada",
+      "CANCELLED": "Cancelada"
+    },
+    "board": {
+      "SELF_CATERING": "Derecho a cocina",
+      "FULL_BOARD": "Pensión completa"
+    },
+    "documentTypes": {
+      "ESTIMATE": "Presupuesto",
+      "RESERVE_INVOICE": "Factura de reserva",
+      "FINAL_INVOICE": "Factura final"
+    },
+    "errors": {
+      "unauthenticated": "Tu sesión ha caducado. Vuelve a iniciar sesión.",
+      "forbidden": "No tienes permiso para esta acción.",
+      "invalid": "Revisa los valores e inténtalo de nuevo.",
+      "state_changed": "Otra persona ha cambiado esta reserva. Recarga para ver el estado actual.",
+      "reason_required": "Hace falta un motivo.",
+      "amount_mismatch": "El importe no coincide al céntimo con lo debido. Revísalo a mano.",
+      "unknown": "No se ha podido completar la acción."
+    }
   }
 }
