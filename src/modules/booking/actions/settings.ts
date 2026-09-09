@@ -40,6 +40,7 @@ export type SettingsActionState =
         | "storage_unavailable"
         | "authentication"
         | "connection"
+        | "not_found"
         | "rejected"
         | "unknown";
     };
@@ -86,6 +87,9 @@ function toErrorState(error: unknown): SettingsActionState {
   if (error instanceof HoldedError || error instanceof GravityFormsError) {
     if (error.code === "unauthorized") {
       return { status: "error", reason: "authentication" };
+    }
+    if (error.code === "not_found") {
+      return { status: "error", reason: "not_found" };
     }
     return {
       status: "error",
@@ -185,7 +189,17 @@ export async function testIntegration(
 
     return { status: "verified" };
   } catch (error) {
-    return toErrorState(error);
+    const state = toErrorState(error);
+    logger.warn(
+      {
+        event: "booking_integration_test_failed",
+        provider,
+        reason: state.status === "error" ? state.reason : "unknown",
+      },
+      "booking integration test failed",
+    );
+
+    return state;
   }
 }
 

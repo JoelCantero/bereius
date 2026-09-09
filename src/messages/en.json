@@ -698,6 +698,7 @@
       "title": "Booking requests",
       "description": "Review and decide on booking requests.",
       "empty": "No booking requests match this filter.",
+      "noneYet": "No requests yet. They arrive from Gravity Forms every hour.",
       "searchLabel": "Search by name, tax identifier or email",
       "searchAction": "Search",
       "stateLabel": "State",
@@ -780,6 +781,7 @@
       "amount_mismatch": "The amount does not match what is owed to the cent. Review it by hand.",
       "authentication": "The service refused the credential. Check that it is correct and carries the right permissions.",
       "connection": "The service could not be reached. Try again shortly.",
+      "not_found": "The service answers but cannot find the resource. Check the base URL and the form id.",
       "rejected": "The service refused the request. Review the configuration.",
       "unknown": "The action could not be completed."
     },
@@ -815,6 +817,7 @@
       "gravityForms": {
         "title": "Gravity Forms",
         "apiUrl": "REST API base URL",
+        "apiUrlHint": "The Gravity Forms API base, not the site root: https://your-domain.com/wp-json/gf/v2",
         "formId": "Form id",
         "consumerKey": "Consumer key",
         "consumerSecret": "Consumer secret",

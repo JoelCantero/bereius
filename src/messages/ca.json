@@ -698,6 +698,7 @@
       "title": "Sol·licituds de reserva",
       "description": "Revisa i decideix sobre les sol·licituds de reserva.",
       "empty": "Cap sol·licitud coincideix amb aquest filtre.",
+      "noneYet": "Encara no hi ha sol·licituds. Arriben des de Gravity Forms cada hora.",
       "searchLabel": "Cerca per nom, NIF o correu",
       "searchAction": "Cerca",
       "stateLabel": "Estat",
@@ -780,6 +781,7 @@
       "amount_mismatch": "L'import no coincideix al cèntim amb el que es deu. Revisa-ho a mà.",
       "authentication": "El servei ha rebutjat la credencial. Comprova que sigui correcta i que tingui permisos.",
       "connection": "No s'ha pogut contactar amb el servei. Torna-ho a provar més tard.",
+      "not_found": "El servei respon però no troba el recurs. Revisa la URL base i l'identificador del formulari.",
       "rejected": "El servei ha rebutjat la petició. Revisa la configuració.",
       "unknown": "No s'ha pogut completar l'acció."
     },
@@ -815,6 +817,7 @@
       "gravityForms": {
         "title": "Gravity Forms",
         "apiUrl": "URL base de l'API REST",
+        "apiUrlHint": "Base de l'API de Gravity Forms, no la del lloc: https://el-teu-domini.com/wp-json/gf/v2",
         "formId": "Id del formulari",
         "consumerKey": "Clau de consumidor",
         "consumerSecret": "Secret de consumidor",

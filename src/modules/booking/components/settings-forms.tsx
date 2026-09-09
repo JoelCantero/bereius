@@ -342,6 +342,7 @@ export function GravityFormsSettingsForm({
           label={t("gravityForms.apiUrl")}
           required
           defaultValue={String(config?.apiUrl ?? "")}
+          hint={t("gravityForms.apiUrlHint")}
         />
         <Field
           name="formId"

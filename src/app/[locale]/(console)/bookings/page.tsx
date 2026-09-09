@@ -108,7 +108,12 @@ export default async function BookingsPage({ params, searchParams }: BookingsPag
       </form>
 
       {bookings.length === 0 ? (
-        <p className="text-sm text-zinc-600">{t("queue.empty")}</p>
+        <p className="text-sm text-zinc-600">
+          {/* An empty queue and a filter that matches nothing need different advice. */}
+          {isBookingState(query.state) || query.q
+            ? t("queue.empty")
+            : t("queue.noneYet")}
+        </p>
       ) : (
         <table className="w-full border-collapse text-sm">
           <caption className="sr-only">{t("queue.title")}</caption>

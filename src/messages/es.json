@@ -698,6 +698,7 @@
       "title": "Solicitudes de reserva",
       "description": "Revisa y decide sobre las solicitudes de reserva.",
       "empty": "Ninguna solicitud coincide con este filtro.",
+      "noneYet": "Todavía no hay solicitudes. Entran desde Gravity Forms cada hora.",
       "searchLabel": "Buscar por nombre, NIF o correo",
       "searchAction": "Buscar",
       "stateLabel": "Estado",
@@ -780,6 +781,7 @@
       "amount_mismatch": "El importe no coincide al céntimo con lo debido. Revísalo a mano.",
       "authentication": "El servicio ha rechazado la credencial. Comprueba que sea correcta y que tenga permisos.",
       "connection": "No se ha podido contactar con el servicio. Inténtalo de nuevo más tarde.",
+      "not_found": "El servicio responde pero no encuentra el recurso. Revisa la URL base y el identificador del formulario.",
       "rejected": "El servicio ha rechazado la petición. Revisa la configuración.",
       "unknown": "No se ha podido completar la acción."
     },
@@ -815,6 +817,7 @@
       "gravityForms": {
         "title": "Gravity Forms",
         "apiUrl": "URL base de la API REST",
+        "apiUrlHint": "Base de la API de Gravity Forms, no la del sitio: https://tu-dominio.com/wp-json/gf/v2",
         "formId": "Id del formulario",
         "consumerKey": "Clave de consumidor",
         "consumerSecret": "Secreto de consumidor",

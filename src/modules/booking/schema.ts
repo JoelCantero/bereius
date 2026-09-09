@@ -100,10 +100,19 @@ const requiredText = z
 const calendarDate = z
   .unknown()
   .transform((value) => (typeof value === "string" ? value.trim() : ""))
-  .pipe(z.string().regex(/^\d{4}-\d{2}-\d{2}$/u, "Expected a YYYY-MM-DD date"))
+  // Gravity Forms does not pad the month or the day, so `2027-7-4` is normal.
+  .pipe(z.string().regex(/^\d{4}-\d{1,2}-\d{1,2}$/u, "Expected a YYYY-M-D date"))
   .transform((value, ctx) => {
-    const parsed = new Date(`${value}T00:00:00.000Z`);
-    if (Number.isNaN(parsed.getTime())) {
+    const [year, month, day] = value.split("-").map(Number);
+    const parsed = new Date(Date.UTC(year, month - 1, day));
+
+    // Date.UTC rolls a 31st of February over into March rather than refusing.
+    if (
+      Number.isNaN(parsed.getTime()) ||
+      parsed.getUTCFullYear() !== year ||
+      parsed.getUTCMonth() !== month - 1 ||
+      parsed.getUTCDate() !== day
+    ) {
       ctx.addIssue({ code: "custom", message: "Not a real calendar date" });
       return z.NEVER;
     }
