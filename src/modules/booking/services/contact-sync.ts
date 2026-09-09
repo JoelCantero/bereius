@@ -208,31 +208,43 @@ export async function linkExistingEstimate(
   const estimate = estimates.find((candidate) => candidate.id === holdedId);
   if (!estimate) throw new ContactSyncError("not_in_holded");
 
-  await db.holdedDocument.upsert({
-    where: { bookingRequestId_type: { bookingRequestId, type: "ESTIMATE" } },
-    create: {
-      bookingRequestId,
-      type: "ESTIMATE",
-      holdedId: estimate.id,
-      documentNumber: estimate.number,
-      totalCents: null,
-    },
-    update: { holdedId: estimate.id, documentNumber: estimate.number },
+  // The document and the approval move together: a request must never end up
+  // holding a contract while still sitting in review.
+  await db.$transaction(async (tx) => {
+    await tx.holdedDocument.upsert({
+      where: { bookingRequestId_type: { bookingRequestId, type: "ESTIMATE" } },
+      create: {
+        bookingRequestId,
+        type: "ESTIMATE",
+        holdedId: estimate.id,
+        documentNumber: estimate.number,
+        totalCents: null,
+      },
+      update: { holdedId: estimate.id, documentNumber: estimate.number },
+    });
+
+    // The estimate is the contract, so a request that has one has been agreed.
+    // Quoting is deliberately not queued: it would issue a second estimate.
+    if (state === "IN_REVIEW") {
+      await transitionBooking(
+        {
+          bookingRequestId,
+          to: "APPROVED",
+          actorUserId,
+          expectedFrom: "IN_REVIEW",
+        },
+        tx,
+      );
+    }
   });
 
-  // The estimate is the contract, so a request that has one has been approved.
-  // Quoting is deliberately not queued: it would issue a second estimate.
-  if (state === "IN_REVIEW") {
-    await transitionBooking({
-      bookingRequestId,
-      to: "APPROVED",
-      actorUserId,
-      expectedFrom: "IN_REVIEW",
-    });
-  }
-
   logger.info(
-    { event: "booking_estimate_linked", bookingRequestId, holdedId, approved: state === "IN_REVIEW" },
+    {
+      event: "booking_estimate_linked",
+      bookingRequestId,
+      holdedId,
+      approved: state === "IN_REVIEW",
+    },
     "existing holded estimate linked to a booking request",
   );
 }

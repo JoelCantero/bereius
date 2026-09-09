@@ -67,13 +67,22 @@ export interface TransitionResult {
   to: BookingState;
 }
 
+/** The client Prisma hands to a `$transaction` callback. */
+export type BookingTransactionClient = Parameters<
+  Parameters<typeof db.$transaction>[0]
+>[0];
+
 /**
  * Moves a booking and records why, atomically. The audit row and the state
  * change share one transaction, so a booking can never reach a state without
  * leaving evidence of who put it there.
+ *
+ * A caller may pass its own transaction to make the move atomic with whatever
+ * else it is writing.
  */
 export async function transitionBooking(
   command: TransitionCommand,
+  transaction?: BookingTransactionClient,
 ): Promise<TransitionResult> {
   const reason = command.reason?.trim();
 
@@ -84,7 +93,7 @@ export async function transitionBooking(
     );
   }
 
-  return db.$transaction(async (tx) => {
+  const apply = async (tx: BookingTransactionClient): Promise<TransitionResult> => {
     const booking = await tx.bookingRequest.findUnique({
       where: { id: command.bookingRequestId },
       select: { id: true, state: true },
@@ -145,5 +154,7 @@ export async function transitionBooking(
     });
 
     return { bookingRequestId: booking.id, from: booking.state, to: command.to };
-  });
+  };
+
+  return transaction ? apply(transaction) : db.$transaction(apply);
 }

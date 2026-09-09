@@ -220,4 +220,25 @@ describe.skipIf(!runIntegrationTests)("holded contact synchronisation", () => {
       db.bookingRequest.findUniqueOrThrow({ where: { id: request.id } }),
     ).resolves.toMatchObject({ state: "CONFIRMED" });
   });
+
+  it("attaches nothing when the approval cannot be recorded", async () => {
+    mocks.contact = HOLDED_CONTACT;
+    mocks.estimates = [{ id: "estimate-1", number: "E1" }];
+    const request = await booking();
+
+    // An actor that does not exist fails the audit row's foreign key, standing
+    // in for any late failure once the document has already been written.
+    await expect(
+      linkExistingEstimate(request.id, "estimate-1", "missing-user-id"),
+    ).rejects.toThrow();
+
+    // Neither half may survive: a contract without its approval is the drift
+    // this transaction exists to prevent.
+    await expect(
+      db.holdedDocument.count({ where: { bookingRequestId: request.id } }),
+    ).resolves.toBe(0);
+    await expect(
+      db.bookingRequest.findUniqueOrThrow({ where: { id: request.id } }),
+    ).resolves.toMatchObject({ state: "IN_REVIEW" });
+  });
 });
