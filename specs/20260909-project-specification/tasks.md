@@ -98,9 +98,9 @@ description: "Task list for Berea Booking Manager — Phase 1"
 **Purpose**: A configurable SMTP sender, independent from the account mail provider.
 
 - [X] T022 Implement AES-256-GCM envelope encryption in `src/lib/booking/secrets.ts` using Node `crypto` and `BOOKING_SECRET_KEY`, plus `src/modules/booking/services/settings.ts` for storing and resolving integration credentials; brought forward because intake cannot read credentials until they can be stored
-- [ ] T023 Implement the SMTP transport in `src/lib/mail/smtp.ts` and a `sendTest` operation used by the settings screen, keeping the transport out of the request path by dispatching through the outbox
-- [ ] T024 Build the integration settings screens and Server Actions in `src/modules/booking/components/` and `src/modules/booking/actions/settings.ts`: administrator-only, covering Holded, Gravity Forms and the booking mailbox; every credential write-only, each with a test-connection action that reports the failure reason without leaking the credential
-- [ ] T025 Write unit tests in `tests/unit/booking-mail-settings.test.ts` proving the password is never present in a returned object, a log line or an error message, and that saving without changing the password preserves the stored one
+- [X] T023 Implement the SMTP transport in `src/lib/mail/smtp.ts` with failure classification that never echoes the server response, plus `src/modules/booking/services/mail.ts` dispatching every booking notification through the outbox
+- [X] T024 Implement the administrator-only settings Server Actions in `src/modules/booking/actions/settings.ts` and the role check in `src/modules/booking/authorization.ts`: credentials are write-only, and a test-connection action reports a failure category rather than the provider's message
+- [X] T025 Write tests in `tests/unit/booking-smtp.test.ts` and `tests/integration/booking-settings.test.ts` proving the password never appears in a returned object, a listing or an error message, and that saving without changing the password preserves the stored one
 
 ---
 
@@ -108,7 +108,7 @@ description: "Task list for Berea Booking Manager — Phase 1"
 
 **Purpose**: The screens where a person decides, with authorisation enforced server-side.
 
-- [ ] T026 Add role checks to `src/server/` authorisation helpers so operator and administrator actions are enforced on the server, never inferred from the client
+- [ ] T026 Wire the settings and review screens under `src/app/[locale]/bookings/`, reusing the role check already implemented in `src/modules/booking/authorization.ts`
 - [ ] T027 Build the review queue at `src/app/[locale]/bookings/page.tsx` with filtering by state and search by customer, tax identifier and date range
 - [ ] T028 Build the request detail screen at `src/app/[locale]/bookings/[id]/page.tsx` showing the stay, the submitted customer data, the computed amounts, whether a Holded contact already exists, and the full audit trail
 - [ ] T029 Implement the approve, reject and cancel Server Actions in `src/modules/booking/actions/decisions.ts`, each validating input with Zod, checking the role, writing the transition and enqueueing the resulting work in the same transaction

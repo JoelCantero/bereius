@@ -4,6 +4,10 @@ import { logger } from "@/lib/logger";
 import { expireUnpaidBookings } from "@/modules/booking/services/expiry";
 import { runIntake } from "@/modules/booking/services/intake";
 import { drainOutbox, type JobHandler } from "@/modules/booking/services/outbox";
+import {
+  BOOKING_MAIL_JOB_KIND,
+  runBookingMailJob,
+} from "@/modules/booking/services/mail";
 import { QUOTE_JOB_KIND, runQuoteJob } from "@/modules/booking/services/quoting";
 
 const HOUR_MS = 3_600_000;
@@ -16,6 +20,7 @@ export const SCHEDULES = {
 
 const JOB_HANDLERS: Readonly<Record<string, JobHandler>> = {
   [QUOTE_JOB_KIND]: runQuoteJob,
+  [BOOKING_MAIL_JOB_KIND]: runBookingMailJob,
 };
 
 type TaskName = keyof typeof SCHEDULES;
