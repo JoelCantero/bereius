@@ -108,13 +108,13 @@ description: "Task list for Berea Booking Manager — Phase 1"
 
 **Purpose**: The screens where a person decides, with authorisation enforced server-side.
 
-- [ ] T026 Wire the settings and review screens under `src/app/[locale]/bookings/`, reusing the role check already implemented in `src/modules/booking/authorization.ts`
-- [ ] T027 Build the review queue at `src/app/[locale]/bookings/page.tsx` with filtering by state and search by customer, tax identifier and date range
-- [ ] T028 Build the request detail screen at `src/app/[locale]/bookings/[id]/page.tsx` showing the stay, the submitted customer data, the computed amounts, whether a Holded contact already exists, and the full audit trail
-- [ ] T029 Implement the approve, reject and cancel Server Actions in `src/modules/booking/actions/decisions.ts`, each validating input with Zod, checking the role, writing the transition and enqueueing the resulting work in the same transaction
-- [ ] T030 Implement manual payment recording in `src/modules/booking/actions/payments.ts` and `src/modules/booking/services/payments.ts`, moving a request to confirmed and recording who registered the transfer
-- [ ] T031 Add the booking copy to `src/messages/en.json`, `es.json` and `ca.json` in a single change, covering the screens, the state names and the outbound emails
-- [ ] T032 Implement the booking notifications — confirmation, rejection, cancellation, expiry, and the operator alert for a new pending request — sent through the booking SMTP channel
+- [X] T026 Wire the settings and review screens under `src/app/[locale]/bookings/`, reusing the role check already implemented in `src/modules/booking/authorization.ts`
+- [X] T027 Build the review queue at `src/app/[locale]/bookings/page.tsx` with filtering by state and search by customer, tax identifier and date range
+- [X] T028 Build the request detail screen at `src/app/[locale]/bookings/[id]/page.tsx` showing the stay, the submitted customer data, the computed amounts, whether a Holded contact already exists, and the full audit trail
+- [X] T029 Implement the approve, reject and cancel Server Actions in `src/modules/booking/actions/decisions.ts`, each validating input with Zod, checking the role, writing the transition and enqueueing the resulting work in the same transaction
+- [X] T030 Implement manual payment recording in `src/modules/booking/actions/payments.ts` and `src/modules/booking/services/payments.ts`, moving a request to confirmed and recording who registered the transfer
+- [X] T031 Add the booking copy to `src/messages/en.json`, `es.json` and `ca.json` in a single change, covering the screens, the state names and the outbound emails
+- [X] T032 Implement the booking notifications — confirmation, rejection, cancellation, expiry, and the operator alert for a new pending request — sent through the booking SMTP channel
 - [ ] T033 Write end-to-end coverage in `tests/e2e/booking-review.spec.ts` for the path from a pending request to an approved one with the estimate issued, against a stubbed Holded boundary
 
 ---
