@@ -746,6 +746,65 @@
       "reason_required": "Hace falta un motivo.",
       "amount_mismatch": "El importe no coincide al céntimo con lo debido. Revísalo a mano.",
       "unknown": "No se ha podido completar la acción."
+    },
+    "settings": {
+      "title": "Integraciones",
+      "description": "Credenciales e identificadores del pipeline de reservas.",
+      "configured": "Configurada",
+      "notConfigured": "Sin configurar",
+      "verifiedAt": "Verificada por última vez el {date}",
+      "neverVerified": "Nunca verificada",
+      "test": "Probar conexión",
+      "save": "Guardar",
+      "secretHint": "Déjalo vacío para conservar la credencial guardada.",
+      "secretStored": "Hay una credencial guardada.",
+      "saved": "Ajustes guardados.",
+      "verified": "La conexión funciona.",
+      "holded": {
+        "title": "Holded",
+        "apiKey": "Clave de API",
+        "accountingAccountId": "Id de cuenta contable",
+        "depositServiceId": "Id del servicio de fianza",
+        "mailTemplateId": "Id de plantilla de correo",
+        "paymentMethodId": "Id de método de pago",
+        "language": "Idioma de los documentos",
+        "services": "Id de servicio por tarifa"
+      },
+      "gravityForms": {
+        "title": "Gravity Forms",
+        "apiUrl": "URL base de la API REST",
+        "formId": "Id del formulario",
+        "consumerKey": "Clave de consumidor",
+        "consumerSecret": "Secreto de consumidor",
+        "fields": "Id de campo por valor",
+        "fieldsHint": "Mapeado por id de campo, para que renombrar una etiqueta no rompa la entrada."
+      },
+      "mail": {
+        "title": "Buzón de reservas",
+        "host": "Servidor SMTP",
+        "port": "Puerto",
+        "secure": "Usar TLS al conectar",
+        "username": "Usuario",
+        "password": "Contraseña",
+        "fromEmail": "Dirección remitente"
+      },
+      "fieldLabels": {
+        "firstName": "Nombre",
+        "lastName": "Apellidos",
+        "organisation": "Organización",
+        "taxId": "NIF",
+        "email": "Correo",
+        "phone": "Teléfono",
+        "addressLine": "Dirección",
+        "city": "Población",
+        "province": "Provincia",
+        "postalCode": "Código postal",
+        "country": "País",
+        "headcount": "Número de personas",
+        "boardType": "Tipo de pensión",
+        "startDate": "Entrada",
+        "endDate": "Salida"
+      }
     }
   }
 }

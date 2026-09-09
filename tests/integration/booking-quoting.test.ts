@@ -37,6 +37,9 @@ function stubClient(options: StubOptions = {}) {
   };
 
   const client: HoldedClient = {
+    ping: vi.fn(async () => {
+      track("ping", () => undefined);
+    }),
     findContactByTaxId: vi.fn(async () => track("findContactByTaxId", () => null)),
     createContact: vi.fn(async () => track("createContact", () => ({ id: "contact-1" }))),
     updateContactEmail: vi.fn(async () => {

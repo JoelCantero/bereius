@@ -746,6 +746,65 @@
       "reason_required": "A reason is required.",
       "amount_mismatch": "The amount does not match what is owed to the cent. Review it by hand.",
       "unknown": "The action could not be completed."
+    },
+    "settings": {
+      "title": "Integrations",
+      "description": "Credentials and identifiers for the booking pipeline.",
+      "configured": "Configured",
+      "notConfigured": "Not configured",
+      "verifiedAt": "Last verified {date}",
+      "neverVerified": "Never verified",
+      "test": "Test connection",
+      "save": "Save",
+      "secretHint": "Leave empty to keep the stored credential.",
+      "secretStored": "A credential is stored.",
+      "saved": "Settings saved.",
+      "verified": "The connection works.",
+      "holded": {
+        "title": "Holded",
+        "apiKey": "API key",
+        "accountingAccountId": "Accounting account id",
+        "depositServiceId": "Deposit service id",
+        "mailTemplateId": "Mail template id",
+        "paymentMethodId": "Payment method id",
+        "language": "Document language",
+        "services": "Service id per rate"
+      },
+      "gravityForms": {
+        "title": "Gravity Forms",
+        "apiUrl": "REST API base URL",
+        "formId": "Form id",
+        "consumerKey": "Consumer key",
+        "consumerSecret": "Consumer secret",
+        "fields": "Field id per value",
+        "fieldsHint": "Mapped by field id so renaming a label cannot break intake."
+      },
+      "mail": {
+        "title": "Booking mailbox",
+        "host": "SMTP host",
+        "port": "Port",
+        "secure": "Use TLS on connect",
+        "username": "Username",
+        "password": "Password",
+        "fromEmail": "Sender address"
+      },
+      "fieldLabels": {
+        "firstName": "First name",
+        "lastName": "Surname",
+        "organisation": "Organisation",
+        "taxId": "Tax identifier",
+        "email": "Email",
+        "phone": "Phone",
+        "addressLine": "Address",
+        "city": "City",
+        "province": "Province",
+        "postalCode": "Postal code",
+        "country": "Country",
+        "headcount": "Headcount",
+        "boardType": "Board type",
+        "startDate": "Arrival",
+        "endDate": "Departure"
+      }
     }
   }
 }

@@ -746,6 +746,65 @@
       "reason_required": "Cal un motiu.",
       "amount_mismatch": "L'import no coincideix al cèntim amb el que es deu. Revisa-ho a mà.",
       "unknown": "No s'ha pogut completar l'acció."
+    },
+    "settings": {
+      "title": "Integracions",
+      "description": "Credencials i identificadors del pipeline de reserves.",
+      "configured": "Configurada",
+      "notConfigured": "Sense configurar",
+      "verifiedAt": "Verificada per últim cop el {date}",
+      "neverVerified": "Mai verificada",
+      "test": "Prova la connexió",
+      "save": "Desa",
+      "secretHint": "Deixa-ho buit per conservar la credencial desada.",
+      "secretStored": "Hi ha una credencial desada.",
+      "saved": "Configuració desada.",
+      "verified": "La connexió funciona.",
+      "holded": {
+        "title": "Holded",
+        "apiKey": "Clau d'API",
+        "accountingAccountId": "Id de compte comptable",
+        "depositServiceId": "Id del servei de dipòsit",
+        "mailTemplateId": "Id de plantilla de correu",
+        "paymentMethodId": "Id de mètode de pagament",
+        "language": "Idioma dels documents",
+        "services": "Id de servei per tarifa"
+      },
+      "gravityForms": {
+        "title": "Gravity Forms",
+        "apiUrl": "URL base de l'API REST",
+        "formId": "Id del formulari",
+        "consumerKey": "Clau de consumidor",
+        "consumerSecret": "Secret de consumidor",
+        "fields": "Id de camp per valor",
+        "fieldsHint": "Mapejat per id de camp, perquè reanomenar una etiqueta no trenqui l'entrada."
+      },
+      "mail": {
+        "title": "Bústia de reserves",
+        "host": "Servidor SMTP",
+        "port": "Port",
+        "secure": "Usa TLS en connectar",
+        "username": "Usuari",
+        "password": "Contrasenya",
+        "fromEmail": "Adreça remitent"
+      },
+      "fieldLabels": {
+        "firstName": "Nom",
+        "lastName": "Cognoms",
+        "organisation": "Organització",
+        "taxId": "NIF",
+        "email": "Correu",
+        "phone": "Telèfon",
+        "addressLine": "Adreça",
+        "city": "Població",
+        "province": "Província",
+        "postalCode": "Codi postal",
+        "country": "País",
+        "headcount": "Nombre de persones",
+        "boardType": "Tipus de pensió",
+        "startDate": "Entrada",
+        "endDate": "Sortida"
+      }
     }
   }
 }

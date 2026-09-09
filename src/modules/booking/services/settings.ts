@@ -187,6 +187,20 @@ export interface ResolvedIntegration<TConfig> {
   secret: string;
 }
 
+/** Non-secret configuration for the settings screen, safe to render. */
+export async function readIntegrationConfig(
+  provider: IntegrationProvider,
+): Promise<Record<string, unknown> | null> {
+  const row = await db.integrationSettings.findUnique({
+    where: { provider },
+    select: { config: true },
+  });
+
+  return row?.config && typeof row.config === "object"
+    ? (row.config as Record<string, unknown>)
+    : null;
+}
+
 /**
  * Server-side only. Returns the decrypted credential, so the result must never
  * reach a component, a response body or a log line.

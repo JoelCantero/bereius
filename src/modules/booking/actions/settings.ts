@@ -6,6 +6,8 @@ import { z } from "zod";
 
 import type { IntegrationProvider } from "@/generated/prisma/enums";
 import { BookingSecretError } from "@/lib/booking/secrets";
+import { createGravityFormsClient } from "@/lib/gravity-forms/client";
+import { createHoldedClient } from "@/lib/holded/client";
 import { createSmtpSender, SmtpError } from "@/lib/mail/smtp";
 import { getEnv } from "@/lib/env";
 import { logger } from "@/lib/logger";
@@ -13,10 +15,12 @@ import {
   AuthorizationError,
   requireBookingActor,
 } from "@/modules/booking/authorization";
+import { GRAVITY_FORM_FIELD_KEYS } from "@/modules/booking/schema";
 import {
   IntegrationSettingsError,
   listIntegrationStatus,
   markIntegrationVerified,
+  resolveIntegration,
   saveIntegrationSettings,
   type IntegrationStatus,
 } from "@/modules/booking/services/settings";
@@ -40,6 +44,17 @@ export type SettingsActionState =
     };
 
 const providerSchema = z.enum(["HOLDED", "GRAVITY_FORMS", "BOOKING_MAIL"]);
+
+const RATE_SKUS = [
+  "dc30",
+  "dc40",
+  "dc60",
+  "dc80",
+  "pc30",
+  "pc40",
+  "pc60",
+  "pc80",
+] as const;
 
 const smtpFormSchema = z.object({
   host: z.string().min(1),
@@ -127,28 +142,33 @@ export async function testIntegration(
     await requireBookingActor("ADMINISTRATOR");
     const validated = providerSchema.parse(provider);
 
-    if (validated !== "BOOKING_MAIL") {
-      return { status: "error", reason: "invalid" };
+    if (validated === "BOOKING_MAIL") {
+      const { config, secret } = await resolveIntegration("BOOKING_MAIL");
+      await createSmtpSender(
+        {
+          host: config.host,
+          port: config.port,
+          secure: config.secure,
+          username: config.username,
+          password: secret,
+          fromEmail: config.fromEmail,
+        },
+        getEnv().PROJECT_NAME.trim(),
+      ).verify();
+    } else if (validated === "HOLDED") {
+      const { secret } = await resolveIntegration("HOLDED");
+      await createHoldedClient(secret).ping();
+    } else {
+      const { config, secret } = await resolveIntegration("GRAVITY_FORMS");
+      await createGravityFormsClient({
+        apiUrl: config.apiUrl,
+        formId: config.formId,
+        consumerKey: config.consumerKey,
+        consumerSecret: secret,
+      }).fetchEntriesAfter(null);
     }
 
-    const { resolveIntegration } = await import(
-      "@/modules/booking/services/settings"
-    );
-    const { config, secret } = await resolveIntegration("BOOKING_MAIL");
-
-    await createSmtpSender(
-      {
-        host: config.host,
-        port: config.port,
-        secure: config.secure,
-        username: config.username,
-        password: secret,
-        fromEmail: config.fromEmail,
-      },
-      getEnv().PROJECT_NAME.trim(),
-    ).verify();
-
-    await markIntegrationVerified("BOOKING_MAIL");
+    await markIntegrationVerified(validated);
 
     return { status: "verified" };
   } catch (error) {
@@ -156,4 +176,115 @@ export async function testIntegration(
   }
 }
 
-export { createSmtpSender };
+export async function saveHoldedSettings(
+  _previous: SettingsActionState,
+  formData: FormData,
+): Promise<SettingsActionState> {
+  try {
+    const actor = await requireBookingActor("ADMINISTRATOR");
+
+    const serviceIdsBySku = Object.fromEntries(
+      RATE_SKUS.map((sku) => [sku, String(formData.get(`service.${sku}`) ?? "").trim()]).filter(
+        ([, value]) => value.length > 0,
+      ),
+    );
+
+    const parsed = z
+      .object({
+        accountingAccountId: z.string().trim().min(1),
+        depositServiceId: z.string().trim().min(1),
+        mailTemplateId: z.string().trim().min(1).optional(),
+        paymentMethodId: z.string().trim().min(1).optional(),
+        language: z.string().trim().min(2).max(5),
+        apiKey: z.string().optional(),
+      })
+      .parse({
+        accountingAccountId: formData.get("accountingAccountId"),
+        depositServiceId: formData.get("depositServiceId"),
+        mailTemplateId: formData.get("mailTemplateId") || undefined,
+        paymentMethodId: formData.get("paymentMethodId") || undefined,
+        language: formData.get("language") ?? "ca",
+        apiKey: formData.get("apiKey") ?? undefined,
+      });
+
+    const apiKey = parsed.apiKey?.trim();
+
+    await saveIntegrationSettings({
+      provider: "HOLDED",
+      config: {
+        accountingAccountId: parsed.accountingAccountId,
+        depositServiceId: parsed.depositServiceId,
+        mailTemplateId: parsed.mailTemplateId,
+        paymentMethodId: parsed.paymentMethodId,
+        language: parsed.language,
+        serviceIdsBySku,
+      },
+      secret: apiKey ? apiKey : undefined,
+      updatedById: actor.userId,
+    });
+
+    logger.info(
+      { event: "booking_settings_saved", provider: "HOLDED", actorId: actor.userId },
+      "booking integration settings saved",
+    );
+
+    return { status: "saved" };
+  } catch (error) {
+    return toErrorState(error);
+  }
+}
+
+export async function saveGravityFormsSettings(
+  _previous: SettingsActionState,
+  formData: FormData,
+): Promise<SettingsActionState> {
+  try {
+    const actor = await requireBookingActor("ADMINISTRATOR");
+
+    const fieldMap = Object.fromEntries(
+      GRAVITY_FORM_FIELD_KEYS.map((key) => [
+        key,
+        String(formData.get(`field.${key}`) ?? "").trim(),
+      ]),
+    );
+
+    const parsed = z
+      .object({
+        apiUrl: z.url(),
+        formId: z.string().trim().regex(/^\d+$/u),
+        consumerKey: z.string().trim().min(1),
+        consumerSecret: z.string().optional(),
+      })
+      .parse({
+        apiUrl: formData.get("apiUrl"),
+        formId: formData.get("formId"),
+        consumerKey: formData.get("consumerKey"),
+        consumerSecret: formData.get("consumerSecret") ?? undefined,
+      });
+
+    const consumerSecret = parsed.consumerSecret?.trim();
+
+    await saveIntegrationSettings({
+      provider: "GRAVITY_FORMS",
+      config: {
+        apiUrl: parsed.apiUrl,
+        formId: parsed.formId,
+        consumerKey: parsed.consumerKey,
+        fieldMap,
+      },
+      secret: consumerSecret ? consumerSecret : undefined,
+      updatedById: actor.userId,
+    });
+
+    logger.info(
+      { event: "booking_settings_saved", provider: "GRAVITY_FORMS", actorId: actor.userId },
+      "booking integration settings saved",
+    );
+
+    return { status: "saved" };
+  } catch (error) {
+    return toErrorState(error);
+  }
+}
+
+export { RATE_SKUS };

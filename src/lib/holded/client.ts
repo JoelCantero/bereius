@@ -95,6 +95,8 @@ export interface HoldedInvoiceInput extends HoldedEstimateInput {
 }
 
 export interface HoldedClient {
+  /** Cheapest authenticated call, used by the settings screen. */
+  ping(): Promise<void>;
   findContactByTaxId(taxId: string): Promise<{ id: string; email: string | null } | null>;
   createContact(input: HoldedContactInput): Promise<{ id: string }>;
   updateContactEmail(contactId: string, email: string): Promise<void>;
@@ -171,6 +173,10 @@ export function createHoldedClient(
   }
 
   return {
+    async ping() {
+      await request("GET", "/contacts?page=1");
+    },
+
     /**
      * Paginates and stops at the first match rather than downloading the whole
      * contact list into memory, which is how the retired workflow did it and
