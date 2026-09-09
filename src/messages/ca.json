@@ -780,13 +780,14 @@
         "fieldsHint": "Mapejat per id de camp, perquè reanomenar una etiqueta no trenqui l'entrada."
       },
       "mail": {
-        "title": "Bústia de reserves",
+        "title": "Correu de notificacions",
         "host": "Servidor SMTP",
         "port": "Port",
         "secure": "Usa TLS en connectar",
         "username": "Usuari",
         "password": "Contrasenya",
-        "fromEmail": "Adreça remitent"
+        "fromEmail": "Adreça remitent",
+        "description": "Bústia des de la qual s'avisa sol·licitants i operadors."
       },
       "fieldLabels": {
         "firstName": "Nom",
@@ -804,6 +805,11 @@
         "boardType": "Tipus de pensió",
         "startDate": "Entrada",
         "endDate": "Sortida"
+      },
+      "providers": {
+        "HOLDED": "Holded",
+        "GRAVITY_FORMS": "Gravity Forms",
+        "BOOKING_MAIL": "Correu de notificacions"
       }
     }
   }

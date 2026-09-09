@@ -780,13 +780,14 @@
         "fieldsHint": "Mapped by field id so renaming a label cannot break intake."
       },
       "mail": {
-        "title": "Booking mailbox",
+        "title": "Notification email",
         "host": "SMTP host",
         "port": "Port",
         "secure": "Use TLS on connect",
         "username": "Username",
         "password": "Password",
-        "fromEmail": "Sender address"
+        "fromEmail": "Sender address",
+        "description": "Mailbox used to notify requesters and operators."
       },
       "fieldLabels": {
         "firstName": "First name",
@@ -804,6 +805,11 @@
         "boardType": "Board type",
         "startDate": "Arrival",
         "endDate": "Departure"
+      },
+      "providers": {
+        "HOLDED": "Holded",
+        "GRAVITY_FORMS": "Gravity Forms",
+        "BOOKING_MAIL": "Notification email"
       }
     }
   }

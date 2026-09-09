@@ -51,6 +51,7 @@ export default async function BookingSettingsPage({ params }: SettingsPageProps)
   }
 
   const t = await getTranslations({ locale, namespace: "Bookings.settings" });
+  const queue = await getTranslations({ locale, namespace: "Bookings.queue" });
   const dateFormat = new Intl.DateTimeFormat(locale, { dateStyle: "medium" });
 
   const [statuses, holded, gravityForms, mail] = await Promise.all([
@@ -67,7 +68,7 @@ export default async function BookingSettingsPage({ params }: SettingsPageProps)
     <main className="mx-auto flex w-full max-w-3xl flex-col gap-10 p-6">
       <div className="flex flex-col gap-2">
         <Link href="/bookings" className="text-sm underline">
-          {t("title")}
+          {queue("title")}
         </Link>
         <h1 className="text-2xl font-semibold">{t("title")}</h1>
         <p className="text-sm text-zinc-600">{t("description")}</p>
@@ -76,7 +77,7 @@ export default async function BookingSettingsPage({ params }: SettingsPageProps)
       <ul className="flex flex-col gap-1 text-sm">
         {statuses.map((status) => (
           <li key={status.provider}>
-            <span className="font-medium">{status.provider}</span>{" "}
+            <span className="font-medium">{t(`providers.${status.provider}`)}</span>{" "}
             {status.configured ? t("configured") : t("notConfigured")}
             {" · "}
             {status.verifiedAt

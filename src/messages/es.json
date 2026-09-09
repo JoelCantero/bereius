@@ -780,13 +780,14 @@
         "fieldsHint": "Mapeado por id de campo, para que renombrar una etiqueta no rompa la entrada."
       },
       "mail": {
-        "title": "Buzón de reservas",
+        "title": "Correo de notificaciones",
         "host": "Servidor SMTP",
         "port": "Puerto",
         "secure": "Usar TLS al conectar",
         "username": "Usuario",
         "password": "Contraseña",
-        "fromEmail": "Dirección remitente"
+        "fromEmail": "Dirección remitente",
+        "description": "Buzón desde el que se avisa a solicitantes y operadores."
       },
       "fieldLabels": {
         "firstName": "Nombre",
@@ -804,6 +805,11 @@
         "boardType": "Tipo de pensión",
         "startDate": "Entrada",
         "endDate": "Salida"
+      },
+      "providers": {
+        "HOLDED": "Holded",
+        "GRAVITY_FORMS": "Gravity Forms",
+        "BOOKING_MAIL": "Correo de notificaciones"
       }
     }
   }

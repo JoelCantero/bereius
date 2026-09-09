@@ -292,9 +292,12 @@ export function BookingMailSettingsForm({
 
   return (
     <section aria-labelledby="mail-heading" className="flex flex-col gap-3">
-      <h2 id="mail-heading" className="text-lg font-medium">
-        {t("mail.title")}
-      </h2>
+      <div className="flex flex-col gap-1">
+        <h2 id="mail-heading" className="text-lg font-medium">
+          {t("mail.title")}
+        </h2>
+        <p className="text-sm text-zinc-600">{t("mail.description")}</p>
+      </div>
 
       <form action={formAction} className="flex flex-col gap-3">
         <Field
