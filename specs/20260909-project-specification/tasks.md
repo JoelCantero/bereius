@@ -44,11 +44,11 @@ description: "Task list for Berea Booking Manager — Phase 1"
 
 **CRITICAL**: No capability work can begin until this phase is complete.
 
-- [ ] T004 Add the booking models and enums to `prisma/schema.prisma` per data-model.md: `Customer`, `BookingRequest`, `HoldedDocument`, `Payment`, `BookingAuditEvent`, `IntegrationJob`, `IntegrationSettings`, `BookingMailSettings`, plus `BookingState`, `BoardType`, `DocumentType`, `IntegrationJobStatus` and `UserRole`; add `role UserRole @default(OPERATOR)` to `User` without touching its other fields
-- [ ] T005 Add indexes for the read paths that exist: `BookingRequest` on `(state, createdAt)` and on `gravityEntryId` (unique), `IntegrationJob` on `(status, runAfter)`, `Customer` on `taxId` (unique)
-- [ ] T006 Create the forward-only migration with `pnpm db:migrate --name add_booking_pipeline` and confirm the generated SQL only creates tables, types and one nullable-safe column with a default — no rewrite, no backfill
-- [ ] T007 Implement the state machine in `src/modules/booking/services/lifecycle.ts`: allowed transitions only, reason required for reject and cancel, and every transition writing a `BookingAuditEvent` inside the same transaction as the state change
-- [ ] T008 Write integration tests in `tests/integration/booking-lifecycle.test.ts` proving every legal transition, that illegal transitions are refused, that an audit row exists for each one, and that a failed transition leaves no partial write
+- [X] T004 Add the booking models and enums to `prisma/schema.prisma` per data-model.md: `Customer`, `BookingRequest`, `HoldedDocument`, `Payment`, `BookingAuditEvent`, `IntegrationJob`, `IntegrationSettings`, `IntakeCursor`, plus `BookingState`, `BoardType`, `HoldedDocumentType`, `IntegrationJobStatus`, `IntegrationProvider` and `UserRole`; add `role UserRole @default(OPERATOR)` to `User` without touching its other fields
+- [X] T005 Add indexes for the read paths that exist: `BookingRequest` on `(state, createdAt)` and on `gravityEntryId` (unique), `IntegrationJob` on `(status, runAfter)`, `Customer` on `taxId` (unique), `HoldedDocument` unique on `(bookingRequestId, type)`
+- [X] T006 Create the forward-only migration with `pnpm db:migrate --name add_booking_pipeline` and confirm the generated SQL only creates tables, types and one nullable-safe column with a default — no rewrite, no backfill
+- [X] T007 Implement the state machine in `src/modules/booking/services/lifecycle.ts`: allowed transitions only, reason required for reject and cancel, and every transition writing a `BookingAuditEvent` inside the same transaction as the state change
+- [X] T008 Write integration tests in `tests/integration/booking-lifecycle.test.ts` proving every legal transition, that illegal transitions are refused, that an audit row exists for each one, and that a failed transition leaves no partial write
 
 ---
 

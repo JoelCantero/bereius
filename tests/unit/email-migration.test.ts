@@ -46,6 +46,7 @@ describe("completed HTTP email migration", () => {
       "20260821010000_add_account_session_management",
       "20260823000000_add_personal_data_export",
       "20260901080434_add_login_access_code",
+      "20260909115103_add_booking_pipeline",
     ]);
 
     const migrationSource = await combinedContents(

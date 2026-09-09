@@ -35,11 +35,18 @@ model User {
   emailVerified    DateTime?
   image            String?
   status           UserStatus        @default(ACTIVE)
+  role             UserRole          @default(OPERATOR)
   accounts         Account[]
   sessions         Session[]
   policyAcceptance PolicyAcceptance?
-  createdAt        DateTime          @default(now())
-  updatedAt        DateTime          @updatedAt
+
+  bookingDecisions    BookingRequest[]      @relation("BookingDecisions")
+  paymentsRecorded    Payment[]             @relation("PaymentsRecorded")
+  bookingAuditEvents  BookingAuditEvent[]   @relation("BookingAuditActor")
+  integrationSettings IntegrationSettings[] @relation("IntegrationSettingsUpdatedBy")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 model Account {
@@ -119,4 +126,190 @@ model RateLimitBucket {
   updatedAt DateTime @updatedAt
 
   @@index([resetAt])
+}
+
+// --- Booking pipeline ---
+
+enum UserRole {
+  OPERATOR
+  ADMINISTRATOR
+}
+
+enum BoardType {
+  SELF_CATERING
+  FULL_BOARD
+}
+
+enum BookingState {
+  RECEIVED
+  IN_REVIEW
+  APPROVED
+  AWAITING_PAYMENT
+  CONFIRMED
+  INVOICED
+  COMPLETED
+  REJECTED
+  EXPIRED
+  CANCELLED
+}
+
+enum HoldedDocumentType {
+  ESTIMATE
+  RESERVE_INVOICE
+  FINAL_INVOICE
+}
+
+enum IntegrationJobStatus {
+  PENDING
+  CLAIMED
+  SUCCEEDED
+  DEAD
+}
+
+enum IntegrationProvider {
+  HOLDED
+  GRAVITY_FORMS
+  BOOKING_MAIL
+}
+
+model Customer {
+  id                  String           @id @default(cuid())
+  taxId               String           @unique
+  name                String
+  email               String
+  phone               String?
+  addressLine         String?
+  city                String?
+  province            String?
+  postalCode          String?
+  country             String?
+  // Holded contact mirrored by the quoting sequence; absent until first created.
+  holdedContactId     String?
+  // Replaces the tax identifiers the retired workflow hardcoded in an expression.
+  negotiatedServiceId String?
+  bookingRequests     BookingRequest[]
+  createdAt           DateTime         @default(now())
+  updatedAt           DateTime         @updatedAt
+}
+
+model BookingRequest {
+  id             String       @id @default(cuid())
+  gravityEntryId String       @unique
+  customerId     String
+  state          BookingState @default(RECEIVED)
+  boardType      BoardType
+  // Calendar dates, never timestamps: night counts must not depend on a time zone.
+  startDate      DateTime     @db.Date
+  endDate        DateTime     @db.Date
+  headcount      Int
+  // Person-nights actually billed, after the 30-place floor.
+  billableUnits  Int?
+  // Amounts in integer cents; floating point never touches money.
+  unitPriceCents Int?
+  advanceCents   Int?
+  depositCents   Int?
+  paymentDueAt   DateTime?
+  submittedAt    DateTime
+  decidedAt      DateTime?
+  decidedById    String?
+  decisionReason String?
+
+  customer    Customer            @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  decidedBy   User?               @relation("BookingDecisions", fields: [decidedById], references: [id], onDelete: SetNull)
+  documents   HoldedDocument[]
+  payments    Payment[]
+  auditEvents BookingAuditEvent[]
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
+
+  @@index([state, createdAt])
+  @@index([customerId])
+}
+
+model HoldedDocument {
+  id               String             @id @default(cuid())
+  bookingRequestId String
+  type             HoldedDocumentType
+  holdedId         String
+  documentNumber   String?
+  totalCents       Int?
+  issuedAt         DateTime           @default(now())
+
+  bookingRequest BookingRequest @relation(fields: [bookingRequestId], references: [id], onDelete: Cascade)
+
+  // One document of each kind per booking: the quoting retry cannot duplicate.
+  @@unique([bookingRequestId, type])
+}
+
+model Payment {
+  id               String   @id @default(cuid())
+  bookingRequestId String
+  amountCents      Int
+  receivedAt       DateTime
+  reference        String?
+  recordedById     String?
+  createdAt        DateTime @default(now())
+
+  bookingRequest BookingRequest @relation(fields: [bookingRequestId], references: [id], onDelete: Cascade)
+  recordedBy     User?          @relation("PaymentsRecorded", fields: [recordedById], references: [id], onDelete: SetNull)
+
+  @@index([bookingRequestId])
+}
+
+model BookingAuditEvent {
+  id               String        @id @default(cuid())
+  bookingRequestId String
+  // Null when the transition was made by a scheduled job, or when the operator
+  // who made it later deleted their account.
+  actorUserId      String?
+  fromState        BookingState?
+  toState          BookingState
+  reason           String?
+  createdAt        DateTime      @default(now())
+
+  bookingRequest BookingRequest @relation(fields: [bookingRequestId], references: [id], onDelete: Cascade)
+  actor          User?          @relation("BookingAuditActor", fields: [actorUserId], references: [id], onDelete: SetNull)
+
+  @@index([bookingRequestId, createdAt])
+}
+
+model IntegrationJob {
+  id             String               @id @default(cuid())
+  kind           String
+  idempotencyKey String               @unique
+  payload        Json
+  status         IntegrationJobStatus @default(PENDING)
+  attempts       Int                  @default(0)
+  runAfter       DateTime             @default(now())
+  claimedAt      DateTime?
+  lastError      String?
+  createdAt      DateTime             @default(now())
+  updatedAt      DateTime             @updatedAt
+
+  @@index([status, runAfter])
+}
+
+model IntegrationSettings {
+  provider         IntegrationProvider @id
+  // Non-secret configuration: Gravity Forms base URL and form id, SMTP host,
+  // port and sender address.
+  config           Json
+  // AES-256-GCM envelope of the credential, encrypted with BOOKING_SECRET_KEY.
+  // Null means the integration is not configured, and therefore inactive.
+  secretCiphertext Bytes?
+  secretIv         Bytes?
+  secretAuthTag    Bytes?
+  // Last successful test-connection, so a stale credential is visible.
+  verifiedAt       DateTime?
+  updatedById      String?
+  createdAt        DateTime            @default(now())
+  updatedAt        DateTime            @updatedAt
+
+  updatedBy User? @relation("IntegrationSettingsUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
+}
+
+model IntakeCursor {
+  source      String   @id
+  lastEntryId String
+  updatedAt   DateTime @updatedAt
 }

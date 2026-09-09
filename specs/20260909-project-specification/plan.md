@@ -38,7 +38,9 @@ Auth.js (NextAuth 4, patched), next-intl, Pino. One new runtime dependency: `nod
 booking channel — see Complexity Tracking.
 
 **Storage**: PostgreSQL via Prisma. Eight new tables and one new column on `User`. No existing table
-is altered beyond that column.
+is altered beyond that column. Booking mail settings share the `IntegrationSettings` table with the
+other integrations rather than getting a table of their own, so there is one credential shape and
+one encryption path.
 
 **Money**: integer minor units (cents) stored as `Int`. Rounding is explicit at the boundary where an
 amount is sent to Holded. Floating point never touches an amount, which is the defect that made the
