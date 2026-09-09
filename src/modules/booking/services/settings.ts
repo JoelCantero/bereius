@@ -31,9 +31,11 @@ const gravityFormsConfigSchema = z
 
 const holdedConfigSchema = z
   .object({
-    // Identifiers the retired workflow hardcoded in expressions.
-    accountingAccountId: z.string().min(1),
-    depositServiceId: z.string().min(1),
+    // Optional so the API key can be saved first and the identifiers chosen
+    // afterwards, once they can be offered as dropdowns. Quoting refuses to run
+    // until they are present.
+    accountingAccountId: z.string().min(1).optional(),
+    depositServiceId: z.string().min(1).optional(),
     mailTemplateId: z.string().min(1).optional(),
     paymentMethodId: z.string().min(1).optional(),
     language: z.string().min(2).max(5).default("ca"),

@@ -153,4 +153,20 @@ describe.skipIf(!runIntegrationTests)("booking integration settings", () => {
       code: "not_configured",
     });
   });
+
+  it("accepts a Holded key before the identifiers have been chosen", async () => {
+    await saveIntegrationSettings({
+      provider: "HOLDED",
+      config: { language: "ca", serviceIdsBySku: {} },
+      secret: "holded-key",
+      updatedById: null,
+    });
+
+    const resolved = await resolveIntegration("HOLDED");
+    expect(resolved.secret).toBe("holded-key");
+    expect(resolved.config.accountingAccountId).toBeUndefined();
+    expect(resolved.config.depositServiceId).toBeUndefined();
+
+    await db.integrationSettings.deleteMany({ where: { provider: "HOLDED" } });
+  });
 });

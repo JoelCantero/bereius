@@ -191,16 +191,16 @@ export async function saveHoldedSettings(
 
     const parsed = z
       .object({
-        accountingAccountId: z.string().trim().min(1),
-        depositServiceId: z.string().trim().min(1),
+        accountingAccountId: z.string().trim().min(1).optional(),
+        depositServiceId: z.string().trim().min(1).optional(),
         mailTemplateId: z.string().trim().min(1).optional(),
         paymentMethodId: z.string().trim().min(1).optional(),
         language: z.string().trim().min(2).max(5),
         apiKey: z.string().optional(),
       })
       .parse({
-        accountingAccountId: formData.get("accountingAccountId"),
-        depositServiceId: formData.get("depositServiceId"),
+        accountingAccountId: formData.get("accountingAccountId") || undefined,
+        depositServiceId: formData.get("depositServiceId") || undefined,
         mailTemplateId: formData.get("mailTemplateId") || undefined,
         paymentMethodId: formData.get("paymentMethodId") || undefined,
         language: formData.get("language") ?? "ca",

@@ -206,7 +206,6 @@ export function HoldedSettingsForm({
           name="accountingAccountId"
           label={t("holded.accountingAccountId")}
           options={catalogues.accounts}
-          required
           defaultValue={String(config?.accountingAccountId ?? "")}
           emptyLabel={t("choose")}
         />
@@ -214,7 +213,6 @@ export function HoldedSettingsForm({
           name="depositServiceId"
           label={t("holded.depositServiceId")}
           options={catalogues.services}
-          required
           defaultValue={String(config?.depositServiceId ?? "")}
           emptyLabel={t("choose")}
         />

@@ -224,4 +224,18 @@ describe.skipIf(!runIntegrationTests)("booking quoting integration", () => {
 
     expect(client.getServicePriceCents).toHaveBeenCalledWith("svc-negotiated");
   });
+
+  it.each(["accountingAccountId", "depositServiceId"] as const)(
+    "refuses to quote while %s is still unconfigured",
+    async (missing) => {
+      const booking = await approvedBooking();
+      const { client } = stubClient();
+      const incomplete = { ...config, [missing]: undefined };
+
+      await expect(
+        runQuoteJob(job(booking.id), { client, config: incomplete }),
+      ).rejects.toMatchObject({ code: "incomplete_configuration" });
+      expect(client.createEstimate).not.toHaveBeenCalled();
+    },
+  );
 });

@@ -36,7 +36,11 @@ export async function enqueueQuote(bookingRequestId: string): Promise<boolean> {
 
 export class QuotingError extends Error {
   constructor(
-    readonly code: "unknown_booking" | "wrong_state" | "no_service",
+    readonly code:
+      | "unknown_booking"
+      | "wrong_state"
+      | "no_service"
+      | "incomplete_configuration",
     message: string,
   ) {
     super(message);
@@ -94,6 +98,17 @@ export async function runQuoteJob(
     : await resolveIntegration("HOLDED");
   const config = resolved.config;
   const client = overrides.client ?? createHoldedClient(resolved.secret);
+
+  // The settings screen allows saving the API key before the identifiers are
+  // chosen, so completeness is enforced here rather than blocking that step.
+  if (!config.accountingAccountId || !config.depositServiceId) {
+    throw new QuotingError(
+      "incomplete_configuration",
+      "Holded settings are missing the accounting account or the deposit service",
+    );
+  }
+  const accountingAccountId = config.accountingAccountId;
+  const depositServiceId = config.depositServiceId;
 
   // Step 1 — contact. Skipped once the Holded identifier is known.
   let holdedContactId = booking.customer.holdedContactId;
@@ -165,7 +180,7 @@ export async function runQuoteJob(
 
   const stayLine: HoldedDocumentLine = {
     serviceId,
-    accountingAccountId: config.accountingAccountId,
+    accountingAccountId,
     units: quote.units,
     desc: description,
   };
@@ -216,7 +231,7 @@ export async function runQuoteJob(
       dueDate: paymentDueAt,
       items: [
         {
-          serviceId: config.depositServiceId,
+          serviceId: depositServiceId,
           units: 1,
           desc: "Refundable security deposit",
           subtotal: centsToAmount(SECURITY_DEPOSIT_CENTS),
@@ -227,7 +242,7 @@ export async function runQuoteJob(
           desc: "30% of the stay total",
           tax: VAT_PERCENT,
           taxes: `s_iva_${VAT_PERCENT}`,
-          accountingAccountId: config.accountingAccountId,
+          accountingAccountId,
           subtotal: centsToAmount(quote.advanceNetCents),
         },
       ],
@@ -251,7 +266,7 @@ export async function runQuoteJob(
       name: "Security deposit",
       units: 1,
       desc: "Returned after the stay",
-      accountingAccountId: config.accountingAccountId,
+      accountingAccountId,
       subtotal: -centsToAmount(SECURITY_DEPOSIT_CENTS),
     },
     {
@@ -260,7 +275,7 @@ export async function runQuoteJob(
       desc: "30% of the stay total",
       tax: VAT_PERCENT,
       taxes: `s_iva_${VAT_PERCENT}`,
-      accountingAccountId: config.accountingAccountId,
+      accountingAccountId,
       subtotal: -centsToAmount(quote.advanceNetCents),
     },
   ]);
