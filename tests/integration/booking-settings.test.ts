@@ -1,6 +1,6 @@
 // @vitest-environment node
 
-import { afterAll, afterEach, describe, expect, it, vi } from "vitest";
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
 vi.mock("server-only", () => ({}));
 
@@ -24,11 +24,35 @@ const SMTP_CONFIG = {
 };
 
 describe.skipIf(!runIntegrationTests)("booking integration settings", () => {
+  /**
+   * These run against the development database, so a provider the developer has
+   * already configured must survive the test that overwrites it.
+   */
+  async function borrowProvider(provider: "BOOKING_MAIL" | "HOLDED") {
+    const original = await db.integrationSettings.findUnique({ where: { provider } });
+
+    return async () => {
+      await db.integrationSettings.deleteMany({ where: { provider } });
+      if (original) {
+        await db.integrationSettings.create({
+          data: { ...original, config: original.config ?? {} },
+        });
+      }
+    };
+  }
+
+  let restoreMail: (() => Promise<void>) | null = null;
+
+  beforeAll(async () => {
+    restoreMail = await borrowProvider("BOOKING_MAIL");
+  });
+
   afterEach(async () => {
     await db.integrationSettings.deleteMany({ where: { provider: "BOOKING_MAIL" } });
   });
 
   afterAll(async () => {
+    await restoreMail?.();
     await db.$disconnect();
   });
 
@@ -155,18 +179,22 @@ describe.skipIf(!runIntegrationTests)("booking integration settings", () => {
   });
 
   it("accepts a Holded key before the identifiers have been chosen", async () => {
-    await saveIntegrationSettings({
-      provider: "HOLDED",
-      config: { language: "ca", serviceIdsBySku: {} },
-      secret: "holded-key",
-      updatedById: null,
-    });
+    const restore = await borrowProvider("HOLDED");
 
-    const resolved = await resolveIntegration("HOLDED");
-    expect(resolved.secret).toBe("holded-key");
-    expect(resolved.config.salesChannelId).toBeUndefined();
-    expect(resolved.config.depositServiceId).toBeUndefined();
+    try {
+      await saveIntegrationSettings({
+        provider: "HOLDED",
+        config: { language: "ca", serviceIdsBySku: {} },
+        secret: "holded-key",
+        updatedById: null,
+      });
 
-    await db.integrationSettings.deleteMany({ where: { provider: "HOLDED" } });
+      const resolved = await resolveIntegration("HOLDED");
+      expect(resolved.secret).toBe("holded-key");
+      expect(resolved.config.salesChannelId).toBeUndefined();
+      expect(resolved.config.depositServiceId).toBeUndefined();
+    } finally {
+      await restore();
+    }
   });
 });
