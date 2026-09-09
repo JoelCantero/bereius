@@ -6,8 +6,8 @@ import { z } from "zod";
 
 import type { IntegrationProvider } from "@/generated/prisma/enums";
 import { BookingSecretError } from "@/lib/booking/secrets";
-import { createGravityFormsClient } from "@/lib/gravity-forms/client";
-import { createHoldedClient } from "@/lib/holded/client";
+import { createGravityFormsClient, GravityFormsError } from "@/lib/gravity-forms/client";
+import { createHoldedClient, HoldedError } from "@/lib/holded/client";
 import { createSmtpSender, SmtpError } from "@/lib/mail/smtp";
 import { getEnv } from "@/lib/env";
 import { logger } from "@/lib/logger";
@@ -82,6 +82,18 @@ function toErrorState(error: unknown): SettingsActionState {
   }
   if (error instanceof SmtpError) {
     return { status: "error", reason: error.code };
+  }
+  if (error instanceof HoldedError || error instanceof GravityFormsError) {
+    if (error.code === "unauthorized") {
+      return { status: "error", reason: "authentication" };
+    }
+    return {
+      status: "error",
+      reason:
+        error.code === "unavailable" || error.code === "rate_limited"
+          ? "connection"
+          : "rejected",
+    };
   }
   return { status: "error", reason: "unknown" };
 }

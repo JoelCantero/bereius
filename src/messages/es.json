@@ -745,6 +745,9 @@
       "state_changed": "Otra persona ha cambiado esta reserva. Recarga para ver el estado actual.",
       "reason_required": "Hace falta un motivo.",
       "amount_mismatch": "El importe no coincide al céntimo con lo debido. Revísalo a mano.",
+      "authentication": "El servicio ha rechazado la credencial. Comprueba que sea correcta y que tenga permisos.",
+      "connection": "No se ha podido contactar con el servicio. Inténtalo de nuevo más tarde.",
+      "rejected": "El servicio ha rechazado la petición. Revisa la configuración.",
       "unknown": "No se ha podido completar la acción."
     },
     "settings": {

@@ -745,6 +745,9 @@
       "state_changed": "Una altra persona ha canviat aquesta reserva. Recarrega per veure l'estat actual.",
       "reason_required": "Cal un motiu.",
       "amount_mismatch": "L'import no coincideix al cèntim amb el que es deu. Revisa-ho a mà.",
+      "authentication": "El servei ha rebutjat la credencial. Comprova que sigui correcta i que tingui permisos.",
+      "connection": "No s'ha pogut contactar amb el servei. Torna-ho a provar més tard.",
+      "rejected": "El servei ha rebutjat la petició. Revisa la configuració.",
       "unknown": "No s'ha pogut completar l'acció."
     },
     "settings": {

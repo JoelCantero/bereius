@@ -745,6 +745,9 @@
       "state_changed": "Someone else changed this booking. Reload to see the current state.",
       "reason_required": "A reason is required.",
       "amount_mismatch": "The amount does not match what is owed to the cent. Review it by hand.",
+      "authentication": "The service refused the credential. Check that it is correct and carries the right permissions.",
+      "connection": "The service could not be reached. Try again shortly.",
+      "rejected": "The service refused the request. Review the configuration.",
       "unknown": "The action could not be completed."
     },
     "settings": {
