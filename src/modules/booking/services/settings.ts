@@ -9,6 +9,10 @@ import {
   openSecret,
   sealSecret,
 } from "@/lib/booking/secrets";
+import {
+  DEFAULT_GRAVITY_FORM_FIELDS,
+  gravityFormFieldMapSchema,
+} from "@/modules/booking/schema";
 
 const gravityFormsConfigSchema = z
   .object({
@@ -19,6 +23,8 @@ const gravityFormsConfigSchema = z
       }),
     formId: z.string().regex(/^\d+$/u),
     consumerKey: z.string().min(1),
+    // Configurable so a rebuilt form does not need a code change.
+    fieldMap: gravityFormFieldMapSchema.default(DEFAULT_GRAVITY_FORM_FIELDS),
   })
   .strict();
 

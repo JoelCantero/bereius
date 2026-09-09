@@ -8,7 +8,7 @@ const runIntegrationTests = process.env.RUN_INTEGRATION_TESTS === "true";
 
 import { db } from "@/lib/db";
 import type { GravityFormsClient, GravityFormsEntry } from "@/lib/gravity-forms/client";
-import { GRAVITY_FORM_FIELDS as F } from "@/modules/booking/schema";
+import { DEFAULT_GRAVITY_FORM_FIELDS as F } from "@/modules/booking/schema";
 import { INTAKE_SOURCE, runIntake } from "@/modules/booking/services/intake";
 
 function entry(overrides: Record<string, unknown> = {}): GravityFormsEntry {
@@ -184,5 +184,40 @@ describe.skipIf(!runIntegrationTests)("booking intake integration", () => {
 
     expect(client.fetchEntriesAfter).toHaveBeenNthCalledWith(1, null);
     expect(client.fetchEntriesAfter).toHaveBeenNthCalledWith(2, entries[0]!.id);
+  });
+
+  it("honours a remapped form, so a rebuilt form needs no code change", async () => {
+    const remapped = { ...F, taxId: "901", headcount: "902" };
+    const base = entry();
+    const moved = {
+      ...base,
+      [F.taxId]: "",
+      [F.headcount]: "",
+      "901": `X${Date.now()}`,
+      "902": "55",
+    } as typeof base;
+    track([moved]);
+
+    await expect(
+      runIntake({ client: clientReturning([moved]), fieldMap: remapped }),
+    ).resolves.toMatchObject({ created: 1, rejected: 0 });
+
+    await expect(
+      db.bookingRequest.findUniqueOrThrow({
+        where: { gravityEntryId: moved.id },
+      }),
+    ).resolves.toMatchObject({ headcount: 55 });
+  });
+
+  it("rejects the entry when the configured map points at absent fields", async () => {
+    const only = entry();
+    track([only]);
+
+    await expect(
+      runIntake({
+        client: clientReturning([only]),
+        fieldMap: { ...F, taxId: "999" },
+      }),
+    ).resolves.toMatchObject({ created: 0, rejected: 1 });
   });
 });

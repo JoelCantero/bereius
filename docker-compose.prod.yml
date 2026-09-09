@@ -35,6 +35,10 @@ services:
       - MAIL_API_SECRET
       - MAIL_FROM
       - MAIL_LOGO_URL
+      # Booking pipeline: envelope key for stored integration credentials, and
+      # the flag that runs intake, the outbox and expiry in this process.
+      - BOOKING_SECRET_KEY
+      - BOOKING_SCHEDULER
     depends_on:
       db:
         condition: service_healthy

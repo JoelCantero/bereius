@@ -3,18 +3,36 @@ import { z } from "zod";
 import type { BoardType } from "@/generated/prisma/enums";
 
 /**
- * Gravity Forms field identifiers for form 2, "Formulari de reserva".
+ * Which Gravity Forms field holds each piece of a booking request.
  *
- * Mapped by identifier rather than by label: renaming a label in the form
- * builder must not silently break intake, which is how the retired n8n webhook
- * was wired.
- *
- * The form also submits computed nights (47), units (39), total (52) and SKU
- * (51). They are deliberately absent here: they are client-supplied, and live
- * entries show them to be wrong — a two-night stay arrives with `Nits = 1` and
- * units equal to the headcount. Everything billable is recomputed server-side.
+ * Mapped by identifier rather than by label, so renaming a label in the form
+ * builder cannot silently break intake, which is how the retired n8n webhook
+ * was wired. Administrators change these from the settings screen when the form
+ * is rebuilt.
  */
-export const GRAVITY_FORM_FIELDS = {
+export const GRAVITY_FORM_FIELD_KEYS = [
+  "firstName",
+  "lastName",
+  "organisation",
+  "taxId",
+  "email",
+  "phone",
+  "addressLine",
+  "city",
+  "province",
+  "postalCode",
+  "country",
+  "headcount",
+  "boardType",
+  "startDate",
+  "endDate",
+] as const;
+
+export type GravityFormFieldKey = (typeof GRAVITY_FORM_FIELD_KEYS)[number];
+export type GravityFormFieldMap = Record<GravityFormFieldKey, string>;
+
+/** Form 2, "Formulari de reserva", as published on berea.cat. */
+export const DEFAULT_GRAVITY_FORM_FIELDS: GravityFormFieldMap = {
   firstName: "61",
   lastName: "63",
   organisation: "64",
@@ -30,8 +48,24 @@ export const GRAVITY_FORM_FIELDS = {
   boardType: "74",
   startDate: "30",
   endDate: "31",
-  houseRulesConsent: "38.1",
-} as const;
+};
+
+/**
+ * The form also submits computed nights, units, total and SKU. They are
+ * deliberately unmappable: they are client-supplied, and live entries show them
+ * to be wrong — a two-night stay arrives with one night and units equal to the
+ * headcount. Everything billable is recomputed server-side.
+ */
+export const gravityFormFieldMapSchema = z
+  .object(
+    Object.fromEntries(
+      GRAVITY_FORM_FIELD_KEYS.map((key) => [
+        key,
+        z.string().regex(/^\d+(?:\.\d+)?$/u, "Expected a Gravity Forms field id"),
+      ]),
+    ) as Record<GravityFormFieldKey, z.ZodString>,
+  )
+  .strict();
 
 const BOARD_TYPE_BY_FORM_VALUE: Readonly<Record<string, BoardType>> = {
   pc: "FULL_BOARD",
@@ -79,82 +113,115 @@ const boardType = z
     return mapped;
   });
 
-const F = GRAVITY_FORM_FIELDS;
+export interface BookingSubmission {
+  entryId: string;
+  submittedAt: string;
+  customer: {
+    name: string;
+    taxId: string;
+    email: string;
+    phone: string | null;
+    addressLine: string | null;
+    city: string | null;
+    province: string | null;
+    postalCode: string | null;
+    country: string | null;
+  };
+  stay: {
+    headcount: number;
+    boardType: BoardType;
+    startDate: Date;
+    endDate: Date;
+  };
+}
 
-const submissionSchema = z
-  .object({
-    id: z.union([z.string(), z.number()]).transform(String),
-    date_created: requiredText,
-    [F.firstName]: requiredText,
-    [F.lastName]: requiredText,
-    [F.organisation]: optionalText,
-    [F.taxId]: requiredText,
-    [F.email]: requiredText.pipe(z.email()),
-    [F.phone]: optionalText,
-    [F.addressLine]: optionalText,
-    [F.city]: optionalText,
-    [F.province]: optionalText,
-    [F.postalCode]: optionalText,
-    [F.country]: optionalText,
-    [F.headcount]: positiveCount,
-    [F.boardType]: boardType,
-    [F.startDate]: calendarDate,
-    [F.endDate]: calendarDate,
-  })
-  .transform((entry) => ({
-    entryId: entry.id,
-    submittedAt: entry.date_created,
-    customer: {
-      // The organisation is the billed party when present, matching how the
-      // Holded contact is named.
-      name:
-        entry[F.organisation] ??
-        `${entry[F.firstName]} ${entry[F.lastName]}`.trim(),
-      taxId: entry[F.taxId].toUpperCase().replaceAll(/\s+/gu, ""),
-      email: entry[F.email].toLowerCase(),
-      phone: entry[F.phone],
-      addressLine: entry[F.addressLine],
-      city: entry[F.city],
-      province: entry[F.province],
-      postalCode: entry[F.postalCode],
-      country: entry[F.country],
-    },
-    stay: {
-      headcount: entry[F.headcount],
-      boardType: entry[F.boardType],
-      startDate: entry[F.startDate],
-      endDate: entry[F.endDate],
-    },
-  }));
+function buildSubmissionSchema(fields: GravityFormFieldMap) {
+  return z
+    .object({
+      id: z.union([z.string(), z.number()]).transform(String),
+      date_created: requiredText,
+      [fields.firstName]: requiredText,
+      [fields.lastName]: requiredText,
+      [fields.organisation]: optionalText,
+      [fields.taxId]: requiredText,
+      [fields.email]: requiredText.pipe(z.email()),
+      [fields.phone]: optionalText,
+      [fields.addressLine]: optionalText,
+      [fields.city]: optionalText,
+      [fields.province]: optionalText,
+      [fields.postalCode]: optionalText,
+      [fields.country]: optionalText,
+      [fields.headcount]: positiveCount,
+      [fields.boardType]: boardType,
+      [fields.startDate]: calendarDate,
+      [fields.endDate]: calendarDate,
+    })
+    .transform((entry): BookingSubmission => {
+      const read = <T>(fieldId: string): T => (entry as Record<string, unknown>)[fieldId] as T;
 
-export type BookingSubmission = z.infer<typeof submissionSchema>;
+      return {
+        entryId: String(entry.id),
+        submittedAt: String(entry.date_created),
+        customer: {
+          // The organisation is the billed party when present, matching how the
+          // Holded contact is named.
+          name:
+            read<string | null>(fields.organisation) ??
+            `${read<string>(fields.firstName)} ${read<string>(fields.lastName)}`.trim(),
+          taxId: read<string>(fields.taxId).toUpperCase().replaceAll(/\s+/gu, ""),
+          email: read<string>(fields.email).toLowerCase(),
+          phone: read<string | null>(fields.phone),
+          addressLine: read<string | null>(fields.addressLine),
+          city: read<string | null>(fields.city),
+          province: read<string | null>(fields.province),
+          postalCode: read<string | null>(fields.postalCode),
+          country: read<string | null>(fields.country),
+        },
+        stay: {
+          headcount: read<number>(fields.headcount),
+          boardType: read<BoardType>(fields.boardType),
+          startDate: read<Date>(fields.startDate),
+          endDate: read<Date>(fields.endDate),
+        },
+      };
+    });
+}
 
 export type ParseSubmissionResult =
   | { ok: true; submission: BookingSubmission }
   | { ok: false; entryId: string | null; issues: string[] };
 
-/**
- * Never throws: a malformed entry must be recorded and skipped without
- * stopping the rest of the batch.
- */
-export function parseBookingSubmission(entry: unknown): ParseSubmissionResult {
-  const parsed = submissionSchema.safeParse(entry);
+export interface BookingSubmissionParser {
+  parse(entry: unknown): ParseSubmissionResult;
+}
 
-  if (parsed.success) {
-    return { ok: true, submission: parsed.data };
-  }
-
-  const entryId =
-    typeof entry === "object" && entry !== null && "id" in entry
-      ? String((entry as { id: unknown }).id)
-      : null;
+/** Built once per batch, because the schema depends on the configured map. */
+export function createBookingSubmissionParser(
+  fields: GravityFormFieldMap = DEFAULT_GRAVITY_FORM_FIELDS,
+): BookingSubmissionParser {
+  const schema = buildSubmissionSchema(fields);
 
   return {
-    ok: false,
-    entryId,
-    // Paths only: an issue message must never echo a submitted value.
-    issues: parsed.error.issues.map(
-      (issue) => `${issue.path.join(".") || "entry"}: ${issue.message}`,
-    ),
+    parse(entry) {
+      const parsed = schema.safeParse(entry);
+
+      if (parsed.success) {
+        return { ok: true, submission: parsed.data };
+      }
+
+      const entryId =
+        typeof entry === "object" && entry !== null && "id" in entry
+          ? String((entry as { id: unknown }).id)
+          : null;
+
+      return {
+        ok: false,
+        entryId,
+        // Paths only: an issue message must never echo a submitted value.
+        issues: parsed.error.issues.map(
+          (issue) => `${issue.path.join(".") || "entry"}: ${issue.message}`,
+        ),
+      };
+    },
   };
 }

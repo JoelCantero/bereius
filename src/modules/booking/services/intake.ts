@@ -7,7 +7,12 @@ import {
   type GravityFormsClient,
 } from "@/lib/gravity-forms/client";
 import { logger } from "@/lib/logger";
-import { parseBookingSubmission, type BookingSubmission } from "@/modules/booking/schema";
+import {
+  createBookingSubmissionParser,
+  DEFAULT_GRAVITY_FORM_FIELDS,
+  type BookingSubmission,
+  type GravityFormFieldMap,
+} from "@/modules/booking/schema";
 import { countNights } from "@/modules/booking/services/pricing";
 import { resolveIntegration } from "@/modules/booking/services/settings";
 
@@ -94,6 +99,7 @@ async function persistSubmission(submission: BookingSubmission): Promise<boolean
 
 export interface RunIntakeOptions {
   client?: GravityFormsClient;
+  fieldMap?: GravityFormFieldMap;
 }
 
 /**
@@ -106,9 +112,20 @@ export interface RunIntakeOptions {
 export async function runIntake(
   options: RunIntakeOptions = {},
 ): Promise<IntakeSummary> {
+  const configured = options.client
+    ? null
+    : await resolveIntegration("GRAVITY_FORMS");
   const client =
     options.client ??
-    createGravityFormsClient(await resolveGravityFormsCredentials());
+    createGravityFormsClient({
+      apiUrl: configured!.config.apiUrl,
+      formId: configured!.config.formId,
+      consumerKey: configured!.config.consumerKey,
+      consumerSecret: configured!.secret,
+    });
+  const parser = createBookingSubmissionParser(
+    options.fieldMap ?? configured?.config.fieldMap ?? DEFAULT_GRAVITY_FORM_FIELDS,
+  );
 
   const startingCursor = await readCursor();
   const entries = await client.fetchEntriesAfter(startingCursor);
@@ -122,7 +139,7 @@ export async function runIntake(
   };
 
   for (const entry of entries) {
-    const parsed = parseBookingSubmission(entry);
+    const parsed = parser.parse(entry);
 
     if (!parsed.ok) {
       summary.rejected += 1;
@@ -154,14 +171,4 @@ export async function runIntake(
   );
 
   return summary;
-}
-
-async function resolveGravityFormsCredentials() {
-  const { config, secret } = await resolveIntegration("GRAVITY_FORMS");
-  return {
-    apiUrl: config.apiUrl,
-    formId: config.formId,
-    consumerKey: config.consumerKey,
-    consumerSecret: secret,
-  };
 }
