@@ -80,6 +80,8 @@ export function createBrevoProvider(
           email: config.fromEmail,
           name: config.senderName,
         },
+        // The sending domain may have no MX records, so replies go to support.
+        replyTo: { email: config.brand.supportEmail },
         to: [{ email: message.recipient }],
         subject: message.subject,
         textContent: message.text,

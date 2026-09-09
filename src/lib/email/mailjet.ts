@@ -125,6 +125,8 @@ export function createMailjetProvider(
               Email: config.fromEmail,
               Name: config.senderName,
             },
+            // The sending domain may have no MX records, so replies go to support.
+            ReplyTo: { Email: config.brand.supportEmail },
             To: [{ Email: message.recipient }],
             Subject: message.subject,
             TextPart: message.text,

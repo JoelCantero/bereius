@@ -58,6 +58,7 @@ describe("Brevo email provider", () => {
     expect(http.requests[0]?.headers.get("content-type")).toBe("application/json");
     expect(JSON.parse(http.requests[0]?.body ?? "null")).toEqual({
       sender: { email: "no-reply@example.test", name: projectName },
+      replyTo: { email: "support@example.test" },
       to: [{ email: "member@example.test" }],
       subject: "Tu enlace de acceso",
       textContent: "Usa este enlace para iniciar sesion",

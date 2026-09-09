@@ -127,6 +127,7 @@ function normalizeProviderRequest(
   if (provider === "brevo") {
     expect(Object.keys(body).sort()).toEqual([
       "htmlContent",
+      "replyTo",
       "sender",
       "subject",
       "textContent",
@@ -153,6 +154,7 @@ function normalizeProviderRequest(
   expect(Object.keys(message).sort()).toEqual([
     "From",
     "HTMLPart",
+    "ReplyTo",
     "Subject",
     "TextPart",
     "To",

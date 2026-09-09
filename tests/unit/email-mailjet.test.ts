@@ -77,6 +77,7 @@ describe("Mailjet email provider", () => {
       Messages: [
         {
           From: { Email: "no-reply@example.test", Name: projectName },
+          ReplyTo: { Email: "support@example.test" },
           To: [{ Email: "member@example.test" }],
           Subject: "El teu enllac d'acces",
           TextPart: "Utilitza aquest enllac per iniciar sessio",
