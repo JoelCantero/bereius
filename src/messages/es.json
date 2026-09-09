@@ -182,6 +182,46 @@
     "title": "Aplicación web",
     "description": "Plantilla de Next.js autoalojada y dockerizada"
   },
+  "Console": {
+    "title": "Consola",
+    "subtitle": "Todo lo que gestiona esta aplicación, en un solo sitio.",
+    "toggleSidebar": "Mostrar u ocultar la navegación",
+    "sections": {
+      "bookings": "Reservas",
+      "account": "Cuenta",
+      "legal": "Legal"
+    },
+    "links": {
+      "queue": {
+        "label": "Cola",
+        "description": "Revisa solicitudes, apruébalas y registra pagos."
+      },
+      "integrations": {
+        "label": "Integraciones",
+        "description": "Credenciales e identificadores de Holded, Gravity Forms y correo."
+      },
+      "profile": {
+        "label": "Perfil",
+        "description": "Tu nombre, correo e idioma."
+      },
+      "security": {
+        "label": "Seguridad",
+        "description": "Sesiones activas y baja de la cuenta."
+      },
+      "data": {
+        "label": "Datos personales",
+        "description": "Descarga una copia de todo lo que guardamos sobre ti."
+      },
+      "terms": {
+        "label": "Términos",
+        "description": "Condiciones del servicio."
+      },
+      "privacy": {
+        "label": "Privacidad",
+        "description": "Cómo se tratan los datos personales."
+      }
+    }
+  },
   "HomePage": {
     "title": "Aplicación web",
     "tagline": "Una plantilla de Next.js autoalojada y dockerizada.",

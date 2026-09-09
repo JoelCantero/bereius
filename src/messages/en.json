@@ -182,6 +182,46 @@
     "title": "Web app",
     "description": "Self-hosted, Dockerized Next.js starter"
   },
+  "Console": {
+    "title": "Console",
+    "subtitle": "Everything this application manages, in one place.",
+    "toggleSidebar": "Show or hide the navigation",
+    "sections": {
+      "bookings": "Bookings",
+      "account": "Account",
+      "legal": "Legal"
+    },
+    "links": {
+      "queue": {
+        "label": "Queue",
+        "description": "Review requests, approve them and record payments."
+      },
+      "integrations": {
+        "label": "Integrations",
+        "description": "Credentials and identifiers for Holded, Gravity Forms and mail."
+      },
+      "profile": {
+        "label": "Profile",
+        "description": "Your name, email address and language."
+      },
+      "security": {
+        "label": "Security",
+        "description": "Active sessions and account deletion."
+      },
+      "data": {
+        "label": "Personal data",
+        "description": "Export a copy of everything held about you."
+      },
+      "terms": {
+        "label": "Terms",
+        "description": "Terms of service."
+      },
+      "privacy": {
+        "label": "Privacy",
+        "description": "How personal data is handled."
+      }
+    }
+  },
   "HomePage": {
     "title": "Web app",
     "tagline": "A self-hosted, Dockerized Next.js starter.",
