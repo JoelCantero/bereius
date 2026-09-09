@@ -885,6 +885,11 @@
         "paymentMethodId": "Método de pago",
         "language": "Idioma de los documentos",
         "services": "Servicio por tarifa",
+        "negotiated": "Precio especial",
+        "negotiatedServiceId": "Servicio de precio especial",
+        "negotiatedServiceHint": "Se aplica a los clientes de la lista sea cual sea el número de personas y el régimen.",
+        "negotiatedTaxIds": "NIF con precio especial",
+        "negotiatedTaxIdsHint": "Uno por línea. Se comparan sin espacios, guiones ni mayúsculas.",
         "catalogueEmpty": "No disponible",
         "catalogue": {
           "no_key": "Guarda la clave de API y las listas de Holded se cargarán en los desplegables.",

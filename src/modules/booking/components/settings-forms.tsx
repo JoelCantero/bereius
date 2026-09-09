@@ -212,6 +212,9 @@ export function HoldedSettingsForm({
   const t = useTranslations("Bookings.settings");
   const [state, formAction, pending] = useActionState(action, IDLE);
   const services = (config?.serviceIdsBySku ?? {}) as Record<string, string>;
+  const negotiatedTaxIds = Array.isArray(config?.negotiatedTaxIds)
+    ? (config.negotiatedTaxIds as string[])
+    : [];
   const unavailableLabel = t("holded.catalogueEmpty");
   const notice =
     catalogues.status === "ok" ? null : t(`holded.catalogue.${catalogues.status}`);
@@ -291,6 +294,36 @@ export function HoldedSettingsForm({
                 unavailableLabel={unavailableLabel}
               />
             ))}
+          </div>
+        </fieldset>
+
+        <fieldset className="flex flex-col gap-2">
+          <legend className="text-sm font-medium">{t("holded.negotiated")}</legend>
+          <Choice
+            name="negotiatedServiceId"
+            label={t("holded.negotiatedServiceId")}
+            options={catalogues.services}
+            defaultValue={String(config?.negotiatedServiceId ?? "")}
+            emptyLabel={t("choose")}
+            unavailableLabel={unavailableLabel}
+            hint={t("holded.negotiatedServiceHint")}
+          />
+          <div className="flex flex-col gap-1">
+            <label htmlFor="negotiatedTaxIds" className="text-sm font-medium">
+              {t("holded.negotiatedTaxIds")}
+            </label>
+            {/* Free text: these identifiers come from outside Holded. */}
+            <textarea
+              id="negotiatedTaxIds"
+              name="negotiatedTaxIds"
+              rows={4}
+              defaultValue={negotiatedTaxIds.join("\n")}
+              aria-describedby="negotiatedTaxIds-hint"
+              className="rounded-md border border-zinc-300 p-2 font-mono text-sm"
+            />
+            <p id="negotiatedTaxIds-hint" className="text-xs text-zinc-600">
+              {t("holded.negotiatedTaxIdsHint")}
+            </p>
           </div>
         </fieldset>
 

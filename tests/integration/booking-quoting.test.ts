@@ -19,6 +19,7 @@ const config: HoldedConfig = {
   paymentMethodId: "pay-1",
   language: "ca",
   serviceIdsBySku: { dc40: "svc-dc40", pc40: "svc-pc40" },
+  negotiatedTaxIds: [],
 };
 
 interface StubOptions {
@@ -226,6 +227,56 @@ describe.skipIf(!runIntegrationTests)("booking quoting integration", () => {
     await runQuoteJob(job(booking.id), { client, config });
 
     expect(client.getServicePriceCents).toHaveBeenCalledWith("svc-negotiated");
+  });
+
+  it("bills the negotiated service to a tax identifier on the settings list", async () => {
+    const booking = await approvedBooking();
+    const customer = await db.customer.findUniqueOrThrow({
+      where: { id: booking.customerId },
+    });
+    const { client } = stubClient();
+
+    await runQuoteJob(job(booking.id), {
+      client,
+      // Spaced and lower-cased on purpose: the identity is what matters.
+      config: {
+        ...config,
+        negotiatedServiceId: "svc-special",
+        negotiatedTaxIds: [` ${customer.taxId.toLowerCase()} `],
+      },
+    });
+
+    expect(client.getServicePriceCents).toHaveBeenCalledWith("svc-special");
+  });
+
+  it("leaves a customer off the list on the band rate", async () => {
+    const booking = await approvedBooking();
+    const { client } = stubClient();
+
+    await runQuoteJob(job(booking.id), {
+      client,
+      config: { ...config, negotiatedServiceId: "svc-special", negotiatedTaxIds: ["X0000000X"] },
+    });
+
+    expect(client.getServicePriceCents).toHaveBeenCalledWith("svc-dc40");
+  });
+
+  it("describes the stay and names its lines the way the account already does", async () => {
+    const booking = await approvedBooking();
+    const { client } = stubClient();
+
+    await runQuoteJob(job(booking.id), { client, config });
+
+    expect(client.createEstimate).toHaveBeenCalledWith(
+      expect.objectContaining({ description: "01/06/27 - 03/06/27 - 40 persones DC" }),
+    );
+    expect(client.replaceEstimateLines).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.arrayContaining([
+        expect.objectContaining({ name: "Dipòsit" }),
+        expect.objectContaining({ name: "Reserva" }),
+      ]),
+    );
   });
 
   it.each(["salesChannelId", "depositServiceId"] as const)(

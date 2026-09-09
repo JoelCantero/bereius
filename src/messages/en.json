@@ -885,6 +885,11 @@
         "paymentMethodId": "Payment method",
         "language": "Document language",
         "services": "Service per rate",
+        "negotiated": "Negotiated rate",
+        "negotiatedServiceId": "Negotiated-rate service",
+        "negotiatedServiceHint": "Billed to the customers listed below whatever their headcount and board type.",
+        "negotiatedTaxIds": "Tax identifiers on the negotiated rate",
+        "negotiatedTaxIdsHint": "One per line. Compared without spaces, hyphens or casing.",
         "catalogueEmpty": "Not available",
         "catalogue": {
           "no_key": "Save the API key and the Holded lists will fill these dropdowns.",

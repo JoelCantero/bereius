@@ -16,6 +16,7 @@ import {
   VAT_PERCENT,
 } from "@/modules/booking/services/pricing";
 import {
+  normalizeTaxId,
   resolveIntegration,
   type HoldedConfig,
 } from "@/modules/booking/services/settings";
@@ -62,9 +63,27 @@ function stayDescription(
   headcount: number,
   boardType: string,
 ): string {
-  const format = (date: Date) => date.toISOString().slice(0, 10);
-  return `${format(startDate)} - ${format(endDate)} - ${headcount} places ${boardType}`;
+  // The shape every document in the account already uses: DD/MM/YY.
+  const format = (date: Date) =>
+    [
+      String(date.getUTCDate()).padStart(2, "0"),
+      String(date.getUTCMonth() + 1).padStart(2, "0"),
+      String(date.getUTCFullYear()).slice(2),
+    ].join("/");
+
+  return `${format(startDate)} - ${format(endDate)} - ${headcount} persones ${boardType}`;
 }
+
+/** Wording copied from the documents the account already holds. */
+const DEPOSIT_LINE = {
+  name: "Dipòsit",
+  description: "Es retornarà un cop finalitzada l'estada i tot estigui en condicions.",
+} as const;
+
+const ADVANCE_LINE = {
+  name: "Reserva",
+  description: "30% de l'import total del pressupost.",
+} as const;
 
 /**
  * Turns an approved booking into a Holded contact, estimate and reserve
@@ -146,8 +165,17 @@ export async function runQuoteJob(
   }
 
   // Step 2 — price. Read from Holded so a rate change needs no deploy.
+  // A negotiated customer is billed against one service whatever the group size:
+  // the per-customer override wins, then the tax identifiers on the settings.
+  const negotiatedByList = config.negotiatedTaxIds
+    .map(normalizeTaxId)
+    .includes(normalizeTaxId(booking.customer.taxId))
+    ? config.negotiatedServiceId
+    : undefined;
+
   const serviceId =
     booking.customer.negotiatedServiceId ??
+    negotiatedByList ??
     config.serviceIdsBySku[
       `${booking.boardType === "FULL_BOARD" ? "pc" : "dc"}${resolveHeadcountBand(
         booking.headcount,
@@ -175,9 +203,9 @@ export async function runQuoteJob(
     quote.billableHeadcount,
     booking.boardType === "FULL_BOARD" ? "PC" : "DC",
   );
-  const notes = `${quote.nights} nights. Advance ${centsToAmount(
+  const notes = `${quote.nights} nits. Reserva ${centsToAmount(
     quote.advanceCents,
-  )} EUR, deposit ${centsToAmount(quote.depositCents)} EUR, total to confirm ${centsToAmount(
+  )} EUR, dipòsit ${centsToAmount(quote.depositCents)} EUR, total per confirmar ${centsToAmount(
     quote.amountToConfirmCents,
   )} EUR.`;
 
@@ -241,15 +269,15 @@ export async function runQuoteJob(
           units: 1,
           price: centsToAmount(SECURITY_DEPOSIT_CENTS),
           taxes: [ZERO_TAX_KEY],
-          description: "Refundable security deposit",
+          description: DEPOSIT_LINE.description,
         },
         {
-          name: "Advance",
+          name: ADVANCE_LINE.name,
           units: 1,
           price: centsToAmount(quote.advanceNetCents),
           taxes: [VAT_TAX_KEY],
           salesChannelId,
-          description: "30% of the stay total",
+          description: ADVANCE_LINE.description,
         },
       ],
     });
@@ -269,20 +297,20 @@ export async function runQuoteJob(
   await client.replaceEstimateLines(estimateId, [
     stayLine,
     {
-      name: "Security deposit",
+      name: DEPOSIT_LINE.name,
       units: 1,
       price: -centsToAmount(SECURITY_DEPOSIT_CENTS),
       taxes: [ZERO_TAX_KEY],
       salesChannelId,
-      description: "Returned after the stay",
+      description: DEPOSIT_LINE.description,
     },
     {
-      name: "Advance",
+      name: ADVANCE_LINE.name,
       units: 1,
       price: -centsToAmount(quote.advanceNetCents),
       taxes: [VAT_TAX_KEY],
       salesChannelId,
-      description: "30% of the stay total",
+      description: ADVANCE_LINE.description,
     },
   ]);
 

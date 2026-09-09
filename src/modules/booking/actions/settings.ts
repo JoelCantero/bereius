@@ -20,6 +20,7 @@ import {
   IntegrationSettingsError,
   listIntegrationStatus,
   markIntegrationVerified,
+  normalizeTaxId,
   readIntegrationConfig,
   resolveIntegration,
   saveIntegrationSettings,
@@ -221,6 +222,7 @@ export async function saveHoldedSettings(
         salesChannelId: z.string().trim().min(1).optional(),
         depositServiceId: z.string().trim().min(1).optional(),
         paymentMethodId: z.string().trim().min(1).optional(),
+        negotiatedServiceId: z.string().trim().min(1).optional(),
         language: z.string().trim().min(2).max(5),
         apiKey: z.string().optional(),
       })
@@ -228,9 +230,20 @@ export async function saveHoldedSettings(
         salesChannelId: formData.get("salesChannelId") || undefined,
         depositServiceId: formData.get("depositServiceId") || undefined,
         paymentMethodId: formData.get("paymentMethodId") || undefined,
+        negotiatedServiceId: formData.get("negotiatedServiceId") || undefined,
         language: formData.get("language") ?? "ca",
         apiKey: formData.get("apiKey") ?? undefined,
       });
+
+    // One per line, however the operator separates them.
+    const negotiatedTaxIds = [
+      ...new Set(
+        String(formData.get("negotiatedTaxIds") ?? "")
+          .split(/[\n,;]/u)
+          .map(normalizeTaxId)
+          .filter((value) => value.length > 0),
+      ),
+    ];
 
     const apiKey = submittedSecret(parsed.apiKey);
     // The form no longer offers this, because Holded exposes no catalogue to
@@ -247,6 +260,8 @@ export async function saveHoldedSettings(
         paymentMethodId: parsed.paymentMethodId,
         language: parsed.language,
         serviceIdsBySku,
+        negotiatedServiceId: parsed.negotiatedServiceId,
+        negotiatedTaxIds,
       },
       secret: apiKey,
       updatedById: actor.userId,

@@ -62,9 +62,17 @@ const holdedConfigSchema = z.preprocess(
       z.string().regex(/^(?:dc|pc)(?:30|40|60|80)$/u),
       z.string().min(1),
     ),
+    /** Billed to these customers whatever their headcount and board type. */
+    negotiatedServiceId: z.string().min(1).optional(),
+    negotiatedTaxIds: z.array(z.string().min(1)).default([]),
     })
     .strict(),
 );
+
+/** Casing and punctuation vary between Holded and the form; the identity does not. */
+export function normalizeTaxId(value: string): string {
+  return value.trim().toUpperCase().replace(/[\s.-]/gu, "");
+}
 
 const bookingMailConfigSchema = z
   .object({
