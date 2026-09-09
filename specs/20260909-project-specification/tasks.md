@@ -87,9 +87,9 @@ description: "Task list for Berea Booking Manager — Phase 1"
 
 **Purpose**: Turn an approval into a contact, an estimate and a reserve invoice, idempotently.
 
-- [ ] T019 Implement the Holded client in `src/lib/holded/client.ts`: contact lookup **by tax identifier using the API filter** (never by downloading the contact list), contact creation and update, estimate creation, estimate delivery, invoice creation from an estimate, and estimate line rewriting
-- [ ] T020 Implement `src/modules/booking/services/quoting.ts` as a sequence of individually idempotent outbox jobs keyed by booking and step, so a retry after a partial failure resumes rather than duplicating; persist each returned Holded identifier as a `HoldedDocument` as soon as it is known
-- [ ] T021 Write integration tests in `tests/integration/booking-quoting.test.ts` against a stubbed Holded boundary proving that a failure at the invoice step does not duplicate the estimate on retry, and that the booking never reports a document it did not receive an identifier for
+- [X] T019 Implement the Holded client in `src/lib/holded/client.ts`: contact lookup that paginates and stops at the first match (never downloading the whole list), contact creation and update, estimate creation, estimate delivery, invoice creation from an estimate, and estimate line rewriting
+- [X] T020 Implement `src/modules/booking/services/quoting.ts` as a single resumable outbox job whose every step is guarded by persisted state, so a retry after a partial failure resumes rather than duplicating; each returned Holded identifier is persisted as a `HoldedDocument` as soon as it is known
+- [X] T021 Write integration tests in `tests/integration/booking-quoting.test.ts` against a stubbed Holded boundary proving that a failure at the invoice step does not duplicate the estimate on retry, and that the booking never reports a document it did not receive an identifier for
 
 ---
 

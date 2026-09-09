@@ -4,6 +4,7 @@ import { logger } from "@/lib/logger";
 import { expireUnpaidBookings } from "@/modules/booking/services/expiry";
 import { runIntake } from "@/modules/booking/services/intake";
 import { drainOutbox, type JobHandler } from "@/modules/booking/services/outbox";
+import { QUOTE_JOB_KIND, runQuoteJob } from "@/modules/booking/services/quoting";
 
 const HOUR_MS = 3_600_000;
 
@@ -13,8 +14,9 @@ export const SCHEDULES = {
   expiry: 24 * HOUR_MS,
 } as const;
 
-/** Registered as phases land; an unknown kind is parked, never retried forever. */
-const JOB_HANDLERS: Readonly<Record<string, JobHandler>> = {};
+const JOB_HANDLERS: Readonly<Record<string, JobHandler>> = {
+  [QUOTE_JOB_KIND]: runQuoteJob,
+};
 
 type TaskName = keyof typeof SCHEDULES;
 

@@ -30,10 +30,17 @@ const gravityFormsConfigSchema = z
 
 const holdedConfigSchema = z
   .object({
-    accountingAccountId: z.string().min(1).optional(),
+    // Identifiers the retired workflow hardcoded in expressions.
+    accountingAccountId: z.string().min(1),
+    depositServiceId: z.string().min(1),
     mailTemplateId: z.string().min(1).optional(),
     paymentMethodId: z.string().min(1).optional(),
-    depositServiceId: z.string().min(1).optional(),
+    language: z.string().min(2).max(5).default("ca"),
+    /** Service identifier per rate SKU, e.g. `dc40` or `pc80`. */
+    serviceIdsBySku: z.record(
+      z.string().regex(/^(?:dc|pc)(?:30|40|60|80)$/u),
+      z.string().min(1),
+    ),
   })
   .strict();
 
