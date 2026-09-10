@@ -113,10 +113,10 @@ export async function runQuoteJob(
   if (!booking) {
     throw new QuotingError("unknown_booking", "Booking request not found");
   }
-  if (booking.state !== "APPROVED" && booking.state !== "AWAITING_PAYMENT") {
+  if (booking.state !== "AWAITING_PAYMENT") {
     throw new QuotingError(
       "wrong_state",
-      `Booking is in ${booking.state}; quoting expects APPROVED`,
+      `Booking is in ${booking.state}; quoting expects AWAITING_PAYMENT`,
     );
   }
 
