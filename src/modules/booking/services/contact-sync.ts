@@ -223,13 +223,14 @@ export async function linkExistingEstimate(
       update: { holdedId: estimate.id, documentNumber: estimate.number },
     });
 
-    // The estimate is the contract, so a request that has one has been agreed.
-    // Quoting is deliberately not queued: it would issue a second estimate.
+    // The estimate is the contract, so a request that has one has been agreed
+    // and the deposit can be asked for. Quoting is deliberately not queued: it
+    // would issue a second estimate.
     if (state === "IN_REVIEW") {
       await transitionBooking(
         {
           bookingRequestId,
-          to: "APPROVED",
+          to: "AWAITING_PAYMENT",
           actorUserId,
           expectedFrom: "IN_REVIEW",
         },

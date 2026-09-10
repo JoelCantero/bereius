@@ -160,7 +160,7 @@ test("keeps a non-administrator out of the integration settings", async ({
   await expect(page).toHaveURL(/\/bookings$/);
 });
 
-test("takes a request from received to awaiting payment and records the decision", async ({
+test("takes a request from review to awaiting payment and records the decision", async ({
   page,
   context,
   baseURL,
@@ -176,22 +176,13 @@ test("takes a request from received to awaiting payment and records the decision
   await page.goto(`/bookings/${booking.id}`);
   await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
 
-  // Approval is unavailable until the request has been opened for review.
-  await expect(page.getByRole("button", { name: "Approve" })).toHaveCount(0);
-
-  await page.getByRole("button", { name: "Start review" }).click();
-  await expect(page.getByRole("button", { name: "Approve" })).toBeVisible();
-
   await page.getByRole("button", { name: "Approve" }).click();
 
   await expect.poll(() => readBookingState(booking.id)).toBe("AWAITING_PAYMENT");
 
+  // Approving is the act of asking for the deposit, so it is one move.
   const events = await readAuditTrail(booking.id);
-  expect(events.map((event) => event.toState)).toEqual([
-    "IN_REVIEW",
-    "APPROVED",
-    "AWAITING_PAYMENT",
-  ]);
+  expect(events.map((event) => event.toState)).toEqual(["AWAITING_PAYMENT"]);
   expect(events.every((event) => event.actorUserId === seeded.userId)).toBe(true);
 
   // The Holded work is queued, never performed inside the operator's request.

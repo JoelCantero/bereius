@@ -223,8 +223,6 @@ export async function saveHoldedSettings(
         depositServiceId: z.string().trim().min(1).optional(),
         paymentMethodId: z.string().trim().min(1).optional(),
         negotiatedServiceId: z.string().trim().min(1).optional(),
-        estimateSeriesId: z.string().trim().min(1).optional(),
-        invoiceSeriesId: z.string().trim().min(1).optional(),
         language: z.string().trim().min(2).max(5),
         apiKey: z.string().optional(),
       })
@@ -233,8 +231,6 @@ export async function saveHoldedSettings(
         depositServiceId: formData.get("depositServiceId") || undefined,
         paymentMethodId: formData.get("paymentMethodId") || undefined,
         negotiatedServiceId: formData.get("negotiatedServiceId") || undefined,
-        estimateSeriesId: formData.get("estimateSeriesId") || undefined,
-        invoiceSeriesId: formData.get("invoiceSeriesId") || undefined,
         language: formData.get("language") ?? "ca",
         apiKey: formData.get("apiKey") ?? undefined,
       });
@@ -266,8 +262,6 @@ export async function saveHoldedSettings(
         serviceIdsBySku,
         negotiatedServiceId: parsed.negotiatedServiceId,
         negotiatedTaxIds,
-        estimateSeriesId: parsed.estimateSeriesId,
-        invoiceSeriesId: parsed.invoiceSeriesId,
       },
       secret: apiKey,
       updatedById: actor.userId,

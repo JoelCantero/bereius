@@ -11,7 +11,7 @@ vi.mock("next-intl", () => ({
       "queue.stateLabel": "Estado",
       "queue.allStates": "Todos los estados",
       "states.IN_REVIEW": "En revisión",
-      "states.APPROVED": "Aprobada",
+      "states.AWAITING_PAYMENT": "Esperando pago",
     })[key] ?? key,
 }));
 
@@ -22,7 +22,7 @@ vi.mock("@/i18n/navigation", () => ({
 
 import { QueueFilters } from "@/modules/booking/components/queue-filters";
 
-const states = ["IN_REVIEW", "APPROVED"] as const;
+const states = ["IN_REVIEW", "AWAITING_PAYMENT"] as const;
 
 function renderFilters(props: Partial<React.ComponentProps<typeof QueueFilters>> = {}) {
   return render(<QueueFilters states={states} search="" state={undefined} {...props} />);
@@ -60,10 +60,10 @@ describe("booking queue filters", () => {
     atUrl("?q=Berea");
     renderFilters({ search: "Berea" });
 
-    await userEvent.selectOptions(screen.getByLabelText("Estado"), "APPROVED");
+    await userEvent.selectOptions(screen.getByLabelText("Estado"), "AWAITING_PAYMENT");
 
     await waitFor(() =>
-      expect(mocks.replace).toHaveBeenCalledWith("/bookings?q=Berea&state=APPROVED", {
+      expect(mocks.replace).toHaveBeenCalledWith("/bookings?q=Berea&state=AWAITING_PAYMENT", {
         scroll: false,
       }),
     );

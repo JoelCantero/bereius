@@ -186,7 +186,7 @@ describe.skipIf(!runIntegrationTests)("holded contact synchronisation", () => {
     });
   });
 
-  it("approves the request, because the estimate is the contract", async () => {
+  it("asks for the deposit, because the estimate is the contract", async () => {
     mocks.contact = HOLDED_CONTACT;
     mocks.estimates = [{ id: "estimate-1", number: "E1" }];
     const request = await booking();
@@ -195,13 +195,13 @@ describe.skipIf(!runIntegrationTests)("holded contact synchronisation", () => {
 
     await expect(
       db.bookingRequest.findUniqueOrThrow({ where: { id: request.id } }),
-    ).resolves.toMatchObject({ state: "APPROVED" });
+    ).resolves.toMatchObject({ state: "AWAITING_PAYMENT" });
 
     const events = await db.bookingAuditEvent.findMany({
       where: { bookingRequestId: request.id },
     });
     expect(events.map((event) => [event.fromState, event.toState])).toEqual([
-      ["IN_REVIEW", "APPROVED"],
+      ["IN_REVIEW", "AWAITING_PAYMENT"],
     ]);
   });
 

@@ -12,12 +12,7 @@ import { logger } from "@/lib/logger";
 import { resolveIntegration } from "@/modules/booking/services/settings";
 
 /** States that can still receive a contract; a closed request must not. */
-const LINKABLE_STATES: BookingState[] = [
-  "IN_REVIEW",
-  "APPROVED",
-  "AWAITING_PAYMENT",
-  "CONFIRMED",
-];
+const LINKABLE_STATES: BookingState[] = ["IN_REVIEW", "AWAITING_PAYMENT", "CONFIRMED"];
 
 export interface ContractLink {
   bookingRequestId: string;

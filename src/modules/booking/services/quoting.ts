@@ -5,6 +5,7 @@ import {
   createHoldedClient,
   type HoldedClient,
   type HoldedDocumentLine,
+  type HoldedNumberingType,
 } from "@/lib/holded/client";
 import { logger } from "@/lib/logger";
 import { enqueueJob, type OutboxJob } from "@/modules/booking/services/outbox";
@@ -31,6 +32,12 @@ import {
 /** Holded identifies a rate by key, confirmed against the account's tax list. */
 const VAT_TAX_KEY = `s_iva_${VAT_PERCENT}`;
 const ZERO_TAX_KEY = "s_iva_0";
+
+/** The account's series names; matched by name so no identifier is configured. */
+const SERIES_NAMES: Record<HoldedNumberingType, string> = {
+  estimate: "E",
+  invoice: "F",
+};
 
 export const QUOTE_JOB_KIND = "booking.quote";
 
@@ -64,6 +71,24 @@ function centsToAmount(cents: number): number {
   return cents / 100;
 }
 
+/** Without a series the document is created unnumbered and stays a draft. */
+async function resolveSeriesId(
+  client: HoldedClient,
+  type: HoldedNumberingType,
+): Promise<string> {
+  const wanted = SERIES_NAMES[type];
+  const series = await client.listNumberingSeries(type);
+  const match = series.find((option) => option.name.trim().toUpperCase() === wanted);
+
+  if (!match) {
+    throw new QuotingError(
+      "incomplete_configuration",
+      `Holded has no ${wanted} numbering series for ${type}s`,
+    );
+  }
+  return match.id;
+}
+
 /**
  * Turns an approved booking into a Holded contact, estimate and reserve
  * invoice.
@@ -88,10 +113,10 @@ export async function runQuoteJob(
   if (!booking) {
     throw new QuotingError("unknown_booking", "Booking request not found");
   }
-  if (booking.state !== "APPROVED" && booking.state !== "AWAITING_PAYMENT") {
+  if (booking.state !== "AWAITING_PAYMENT") {
     throw new QuotingError(
       "wrong_state",
-      `Booking is in ${booking.state}; quoting expects APPROVED`,
+      `Booking is in ${booking.state}; quoting expects AWAITING_PAYMENT`,
     );
   }
 
@@ -218,7 +243,7 @@ export async function runQuoteJob(
       notes,
       language: config.language,
       paymentMethodId: config.paymentMethodId,
-      numberingSeriesId: config.estimateSeriesId,
+      numberingSeriesId: await resolveSeriesId(client, "estimate"),
       items: [stayLine],
     });
     estimateId = estimate.id;
@@ -246,7 +271,7 @@ export async function runQuoteJob(
       notes,
       language: config.language,
       paymentMethodId: config.paymentMethodId,
-      numberingSeriesId: config.invoiceSeriesId,
+      numberingSeriesId: await resolveSeriesId(client, "invoice"),
       dueDate: paymentDueAt,
       // The advance alone: the deposit is money held and returned, not income,
       // so it is asked for but never invoiced.

@@ -51,7 +51,13 @@ function stubClient(options: StubOptions = {}) {
     listEstimatesByContact: vi.fn(async () => track("listEstimatesByContact", () => [])),
     listEstimates: vi.fn(async () => track("listEstimates", () => [])),
     getEstimate: vi.fn(async () => track("getEstimate", () => null)),
-    listNumberingSeries: vi.fn(async () => track("listNumberingSeries", () => [])),
+    listNumberingSeries: vi.fn(async (type) =>
+      track("listNumberingSeries", () =>
+        type === "estimate"
+          ? [{ id: "series-e", name: "E" }]
+          : [{ id: "series-f", name: "F" }],
+      ),
+    ),
     approveEstimate: vi.fn(async () => {
       track("approveEstimate", () => undefined);
     }),
@@ -94,7 +100,7 @@ describe.skipIf(!runIntegrationTests)("booking quoting integration", () => {
       data: {
         gravityEntryId: `quote-${suffix}`,
         customerId: customer.id,
-        state: "APPROVED",
+        state: "AWAITING_PAYMENT",
         boardType: "SELF_CATERING",
         startDate: new Date("2027-06-01T00:00:00.000Z"),
         endDate: new Date("2027-06-03T00:00:00.000Z"),
@@ -274,10 +280,7 @@ describe.skipIf(!runIntegrationTests)("booking quoting integration", () => {
     const booking = await approvedBooking();
     const { client } = stubClient();
 
-    await runQuoteJob(job(booking.id), {
-      client,
-      config: { ...config, estimateSeriesId: "series-e", invoiceSeriesId: "series-f" },
-    });
+    await runQuoteJob(job(booking.id), { client, config });
 
     expect(client.createEstimate).toHaveBeenCalledWith(
       expect.objectContaining({ numberingSeriesId: "series-e" }),

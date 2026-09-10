@@ -336,7 +336,7 @@ export default async function BookingDetailPage({ params }: BookingDetailPagePro
           <PaymentForm action={recordPaymentAction} bookingRequestId={booking.id} />
         ) : null}
 
-        {["APPROVED", "AWAITING_PAYMENT", "CONFIRMED"].includes(booking.state) ? (
+        {["AWAITING_PAYMENT", "CONFIRMED"].includes(booking.state) ? (
           <DecisionForm
             action={cancelBookingAction}
             bookingRequestId={booking.id}

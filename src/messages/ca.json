@@ -804,7 +804,6 @@
     },
     "states": {
       "IN_REVIEW": "En revisió",
-      "APPROVED": "Aprovada",
       "AWAITING_PAYMENT": "Esperant pagament",
       "CONFIRMED": "Confirmada",
       "INVOICED": "Facturada",
@@ -886,9 +885,6 @@
         "depositServiceId": "Servei de dipòsit",
         "paymentMethodId": "Mètode de pagament",
         "language": "Idioma dels documents",
-        "estimateSeriesId": "Sèrie de numeració de pressupostos",
-        "invoiceSeriesId": "Sèrie de numeració de factures",
-        "seriesHint": "Sense sèrie el document es crea sense número i es queda en esborrany.",
         "services": "Servei per tarifa",
         "negotiated": "Preu especial",
         "negotiatedServiceId": "Servei de preu especial",

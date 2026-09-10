@@ -142,7 +142,6 @@ enum BoardType {
 
 enum BookingState {
   IN_REVIEW
-  APPROVED
   AWAITING_PAYMENT
   CONFIRMED
   INVOICED

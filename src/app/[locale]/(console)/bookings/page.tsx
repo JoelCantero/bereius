@@ -38,7 +38,6 @@ interface BookingsPageProps {
 
 const BOOKING_STATES: readonly BookingState[] = [
   "IN_REVIEW",
-  "APPROVED",
   "AWAITING_PAYMENT",
   "CONFIRMED",
   "INVOICED",

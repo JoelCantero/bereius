@@ -18,7 +18,6 @@ import {
 
 const ALL_STATES: readonly BookingState[] = [
   "IN_REVIEW",
-  "APPROVED",
   "AWAITING_PAYMENT",
   "CONFIRMED",
   "INVOICED",
@@ -29,10 +28,8 @@ const ALL_STATES: readonly BookingState[] = [
 ];
 
 const LEGAL_TRANSITIONS: ReadonlyArray<[BookingState, BookingState]> = [
-  ["IN_REVIEW", "APPROVED"],
+  ["IN_REVIEW", "AWAITING_PAYMENT"],
   ["IN_REVIEW", "REJECTED"],
-  ["APPROVED", "AWAITING_PAYMENT"],
-  ["APPROVED", "CANCELLED"],
   ["AWAITING_PAYMENT", "CONFIRMED"],
   ["AWAITING_PAYMENT", "EXPIRED"],
   ["AWAITING_PAYMENT", "CANCELLED"],
@@ -108,8 +105,11 @@ describe.skipIf(!runIntegrationTests)("booking lifecycle integration", () => {
       ),
     );
 
-    // Guards against the matrix silently becoming permissive.
-    expect(illegal.length).toBeGreaterThan(50);
+    // Every ordered pair that is not declared legal must be refused, so the
+    // count is derived rather than guessed: the matrix cannot quietly widen.
+    expect(illegal.length).toBe(
+      ALL_STATES.length * (ALL_STATES.length - 1) - LEGAL_TRANSITIONS.length,
+    );
 
     const booking = await createBooking("IN_REVIEW");
     for (const [from, to] of illegal.filter(([source]) => source === "IN_REVIEW")) {
@@ -142,12 +142,12 @@ describe.skipIf(!runIntegrationTests)("booking lifecycle integration", () => {
     try {
       await transitionBooking({
         bookingRequestId: booking.id,
-        to: "APPROVED",
+        to: "AWAITING_PAYMENT",
         actorUserId: operator.id,
       });
       await transitionBooking({
         bookingRequestId: booking.id,
-        to: "AWAITING_PAYMENT",
+        to: "CONFIRMED",
         actorUserId: operator.id,
       });
 
@@ -158,8 +158,8 @@ describe.skipIf(!runIntegrationTests)("booking lifecycle integration", () => {
 
       expect(events).toHaveLength(2);
       expect(events.map((event) => [event.fromState, event.toState])).toEqual([
-        ["IN_REVIEW", "APPROVED"],
-        ["APPROVED", "AWAITING_PAYMENT"],
+        ["IN_REVIEW", "AWAITING_PAYMENT"],
+        ["AWAITING_PAYMENT", "CONFIRMED"],
       ]);
       expect(events.every((event) => event.actorUserId === operator.id)).toBe(true);
     } finally {
@@ -213,7 +213,7 @@ describe.skipIf(!runIntegrationTests)("booking lifecycle integration", () => {
     const booking = await createBooking("IN_REVIEW");
     await transitionBooking({
       bookingRequestId: booking.id,
-      to: "APPROVED",
+      to: "AWAITING_PAYMENT",
       actorUserId: null,
     });
 
@@ -229,7 +229,7 @@ describe.skipIf(!runIntegrationTests)("booking lifecycle integration", () => {
 
     await expect(
       db.bookingRequest.findUniqueOrThrow({ where: { id: booking.id } }),
-    ).resolves.toMatchObject({ state: "APPROVED" });
+    ).resolves.toMatchObject({ state: "AWAITING_PAYMENT" });
   });
 
   it("refuses to move an unknown booking", async () => {
@@ -246,7 +246,7 @@ describe.skipIf(!runIntegrationTests)("booking lifecycle integration", () => {
     for (const state of ["COMPLETED", "REJECTED", "EXPIRED", "CANCELLED"] as const) {
       expect(isTerminal(state)).toBe(true);
     }
-    for (const state of ["IN_REVIEW", "APPROVED"] as const) {
+    for (const state of ["IN_REVIEW", "AWAITING_PAYMENT"] as const) {
       expect(isTerminal(state)).toBe(false);
     }
   });

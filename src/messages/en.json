@@ -804,7 +804,6 @@
     },
     "states": {
       "IN_REVIEW": "In review",
-      "APPROVED": "Approved",
       "AWAITING_PAYMENT": "Awaiting payment",
       "CONFIRMED": "Confirmed",
       "INVOICED": "Invoiced",
@@ -886,9 +885,6 @@
         "depositServiceId": "Deposit service",
         "paymentMethodId": "Payment method",
         "language": "Document language",
-        "estimateSeriesId": "Estimate numbering series",
-        "invoiceSeriesId": "Invoice numbering series",
-        "seriesHint": "Without a series the document is created unnumbered and stays a draft.",
         "services": "Service per rate",
         "negotiated": "Negotiated rate",
         "negotiatedServiceId": "Negotiated-rate service",

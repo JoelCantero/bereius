@@ -7,7 +7,6 @@ import { Badge } from "@/components/ui/badge";
  */
 const TONES: Record<BookingState, string> = {
   IN_REVIEW: "bg-zinc-200 text-zinc-800 dark:bg-zinc-700 dark:text-zinc-100",
-  APPROVED: "bg-sky-100 text-sky-900 dark:bg-sky-950 dark:text-sky-200",
   AWAITING_PAYMENT: "bg-amber-100 text-amber-900 dark:bg-amber-950 dark:text-amber-200",
   CONFIRMED: "bg-emerald-100 text-emerald-900 dark:bg-emerald-950 dark:text-emerald-200",
   INVOICED: "bg-teal-100 text-teal-900 dark:bg-teal-950 dark:text-teal-200",

@@ -37,13 +37,14 @@ async function notify(
 /**
  * Approves a booking and queues the Holded work.
  *
- * The decision is a local write and the external calls go to the outbox, so an
- * approval is never lost because Holded happened to be unreachable.
+ * Approving is the act of asking for the deposit, so the request goes straight
+ * to awaiting payment. The decision is a local write and the external calls go
+ * to the outbox, so an approval is never lost because Holded was unreachable.
  */
 export async function approveBooking(command: DecisionCommand): Promise<void> {
   await transitionBooking({
     bookingRequestId: command.bookingRequestId,
-    to: "APPROVED",
+    to: "AWAITING_PAYMENT",
     actorUserId: command.actorUserId,
     expectedFrom: command.expectedFrom ?? "IN_REVIEW",
   });
@@ -54,13 +55,6 @@ export async function approveBooking(command: DecisionCommand): Promise<void> {
   });
 
   await enqueueQuote(command.bookingRequestId);
-
-  await transitionBooking({
-    bookingRequestId: command.bookingRequestId,
-    to: "AWAITING_PAYMENT",
-    actorUserId: command.actorUserId,
-    expectedFrom: "APPROVED",
-  });
 
   logger.info(
     { event: "booking_approved", bookingRequestId: command.bookingRequestId },
