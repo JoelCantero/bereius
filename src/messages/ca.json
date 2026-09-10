@@ -773,10 +773,11 @@
       "stay": "Estada",
       "customer": "Client",
       "amounts": "Imports",
-      "documents": "Documents de Holded",
+      "documents": "Documents",
       "payments": "Pagaments",
       "history": "Historial",
       "noDocuments": "Encara no s'ha emès cap document.",
+      "openEstimate": "Veure el pressupost",
       "openInHolded": "Obre a Holded",
       "noPayments": "Encara no s'ha registrat cap pagament.",
       "taxId": "NIF",
@@ -842,11 +843,9 @@
     },
     "holdedEstimates": {
       "title": "Pressupostos del contacte a Holded",
-      "none": "Aquest contacte no té pressupostos a Holded.",
+      "none": "Aquest contacte no té cap pressupost a Holded amb aquestes dates.",
       "hint": "El pressupost és el contracte, així que vincular-ne un aprova la sol·licitud.",
-      "link": "Vincula a aquesta sol·licitud",
-      "linked": "Vinculat",
-      "suggested": "Les dates coincideixen"
+      "link": "Vincula a aquesta sol·licitud"
     },
     "documentTypes": {
       "ESTIMATE": "Pressupost",

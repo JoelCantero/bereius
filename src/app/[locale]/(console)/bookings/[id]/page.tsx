@@ -1,12 +1,11 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { getTranslations, setRequestLocale } from "next-intl/server";
 import { ExternalLink } from "lucide-react";
 
+import { Link } from "@/i18n/navigation";
 import { noIndexMetadata } from "@/lib/seo";
 import { holdedEstimateUrl } from "@/lib/holded/links";
-import { Badge } from "@/components/ui/badge";
 import {
   createContactAction,
   linkEstimateAction,
@@ -74,21 +73,17 @@ export default async function BookingDetailPage({ params }: BookingDetailPagePro
   const linkedEstimateId =
     booking.documents.find((document) => document.type === "ESTIMATE")?.holdedId ?? null;
 
-  // The estimate whose description names this stay is the one the operator is
-  // almost certainly looking for, so it is flagged and floated to the top.
+  // Linking an estimate approves the request, so the picker is only offered
+  // while the request is under review and nothing is linked yet, and only for
+  // the estimates whose description names this stay's dates.
   const estimates =
-    contact.status === "matches" || contact.status === "differs"
-      ? contact.estimates
-          .map((estimate) => ({
-            estimate,
-            suggested: estimateNamesStay(
-              estimate.description,
-              booking.startDate,
-              booking.endDate,
-            ),
-          }))
-          .sort((a, b) => Number(b.suggested) - Number(a.suggested))
-      : [];
+    linkedEstimateId === null &&
+    booking.state === "IN_REVIEW" &&
+    (contact.status === "matches" || contact.status === "differs")
+      ? contact.estimates.filter((estimate) =>
+          estimateNamesStay(estimate.description, booking.startDate, booking.endDate),
+        )
+      : null;
 
   return (
     <main className="mx-auto flex w-full max-w-4xl flex-col gap-8 p-6">
@@ -201,7 +196,7 @@ export default async function BookingDetailPage({ params }: BookingDetailPagePro
         </div>
       </section>
 
-      {contact.status === "matches" || contact.status === "differs" ? (
+      {estimates !== null ? (
         <section aria-labelledby="estimates-heading" className="flex flex-col gap-2">
           <h2 id="estimates-heading" className="text-lg font-medium">
             {t("holdedEstimates.title")}
@@ -212,7 +207,7 @@ export default async function BookingDetailPage({ params }: BookingDetailPagePro
             <p className="text-sm text-muted-foreground">{t("holdedEstimates.none")}</p>
           ) : (
             <ul className="flex flex-col gap-2 text-sm">
-              {estimates.map(({ estimate, suggested }) => (
+              {estimates.map((estimate) => (
                 <li
                   key={estimate.id}
                   className="flex flex-wrap items-center justify-between gap-2 rounded-md border p-2"
@@ -220,32 +215,19 @@ export default async function BookingDetailPage({ params }: BookingDetailPagePro
                   <span>
                     <span className="font-medium">{estimate.number ?? estimate.id}</span>
                     {estimate.description ? ` · ${estimate.description}` : ""}
-                    <span className="mt-1 flex flex-wrap items-center gap-2">
-                      <span className="text-xs text-muted-foreground">
-                        {[estimate.date, cents(estimate.totalCents)]
-                          .filter(Boolean)
-                          .join(" · ")}
-                      </span>
-                      {suggested ? (
-                        <Badge className="bg-sky-100 text-sky-900 dark:bg-sky-950 dark:text-sky-200">
-                          {t("holdedEstimates.suggested")}
-                        </Badge>
-                      ) : null}
+                    <span className="mt-1 block text-xs text-muted-foreground">
+                      {[estimate.date, cents(estimate.totalCents)]
+                        .filter(Boolean)
+                        .join(" · ")}
                     </span>
                   </span>
-                  {linkedEstimateId === estimate.id ? (
-                    <span className="text-xs text-green-700 dark:text-green-400">
-                      {t("holdedEstimates.linked")}
-                    </span>
-                  ) : (
-                    <ContactSyncButton
-                      action={linkEstimateAction}
-                      bookingRequestId={booking.id}
-                      holdedId={estimate.id}
-                      label={t("holdedEstimates.link")}
-                      variant="secondary"
-                    />
-                  )}
+                  <ContactSyncButton
+                    action={linkEstimateAction}
+                    bookingRequestId={booking.id}
+                    holdedId={estimate.id}
+                    label={t("holdedEstimates.link")}
+                    variant="secondary"
+                  />
                 </li>
               ))}
             </ul>
@@ -291,18 +273,21 @@ export default async function BookingDetailPage({ params }: BookingDetailPagePro
                 {document.type === "ESTIMATE" ? (
                   <>
                     {" · "}
+                    <Link
+                      href={`/contracts/${document.holdedId}`}
+                      className="hover:underline focus-visible:underline"
+                    >
+                      {document.documentNumber ?? t("detail.openEstimate")}
+                    </Link>
+                    {" · "}
                     <a
                       href={holdedEstimateUrl(document.holdedId)}
                       target="_blank"
                       rel="noreferrer"
-                      className="inline-flex items-center gap-1 hover:underline focus-visible:underline"
+                      className="inline-flex items-center gap-1 text-muted-foreground hover:underline focus-visible:underline"
                     >
-                      {document.documentNumber ?? t("detail.openInHolded")}
-                      <ExternalLink
-                        className="size-3.5 text-muted-foreground"
-                        aria-hidden="true"
-                      />
-                      <span className="sr-only">{t("detail.openInHolded")}</span>
+                      {t("detail.openInHolded")}
+                      <ExternalLink className="size-3.5" aria-hidden="true" />
                     </a>
                   </>
                 ) : document.documentNumber ? (

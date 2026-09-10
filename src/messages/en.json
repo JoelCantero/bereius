@@ -773,10 +773,11 @@
       "stay": "Stay",
       "customer": "Customer",
       "amounts": "Amounts",
-      "documents": "Holded documents",
+      "documents": "Documents",
       "payments": "Payments",
       "history": "History",
       "noDocuments": "No document has been issued yet.",
+      "openEstimate": "Open the estimate",
       "openInHolded": "Open in Holded",
       "noPayments": "No payment has been recorded yet.",
       "taxId": "Tax identifier",
@@ -842,11 +843,9 @@
     },
     "holdedEstimates": {
       "title": "Holded estimates for this contact",
-      "none": "This contact has no estimates in Holded.",
+      "none": "This contact has no estimate in Holded for these dates.",
       "hint": "The estimate is the contract, so linking one approves the request.",
-      "link": "Link to this request",
-      "linked": "Linked",
-      "suggested": "Dates match"
+      "link": "Link to this request"
     },
     "documentTypes": {
       "ESTIMATE": "Estimate",

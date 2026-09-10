@@ -773,10 +773,11 @@
       "stay": "Estancia",
       "customer": "Cliente",
       "amounts": "Importes",
-      "documents": "Documentos de Holded",
+      "documents": "Documentos",
       "payments": "Pagos",
       "history": "Historial",
       "noDocuments": "Todavía no se ha emitido ningún documento.",
+      "openEstimate": "Ver el presupuesto",
       "openInHolded": "Ver en Holded",
       "noPayments": "Todavía no se ha registrado ningún pago.",
       "taxId": "NIF",
@@ -842,11 +843,9 @@
     },
     "holdedEstimates": {
       "title": "Presupuestos del contacto en Holded",
-      "none": "Este contacto no tiene presupuestos en Holded.",
+      "none": "Este contacto no tiene ningún presupuesto en Holded con estas fechas.",
       "hint": "El presupuesto es el contrato, así que vincular uno aprueba la solicitud.",
-      "link": "Vincular a esta solicitud",
-      "linked": "Vinculado",
-      "suggested": "Fechas coinciden"
+      "link": "Vincular a esta solicitud"
     },
     "documentTypes": {
       "ESTIMATE": "Presupuesto",
