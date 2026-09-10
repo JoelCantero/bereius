@@ -860,7 +860,10 @@ test("preserves both accounts on identity conflict and rejects a consumed link",
       `${localeTargets[0].invalidLink.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}|${localeTargets[1].invalidLink.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`,
     ),
   );
-  const replayText = await consumerPage.locator("body").innerText();
+  // Scoped to the page, not the document: consuming the link signed this
+  // context in as the owner, so the console navigation shows the owner's own
+  // address. What must stay silent is the rejection itself.
+  const replayText = await consumerPage.getByRole("main").innerText();
   expect(replayText).not.toContain(owner.email);
   expect(replayText).not.toContain(owner.userId);
   await expect(readAccountGraph(owner)).resolves.toMatchObject({
