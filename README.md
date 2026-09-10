@@ -79,6 +79,7 @@ All runtime configuration comes from environment variables.
 |---|---|
 | `PROJECT_NAME`, `BRAND_COLOR`, `SUPPORT_EMAIL`, `APP_DOMAIN`, `DEPLOY_BASE_DIR`, `RUNNER_NAME`, `LOG_LEVEL`, `TRUST_PROXY_HEADERS` _(optional)_ | `POSTGRES_PASSWORD`, `AUTH_SECRET` |
 | `MAIL_ENABLED`, `MAIL_PROVIDER`, `MAIL_FROM`, `MAIL_LOGO_URL` _(optional)_ | `MAIL_API_KEY`, `MAIL_API_SECRET` _(Mailjet only)_ |
+| _(none)_ | `BOOKING_SECRET_KEY` |
 
 `POSTGRES_USER`, `POSTGRES_DB`, `DATABASE_URL` and the image/router names are **derived**
 from `PROJECT_NAME` / `APP_DOMAIN`. Production percent-encodes database credentials when it builds
@@ -167,6 +168,32 @@ part of forward recovery and must remain reusable by later valid submissions.
 - **Deployment reuses existing infrastructure.** Signup uses the selected HTTP provider, existing
   `AUTH_SECRET`, canonical `NEXTAUTH_URL`, PostgreSQL database, and Auth.js database sessions. It adds
   no runtime service, port, queue, custom session cookie, webhook, or delivery-status persistence.
+
+## Booking pipeline
+
+The booking module (`src/modules/booking`) replaces the retired n8n workflow. Requests arrive from
+the public Gravity Forms form, are reviewed on screen, and become a Holded contact, estimate and
+reserve invoice on approval.
+
+- **No new service.** A scheduler starts from [`src/instrumentation.ts`](src/instrumentation.ts) in
+  every Node instance and runs the hourly Gravity Forms intake, the outbox drain, and the daily
+  expiry of unpaid requests. Jobs are claimed atomically in PostgreSQL, so running more than one
+  instance is safe.
+- **External calls go through an outbox.** Approving is a local transaction; the Holded calls and
+  the booking email are queued and retried with backoff, so a decision is never lost because a
+  provider was unreachable. Exhausted jobs are parked in a visible dead state.
+- **Credentials are application settings, not environment variables.** An administrator configures
+  the Holded API key, the Gravity Forms credentials and the booking SMTP mailbox under
+  `/[locale]/bookings/settings`. They are stored AES-256-GCM encrypted, are write-only in the UI,
+  and a test-connection action reports a failure category rather than the provider's message.
+- **`BOOKING_SECRET_KEY` is the envelope key** for those credentials, and the only new secret. It
+  must live outside the database it protects. Generate it with `openssl rand -base64 32`. Without
+  it the settings screen refuses to store a credential.
+- **Booking mail is a separate channel.** Operational notices are sent over the configured SMTP
+  mailbox, independently of the account mail provider; commercial documents are delivered by Holded.
+
+The lifecycle, the pricing rules and the delivery phases are specified in
+[`specs/20260909-project-specification/spec.md`](specs/20260909-project-specification/spec.md).
 
 ## Database, backups & health
 

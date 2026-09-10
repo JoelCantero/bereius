@@ -7,7 +7,7 @@ description: "Task list for Berea Booking Manager — Phase 1"
 
 **Input**: Design documents from `/specs/20260909-project-specification/`
 
-**Prerequisites**: plan.md (required), spec.md (required), data-model.md, research.md
+**Prerequisites**: plan.md (required), spec.md (required)
 
 **Tests**: Required. Money and lifecycle correctness are critical (constitution Principle XII), and the system being replaced is known to have mis-billed groups below 30 places and to have produced fractional night counts. Integration tests run against a real PostgreSQL database.
 
@@ -20,9 +20,9 @@ description: "Task list for Berea Booking Manager — Phase 1"
 
 ## Path Conventions
 
-- **Application**: `src/app/[locale]/bookings/` for screens; `src/modules/booking/` for domain behaviour
+- **Application**: `src/app/[locale]/(console)/bookings/` for screens; `src/modules/booking/` for domain behaviour
 - **Integration clients**: `src/lib/holded/`, `src/lib/gravity-forms/`, `src/lib/mail/`
-- **Worker**: `src/worker/`
+- **Scheduler**: `src/modules/booking/services/scheduler.ts`, started from `src/instrumentation.ts`
 - **Tests**: `tests/unit/`, `tests/integration/`, `tests/e2e/`
 - Message catalogs move together: any key added to `src/messages/en.json` must be added to `es.json` and `ca.json` in the same task
 
@@ -119,23 +119,19 @@ description: "Task list for Berea Booking Manager — Phase 1"
 
 ---
 
-## Phase 9: Cut-over
-
-**Purpose**: Retire n8n only once the replacement is proven.
-
-- [ ] T034 Run both systems in parallel against production data for one review cycle, comparing the amounts the application computes with the amounts n8n produces, and record the comparison
-- [ ] T035 Switch off the n8n workflows, revoke the credentials they used, and update `README.md` with the new operational picture: the worker service, the `BOOKING_SECRET_KEY` secret and the integration settings screens
-- [ ] T036 Run the full gate before opening the pull request: `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm test:e2e` and `pnpm audit:prod`
-
----
-
 ## Dependencies
 
 - Phase 2 blocks everything.
 - Phase 3 is independent of Phases 4 to 7 and can be done in parallel with them.
 - Phase 6 depends on Phase 5, because every Holded call is dispatched through the outbox.
 - Phase 8 depends on Phases 2, 3 and 6.
-- Phase 9 depends on all of the above.
+
+## Cut-over
+
+Retiring n8n is an operational act, not a code change, and is therefore not a task here. Once this
+work is deployed, an administrator configures the integration credentials on the settings screen,
+watches one review cycle, then switches off the n8n workflows and revokes the credentials they
+used. Nothing in the repository changes at that point, so nothing in it can be ticked off.
 
 ## Out of scope for this phase
 

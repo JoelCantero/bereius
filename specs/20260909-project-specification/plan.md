@@ -18,10 +18,12 @@ this phase; automatic reconciliation arrives in Phase 2.
 
 Technical approach: a `booking` domain module under `src/modules/booking` owns the state machine and
 the persistence, and never talks to an external system directly. All outbound work — Holded calls
-and booking email — is queued in a database-backed outbox and drained by a `worker` container that
-also runs the hourly intake and the daily expiry. That split exists because approving a booking must
-succeed even when Holded is unreachable: the decision is a local write, and the four dependent
-Holded calls are retryable work that must not run inside the operator's request.
+and booking email — is queued in a database-backed outbox and drained by a scheduler that also runs
+the hourly intake and the daily expiry. That split exists because approving a booking must succeed
+even when Holded is unreachable: the decision is a local write, and the dependent Holded calls are
+retryable work that must not run inside the operator's request. The scheduler starts from
+`src/instrumentation.ts` inside the `app` container rather than in a service of its own — see
+Complexity Tracking.
 
 Two integration clients are added under `src/lib`, both following the `executeProviderRequest`
 pattern already used by the email providers, so timeouts, response size limits and status
@@ -59,12 +61,11 @@ group below the 30-place floor, because both are known defects of the system bei
 **Target Platform**: Docker (Linux containers) on Raspberry Pi (ARM64), portable to VPS; ingress via
 Cloudflare Tunnel -> Traefik
 
-**Project Type**: Web application — Next.js full-stack `app` container, plus a new `worker` container
-sharing the same image and Prisma client
+**Project Type**: Web application — Next.js full-stack `app` container, with the booking scheduler
+running inside it
 
-**Deployment**: Docker Compose. Adds one service, `worker`, on the `internal` network only, with no
-ingress and `restart: unless-stopped`. It shares the application image and entrypoint script, so
-there is no second build.
+**Deployment**: Docker Compose. No new service: the scheduler starts with the `app` container and
+is passed `BOOKING_SECRET_KEY` there. Ingress, networks and the image are unchanged.
 
 **CI/CD**: GitHub Actions. No pipeline change beyond the existing gates covering the new code.
 
@@ -88,22 +89,23 @@ the new tables and the column; authentication, accounts and email do not referen
 
 **Recovery Strategy**: The documented `scripts/db-backup.sh` and `scripts/db-restore.sh` procedure is
 unchanged, because the migration adds tables rather than transforming data. If the pipeline
-misbehaves in production, stopping the `worker` container halts every external effect — intake,
-Holded calls, outbound mail — while leaving the application readable and the outbox intact; queued
-work resumes when the worker restarts. The n8n workflow remains available as a fallback until this
-phase is verified in production, and is only switched off once it is.
+misbehaves in production, clearing the integration credentials on the settings screen halts every
+external effect — intake, Holded calls, outbound mail — while leaving the application readable and
+the outbox intact; queued work resumes once the credentials are restored. The n8n workflow remains
+available as a fallback until this phase is verified in production, and is only switched off once it
+is.
 
 **Performance Goals**: Approval is a single database transaction plus outbox writes, so it returns
 without waiting on Holded; p95 under 200 ms on Raspberry Pi. Intake is one paginated API read per
 hour. The review queue is indexed on state and creation date.
 
 **Constraints**: Raspberry Pi memory and CPU limits; no host-specific paths; portable to VPS. The
-worker must be idempotent and safe to restart mid-batch. No booking may reach a terminal state
+scheduler must be idempotent and safe to restart mid-batch. No booking may reach a terminal state
 without an audit record. Personal data must never appear in logs or in the calendar feed.
 
 **Scale/Scope**: Single-instance self-hosted deployment; tens of booking requests per month. Scope
-for this phase: 1 migration, 8 tables, 1 domain module, 2 integration clients, 1 worker service,
-4 screens, 3 message catalogues.
+for this phase: 1 migration, 8 tables, 1 domain module, 2 integration clients, 1 in-process
+scheduler, 4 screens, 3 message catalogues.
 
 ## Constitution Check
 
@@ -111,14 +113,14 @@ for this phase: 1 migration, 8 tables, 1 domain module, 2 integration clients, 1
 
 | Principle | Gate | Status |
 |-----------|------|--------|
-| I. Docker-First, Portable by Default | One new service built from the existing image; no host path, no host-specific configuration | PASS |
-| II. Separate by Operational Responsibility | Scheduled and retryable work moves to a `worker`, which is exactly the separation this principle calls for; the split is operational, not an artificial layer | PASS |
-| III. Reverse Proxy and Network Isolation | The worker joins `internal` only and publishes no port; no new ingress surface | PASS |
-| IV. VPS Migration as Design Constraint | New service and secrets are declarative; the migration checklist gains one environment variable and one service | PASS |
+| I. Docker-First, Portable by Default | No new service and no second image; no host path, no host-specific configuration | PASS |
+| II. Separate by Operational Responsibility | Scheduled and retryable work is separated by the outbox and its atomic claiming rather than by a container; the reasoning is recorded in Complexity Tracking | PASS |
+| III. Reverse Proxy and Network Isolation | No new service and no new port; the ingress surface is unchanged | PASS |
+| IV. VPS Migration as Design Constraint | New secret is declarative; the migration checklist gains one environment variable and nothing else | PASS |
 | V. Secrets Never Committed | One new environment secret, not committed; every integration credential is stored encrypted with it rather than deployed | PASS |
 | VI. Data Persistence, Backups, Restore | Additive migration only; backup and restore procedure unchanged; corrective forward migration defined | PASS |
 | VII. Minimal, Boring, Maintainable Stack | One new dependency (`nodemailer`), justified below; integration clients reuse the existing provider HTTP pattern rather than adding SDKs | PASS |
-| VIII. Health, Logs, Resource Awareness | Structured events for intake, transitions and outbox outcomes; the worker logs failures and shuts down gracefully | PASS |
+| VIII. Health, Logs, Resource Awareness | Structured events for intake, transitions and outbox outcomes; the scheduler logs failures and shuts down gracefully on `SIGTERM` | PASS |
 | IX. CI/CD Reproducible | Existing lint, typecheck, test, build and E2E gates cover the new code; no pipeline change | PASS |
 | X. Security by Default | Zod validation at every boundary; role checks on every operator action; no client-supplied identity trusted; secrets never logged; encrypted credential storage; the public form is untrusted input | PASS |
 | XI. Specs Before Implementation | spec.md is complete with no open decisions; this plan precedes implementation; Non-Goals recorded | PASS |
@@ -140,13 +142,15 @@ it is a mechanical change if a second house ever appears.
 
 ```text
 specs/20260909-project-specification/
-|-- spec.md
+|-- spec.md              # Requirements, lifecycle, pricing rules and delivery phases
 |-- plan.md              # This file
-|-- data-model.md        # Prisma models, enums, indexes and constraints
-|-- research.md          # Holded document API and Gravity Forms REST v2 findings
-|-- quickstart.md        # Local setup: credentials, seeding, running the worker
 `-- tasks.md             # Ordered, dependency-aware task list
 ```
+
+The data model, the Holded and Gravity Forms findings and the local setup notes are recorded where
+they are maintained rather than in a separate artifact: the models and indexes in
+`prisma/schema.prisma`, the API behaviour in the integration clients under `src/lib`, and the
+configuration surface in `.env.example` and the settings screen.
 
 ### Source Code (repository root)
 
@@ -154,27 +158,34 @@ specs/20260909-project-specification/
 src/
 |-- modules/
 |   `-- booking/
-|       |-- actions/           # Server Actions for approve, reject, record payment, settings
-|       |-- components/        # Review queue, request detail, settings form
+|       |-- actions/           # Server Actions for decisions, payments and settings
+|       |-- components/        # Review queue, request detail, settings forms
 |       |-- services/
 |       |   |-- intake.ts      # Gravity Forms entries -> BookingRequest, idempotent
 |       |   |-- lifecycle.ts   # State machine and audit writes
 |       |   |-- pricing.ts     # Bands, 30-place floor, advance and deposit
 |       |   |-- quoting.ts     # Holded contact, estimate, reserve invoice sequence
+|       |   |-- contracts.ts   # Holded estimates listed against a request
+|       |   |-- contact-sync.ts
+|       |   |-- decisions.ts   # Approve, reject, cancel
 |       |   |-- payments.ts    # Manual payment recording
+|       |   |-- expiry.ts      # Payment deadline and the daily sweep
 |       |   |-- outbox.ts      # Enqueue and drain integration jobs
-|       |   `-- mail-settings.ts
+|       |   |-- scheduler.ts   # Hourly intake, outbox drain, daily expiry
+|       |   |-- queries.ts     # Read models for the screens
+|       |   `-- settings.ts    # Integration credentials, encrypted at rest
+|       |-- authorization.ts   # Role checks for operator and administrator actions
 |       `-- schema.ts          # Zod schemas for form entries and operator input
 |-- lib/
 |   |-- holded/                # Contacts and documents client
 |   |-- gravity-forms/         # Entries client with cursor paging
+|   |-- booking/secrets.ts     # AES-256-GCM envelope encryption
 |   `-- mail/smtp.ts           # Booking channel transport
 |-- app/
 |   `-- [locale]/
-|       `-- bookings/          # Queue, detail and settings screens
+|       `-- (console)/bookings/  # Queue, detail and settings screens
 |-- messages/                  # ca, es, en copy for the new screens and emails
-`-- worker/
-    `-- index.ts               # Scheduler: hourly intake, outbox drain, daily expiry
+`-- instrumentation.ts         # Starts the scheduler on every Node instance
 
 prisma/
 |-- schema.prisma
@@ -183,14 +194,14 @@ prisma/
 tests/
 |-- unit/                      # pricing, date arithmetic, state machine
 |-- integration/               # lifecycle, intake idempotency, outbox
-`-- e2e/                       # review to approval with Holded stubbed
+`-- e2e/                       # review to approval, no Holded stub needed
 ```
 
 **Structure Decision**: The booking domain lives in `src/modules/booking` following the existing
 module convention. The dependency direction is preserved: screens and Server Actions call domain
 services, services call `src/lib/db.ts` and the integration clients, and nothing calls in the
-opposite direction. The worker imports the same domain services rather than duplicating logic, which
-is why it ships in the same image.
+opposite direction. The scheduler imports the same domain services rather than duplicating logic,
+which is why it runs in the same process.
 
 ## Complexity Tracking
 

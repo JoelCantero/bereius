@@ -88,14 +88,13 @@ Board type is an enumeration: full board (*pensio completa*, `pc`) or self-cater
               │     └────────────┘     │
      approve  │                        │ reject (reason required)
               │                        │
-        ┌─────▼──────┐           ┌─────▼──────┐
-        │  approved  │           │  rejected  │
-        └─────┬──────┘           └────────────┘
-              │ estimate and reserve invoice issued in Holded
-      ┌───────▼────────┐
-      │ awaiting_payment│──── 3 days without payment ────▶ ┌─────────┐
-      └───────┬─────────┘                                    │ expired │
-              │ payment recorded                             └─────────┘
+    ┌─────────▼────────┐         ┌─────▼──────┐
+    │ awaiting_payment │         │  rejected  │
+    └─────────┬────────┘         └────────────┘
+              │
+              ├──── 3 days without payment ────▶ ┌─────────┐
+              │                                  │ expired │
+              │ payment recorded                 └─────────┘
         ┌─────▼──────┐
         │ confirmed  │  calendar event pushed to WordPress
         └─────┬──────┘
@@ -109,7 +108,12 @@ Board type is an enumeration: full board (*pensio completa*, `pc`) or self-cater
         └────────────┘
 ```
 
-`cancelled` is reachable from `approved`, `awaiting_payment` and `confirmed`, and always requires a
+There is no separate `approved` state. Approving *is* asking for the deposit: the request moves
+straight to `awaiting_payment`, the payment deadline is set, and the estimate and reserve invoice
+are issued in Holded through the outbox. A state whose only exit is automatic would be a state a
+booking could only be observed in by accident.
+
+`cancelled` is reachable from `awaiting_payment` and `confirmed`, and always requires a
 reason. Every transition writes an `AuditEvent`.
 
 ## Flow
@@ -160,21 +164,24 @@ On approval the application, in order:
 1. Looks up the Holded contact by tax identifier using the API filter, not by downloading the full
    contact list as the current workflow does.
 2. Creates the contact when absent, or updates the email when it differs from the submission.
-3. Resolves the rate (see *Pricing*) and issues the Holded estimate.
-4. Asks Holded to send the estimate to the requester using the configured mail template.
-5. Issues the reserve invoice derived from that estimate, covering the advance and the security
-   deposit.
-6. Rewrites the estimate lines so the advance and the deposit appear deducted, leaving the balance
+3. Resolves the rate (see *Pricing*) and issues the Holded estimate, numbered but still a draft.
+4. Issues the reserve invoice covering the advance and the security deposit.
+5. Rewrites the estimate lines so the advance and the deposit appear deducted, leaving the balance
    payable after the stay.
+6. Approves the estimate, which takes it out of draft, and asks Holded to send it to the requester
+   using the configured mail template.
 7. Stores the returned Holded identifiers on the `BookingRequest`.
+
+The estimate is sent last, once it already shows the deducted balance, so the requester never
+receives a document that is about to be rewritten.
 
 Each step runs through the outbox: if Holded is unavailable the approval is still recorded and the
 call is retried with backoff, rather than losing the decision. Steps are idempotent, keyed by the
 booking request, so a retry never duplicates a contact, an estimate or an invoice.
 
 This sequence is where the current workflow is most fragile. It performs four dependent Holded
-calls with no transaction and no compensation: a failure at step 6 leaves an invoice issued against
-an estimate that still shows the full amount, and nobody is notified.
+calls with no transaction and no compensation: a failure after the invoice is issued leaves it
+standing against an estimate that still shows the full amount, and nobody is notified.
 
 ## Email responsibilities
 
