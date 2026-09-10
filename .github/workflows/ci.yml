@@ -223,6 +223,14 @@ jobs:
       - name: Migrate test database
         run: pnpm db:deploy
 
+      # The booking settings tests need a well-formed 32-byte envelope key. It is
+      # encoded here rather than written out, so no high-entropy literal that a
+      # secret scanner must judge ever lands in the repository.
+      - name: Provide a booking envelope key
+        run: |
+          key=$(printf '%s' 'ci-build-booking-key-not-used-00' | base64 -w0)
+          echo "BOOKING_SECRET_KEY=${key}" >> "$GITHUB_ENV"
+
       - name: Test with coverage thresholds
         run: pnpm test:coverage
 
