@@ -13,7 +13,7 @@ import type { OutboxJob } from "@/modules/booking/services/outbox";
 import { runQuoteJob } from "@/modules/booking/services/quoting";
 
 const config: HoldedConfig = {
-  salesChannelId: "channel-1",
+  advanceServiceId: "svc-advance",
   depositServiceId: "svc-deposit",
   mailTemplateId: "tpl-1",
   paymentMethodId: "pay-1",
@@ -64,7 +64,12 @@ function stubClient(options: StubOptions = {}) {
     approveInvoice: vi.fn(async () => {
       track("approveInvoice", () => undefined);
     }),
-    getServicePriceCents: vi.fn(async () => track("getServicePriceCents", () => 1_800)),
+    readService: vi.fn(async (serviceId: string) =>
+      track("readService", () => ({
+        priceCents: 1_800,
+        accountId: `account-for-${serviceId}`,
+      })),
+    ),
     createEstimate: vi.fn(async () =>
       track("createEstimate", () => ({ id: `est-${calls.length}`, number: "PRE-1" })),
     ),
@@ -241,7 +246,7 @@ describe.skipIf(!runIntegrationTests)("booking quoting integration", () => {
 
     await runQuoteJob(job(booking.id), { client, config });
 
-    expect(client.getServicePriceCents).toHaveBeenCalledWith("svc-negotiated");
+    expect(client.readService).toHaveBeenCalledWith("svc-negotiated");
   });
 
   it("bills the negotiated service to a tax identifier on the settings list", async () => {
@@ -261,7 +266,7 @@ describe.skipIf(!runIntegrationTests)("booking quoting integration", () => {
       },
     });
 
-    expect(client.getServicePriceCents).toHaveBeenCalledWith("svc-special");
+    expect(client.readService).toHaveBeenCalledWith("svc-special");
   });
 
   it("leaves a customer off the list on the band rate", async () => {
@@ -273,7 +278,7 @@ describe.skipIf(!runIntegrationTests)("booking quoting integration", () => {
       config: { ...config, negotiatedServiceId: "svc-special", negotiatedTaxIds: ["X0000000X"] },
     });
 
-    expect(client.getServicePriceCents).toHaveBeenCalledWith("svc-dc40");
+    expect(client.readService).toHaveBeenCalledWith("svc-dc40");
   });
 
   it("numbers both documents from a series and takes them out of draft", async () => {
@@ -307,7 +312,7 @@ describe.skipIf(!runIntegrationTests)("booking quoting integration", () => {
   it("does not mail the estimate twice when a later step fails and the job retries", async () => {
     const booking = await approvedBooking();
 
-    const failing = stubClient({ failOn: "getServicePriceCents" });
+    const failing = stubClient({ failOn: "readService" });
     const first = stubClient();
     await runQuoteJob(job(booking.id), { client: first.client, config });
     expect(first.client.sendEstimate).toHaveBeenCalledTimes(1);
@@ -355,16 +360,64 @@ describe.skipIf(!runIntegrationTests)("booking quoting integration", () => {
     );
   });
 
-  it("refuses to quote while the sales channel is still unconfigured", async () => {
+  it("refuses to quote while the deposit service is still unconfigured", async () => {
     const booking = await approvedBooking();
     const { client } = stubClient();
 
     await expect(
       runQuoteJob(job(booking.id), {
         client,
-        config: { ...config, salesChannelId: undefined },
+        config: { ...config, depositServiceId: undefined },
       }),
     ).rejects.toMatchObject({ code: "incomplete_configuration" });
     expect(client.createEstimate).not.toHaveBeenCalled();
+  });
+
+  it("refuses to quote a service that carries no accounting account", async () => {
+    const booking = await approvedBooking();
+    const { client } = stubClient();
+    client.readService = vi.fn(async () => ({ priceCents: 1_800, accountId: null }));
+
+    await expect(
+      runQuoteJob(job(booking.id), { client, config }),
+    ).rejects.toMatchObject({ code: "incomplete_configuration" });
+    expect(client.createEstimate).not.toHaveBeenCalled();
+  });
+
+  it("keeps the refundable deposit out of the taxable base", async () => {
+    const booking = await approvedBooking();
+    const { client } = stubClient();
+
+    await runQuoteJob(job(booking.id), { client, config });
+
+    expect(client.replaceEstimateLines).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.arrayContaining([
+        expect.objectContaining({
+          name: "Dipòsit",
+          serviceId: "svc-deposit",
+          accountId: "account-for-svc-deposit",
+          taxes: ["s_iva_nosujeto"],
+        }),
+      ]),
+    );
+  });
+
+  it("posts each line to the account its own service declares", async () => {
+    const booking = await approvedBooking();
+    const { client } = stubClient();
+
+    await runQuoteJob(job(booking.id), { client, config });
+
+    expect(client.createInvoice).toHaveBeenCalledWith(
+      expect.objectContaining({
+        items: [
+          expect.objectContaining({
+            serviceId: "svc-advance",
+            accountId: "account-for-svc-advance",
+          }),
+        ],
+      }),
+    );
   });
 });

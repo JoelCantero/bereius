@@ -881,8 +881,8 @@
       "holded": {
         "title": "Holded",
         "apiKey": "API key",
-        "salesChannelId": "Sales channel",
-        "salesChannelHint": "Holded posts each line to a sales channel, and the channel decides the revenue account. Stays belong to 'Casa de colònies Berea'.",
+        "advanceServiceId": "Advance service",
+        "accountHint": "Every line posts to whichever account the service carries in Holded. Change it there, not here.",
         "depositServiceId": "Deposit service",
         "paymentMethodId": "Payment method",
         "language": "Document language",

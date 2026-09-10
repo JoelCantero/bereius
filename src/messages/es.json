@@ -881,8 +881,8 @@
       "holded": {
         "title": "Holded",
         "apiKey": "Clave de API",
-        "salesChannelId": "Canal de venta",
-        "salesChannelHint": "Holded imputa cada línea a un canal de venta, y el canal determina la cuenta contable de ingresos. Para las estancias es «Casa de colònies Berea».",
+        "advanceServiceId": "Servicio de anticipo",
+        "accountHint": "Cada línea se imputa a la cuenta contable que el servicio tenga asignada en Holded. Cámbiala allí, no aquí.",
         "depositServiceId": "Servicio de fianza",
         "paymentMethodId": "Método de pago",
         "language": "Idioma de los documentos",

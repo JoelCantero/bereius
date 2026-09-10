@@ -36,12 +36,14 @@ const gravityFormsConfigSchema = z
 
 /**
  * `accountingAccountId` named a sales channel, not a ledger account; the series
- * identifiers are now resolved by name at quoting time.
+ * identifiers are now resolved by name at quoting time. `salesChannelId` set
+ * one account for every line, overriding what each service already declares.
  */
 const RETIRED_HOLDED_KEYS = [
   "accountingAccountId",
   "estimateSeriesId",
   "invoiceSeriesId",
+  "salesChannelId",
 ];
 
 const holdedConfigSchema = z.preprocess(
@@ -57,7 +59,7 @@ const holdedConfigSchema = z.preprocess(
     // Optional so the API key can be saved first and the identifiers chosen
     // afterwards, once they can be offered as dropdowns. Quoting refuses to run
     // until they are present.
-    salesChannelId: z.string().min(1).optional(),
+    advanceServiceId: z.string().min(1).optional(),
     depositServiceId: z.string().min(1).optional(),
     // Holded publishes no catalogue for mail templates, so the screen cannot
     // offer a choice. Kept only so an already stored value survives a save.
@@ -247,7 +249,6 @@ export type HoldedCatalogueStatus =
 export interface HoldedCatalogues {
   status: HoldedCatalogueStatus;
   services: HoldedOption[];
-  salesChannels: HoldedOption[];
   paymentMethods: HoldedOption[];
 }
 
@@ -255,7 +256,6 @@ function emptyCatalogues(status: HoldedCatalogueStatus): HoldedCatalogues {
   return {
     status,
     services: [],
-    salesChannels: [],
     paymentMethods: [],
   };
 }
@@ -276,16 +276,14 @@ export async function readHoldedCatalogues(): Promise<HoldedCatalogues> {
   }
 
   try {
-    const [services, salesChannels, paymentMethods] = await Promise.all([
+    const [services, paymentMethods] = await Promise.all([
       client.listCatalogue("services"),
-      client.listCatalogue("sales-channels"),
       client.listCatalogue("payment-methods"),
     ]);
 
     return {
       status: "ok",
       services,
-      salesChannels,
       paymentMethods,
     };
   } catch (error) {

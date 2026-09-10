@@ -358,7 +358,9 @@ describe("Holded service prices", () => {
   ])("reads %o as %i cents", async (price, expected) => {
     const { client } = holded([page({ id: "s1", price })]);
 
-    await expect(client.getServicePriceCents("s1")).resolves.toBe(expected);
+    await expect(client.readService("s1")).resolves.toMatchObject({
+      priceCents: expected,
+    });
   });
 
   it.each([[undefined], ["not a price"], [Number.NaN]])(
@@ -366,16 +368,34 @@ describe("Holded service prices", () => {
     async (price) => {
       const { client } = holded([page({ id: "s1", price })]);
 
-      await expect(codeOf(client.getServicePriceCents("s1"))).resolves.toBe(
+      await expect(codeOf(client.readService("s1"))).resolves.toBe(
         "malformed_response",
       );
     },
   );
 
+  it("reads the accounting account the service declares", async () => {
+    const { client } = holded([
+      page({ id: "s1", price: "200", sales_channel_id: "acct-1" }),
+    ]);
+
+    await expect(client.readService("s1")).resolves.toMatchObject({
+      accountId: "acct-1",
+    });
+  });
+
+  it("reports a service with no account rather than inventing one", async () => {
+    const { client } = holded([page({ id: "s1", price: "200" })]);
+
+    await expect(client.readService("s1")).resolves.toMatchObject({
+      accountId: null,
+    });
+  });
+
   it("refuses a service record without an identifier", async () => {
     const { client } = holded([page({ price: "10" })]);
 
-    await expect(codeOf(client.getServicePriceCents("s1"))).resolves.toBe(
+    await expect(codeOf(client.readService("s1"))).resolves.toBe(
       "malformed_response",
     );
   });
@@ -403,7 +423,7 @@ describe("Holded document writes", () => {
             units: 60,
             price: 30.91,
             taxes: ["s_iva_10"],
-            salesChannelId: "ch1",
+            accountId: "ch1",
           },
         ],
       }),

@@ -191,7 +191,7 @@ describe.skipIf(!runIntegrationTests)("booking integration settings", () => {
 
       const resolved = await resolveIntegration("HOLDED");
       expect(resolved.secret).toBe("holded-key");
-      expect(resolved.config.salesChannelId).toBeUndefined();
+      expect(resolved.config.advanceServiceId).toBeUndefined();
       expect(resolved.config.depositServiceId).toBeUndefined();
     } finally {
       await restore();

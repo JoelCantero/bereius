@@ -20,7 +20,6 @@ export interface CatalogueOption {
 export interface HoldedCatalogueOptions {
   status: "ok" | "no_key" | "unauthorized" | "unavailable";
   services: CatalogueOption[];
-  salesChannels: CatalogueOption[];
   paymentMethods: CatalogueOption[];
 }
 
@@ -246,13 +245,13 @@ export function HoldedSettingsForm({
           hint={hasSecret ? t("secretStored") : t("secretHint")}
         />
         <Choice
-          name="salesChannelId"
-          label={t("holded.salesChannelId")}
-          options={catalogues.salesChannels}
-          defaultValue={String(config?.salesChannelId ?? "")}
+          name="advanceServiceId"
+          label={t("holded.advanceServiceId")}
+          options={catalogues.services}
+          defaultValue={String(config?.advanceServiceId ?? "")}
           emptyLabel={t("choose")}
           unavailableLabel={unavailableLabel}
-          hint={t("holded.salesChannelHint")}
+          hint={t("holded.accountHint")}
         />
         <Choice
           name="depositServiceId"

@@ -6,6 +6,7 @@ import {
   type HoldedClient,
   type HoldedDocumentLine,
   type HoldedNumberingType,
+  type HoldedService,
 } from "@/lib/holded/client";
 import { logger } from "@/lib/logger";
 import { enqueueJob, type OutboxJob } from "@/modules/booking/services/outbox";
@@ -31,7 +32,9 @@ import {
 
 /** Holded identifies a rate by key, confirmed against the account's tax list. */
 const VAT_TAX_KEY = `s_iva_${VAT_PERCENT}`;
-const ZERO_TAX_KEY = "s_iva_0";
+// A refundable deposit is not consideration for a service, so it stays out of
+// the taxable base entirely rather than being taxed at zero.
+const UNTAXED_KEY = "s_iva_nosujeto";
 
 /** The account's series names; matched by name so no identifier is configured. */
 const SERIES_NAMES: Record<HoldedNumberingType, string> = {
@@ -69,6 +72,21 @@ export class QuotingError extends Error {
 
 function centsToAmount(cents: number): number {
   return cents / 100;
+}
+
+/**
+ * `PUT /estimates/{id}` has no `service_id` on its lines, so a replaced line
+ * cannot inherit the account from its service. Every line carries the account
+ * the catalogue holds, which keeps the mapping in Holded and out of here.
+ */
+function accountOf(service: HoldedService, label: string): string {
+  if (!service.accountId) {
+    throw new QuotingError(
+      "incomplete_configuration",
+      `The Holded ${label} service has no accounting account`,
+    );
+  }
+  return service.accountId;
 }
 
 /** Without a series the document is created unnumbered and stays a draft. */
@@ -128,13 +146,14 @@ export async function runQuoteJob(
 
   // The settings screen allows saving the API key before the identifiers are
   // chosen, so completeness is enforced here rather than blocking that step.
-  if (!config.salesChannelId) {
+  if (!config.advanceServiceId || !config.depositServiceId) {
     throw new QuotingError(
       "incomplete_configuration",
-      "Holded settings are missing the sales channel",
+      "Holded settings are missing the advance or the deposit service",
     );
   }
-  const salesChannelId = config.salesChannelId;
+  const advanceServiceId = config.advanceServiceId;
+  const depositServiceId = config.depositServiceId;
 
   // Step 1 — contact. Skipped once the Holded identifier is known.
   let holdedContactId = booking.customer.holdedContactId;
@@ -192,12 +211,21 @@ export async function runQuoteJob(
     );
   }
 
+  const [stayService, advanceService, depositService] = await Promise.all([
+    client.readService(serviceId),
+    client.readService(advanceServiceId),
+    client.readService(depositServiceId),
+  ]);
+  const stayAccountId = accountOf(stayService, "stay");
+  const advanceAccountId = accountOf(advanceService, "advance");
+  const depositAccountId = accountOf(depositService, "deposit");
+
   const quote = quoteStay({
     boardType: booking.boardType,
     headcount: booking.headcount,
     startDate: booking.startDate,
     endDate: booking.endDate,
-    unitPriceCents: await client.getServicePriceCents(serviceId),
+    unitPriceCents: stayService.priceCents,
   });
 
   const description = stayDescription(
@@ -224,7 +252,7 @@ export async function runQuoteJob(
 
   const stayLine: HoldedDocumentLine = {
     serviceId,
-    salesChannelId,
+    accountId: stayAccountId,
     units: quote.units,
     price: centsToAmount(quote.unitPriceCents),
     taxes: [VAT_TAX_KEY],
@@ -278,10 +306,11 @@ export async function runQuoteJob(
       items: [
         {
           name: ADVANCE_LINE.name,
+          serviceId: advanceServiceId,
+          accountId: advanceAccountId,
           units: 1,
           price: centsToAmount(quote.advanceNetCents),
           taxes: [VAT_TAX_KEY],
-          salesChannelId,
           description: ADVANCE_LINE.description,
         },
       ],
@@ -305,18 +334,20 @@ export async function runQuoteJob(
     stayLine,
     {
       name: DEPOSIT_LINE.name,
+      serviceId: depositServiceId,
+      accountId: depositAccountId,
       units: 1,
       price: -centsToAmount(SECURITY_DEPOSIT_CENTS),
-      taxes: [ZERO_TAX_KEY],
-      salesChannelId,
+      taxes: [UNTAXED_KEY],
       description: DEPOSIT_LINE.description,
     },
     {
       name: ADVANCE_LINE.name,
+      serviceId: advanceServiceId,
+      accountId: advanceAccountId,
       units: 1,
       price: -centsToAmount(quote.advanceNetCents),
       taxes: [VAT_TAX_KEY],
-      salesChannelId,
       description: ADVANCE_LINE.description,
     },
   ]);

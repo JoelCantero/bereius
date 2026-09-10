@@ -134,6 +134,8 @@ const serviceSchema = z
     // Reads return money as a decimal string; converted to cents here so no
     // float reaches the pricing engine.
     price: z.union([z.string(), z.number()]).optional(),
+    // Named after the sales-channel screen, but it holds a chart-of-accounts id.
+    sales_channel_id: z.string().min(1).nullish(),
   })
   .catchall(z.unknown());
 
@@ -167,7 +169,16 @@ export interface HoldedDocumentLine {
   /** Unit price as the account keeps them: tax included. */
   price: number;
   taxes?: string[];
-  salesChannelId?: string;
+  /**
+   * Chart-of-accounts id. Sent on every line because `PUT /estimates/{id}`
+   * drops `service_id`, so a replaced line cannot inherit it from the service.
+   */
+  accountId?: string;
+}
+
+export interface HoldedService {
+  priceCents: number;
+  accountId: string | null;
 }
 
 export interface HoldedDocumentInput {
@@ -247,7 +258,7 @@ export interface HoldedClient {
    */
   approveEstimate(estimateId: string): Promise<void>;
   approveInvoice(invoiceId: string): Promise<void>;
-  getServicePriceCents(serviceId: string): Promise<number>;
+  readService(serviceId: string): Promise<HoldedService>;
   createEstimate(input: HoldedDocumentInput): Promise<HoldedDocumentResult>;
   sendEstimate(estimateId: string, emails: string[], mailTemplateId?: string): Promise<void>;
   createInvoice(input: HoldedInvoiceInput): Promise<HoldedDocumentResult>;
@@ -405,7 +416,7 @@ export function createHoldedClient(
       price: line.price,
       discount: 0,
       taxes: line.taxes ?? [],
-      account: line.salesChannelId,
+      account: line.accountId,
     };
   }
 
@@ -625,7 +636,7 @@ export function createHoldedClient(
       });
     },
 
-    async getServicePriceCents(serviceId) {
+    async readService(serviceId) {
       const payload = await request("GET", `/services/${serviceId}`);
       const parsed = serviceSchema.safeParse(payload);
 
@@ -643,7 +654,10 @@ export function createHoldedClient(
           "Holded service carries no usable price",
         );
       }
-      return toCents(price);
+      return {
+        priceCents: toCents(price),
+        accountId: parsed.data.sales_channel_id ?? null,
+      };
     },
 
     async createEstimate(input) {
