@@ -100,7 +100,7 @@ describe.skipIf(!runIntegrationTests)("booking quoting integration", () => {
       data: {
         gravityEntryId: `quote-${suffix}`,
         customerId: customer.id,
-        state: "AWAITING_PAYMENT",
+        state: "APPROVED",
         boardType: "SELF_CATERING",
         startDate: new Date("2027-06-01T00:00:00.000Z"),
         endDate: new Date("2027-06-03T00:00:00.000Z"),

@@ -804,7 +804,8 @@
     },
     "states": {
       "IN_REVIEW": "En revisión",
-      "AWAITING_PAYMENT": "Esperando pago",
+      "APPROVED": "Aprobada",
+      "AWAITING_PAYMENT": "Esperando pago de la reserva",
       "CONFIRMED": "Confirmada",
       "INVOICED": "Facturada",
       "COMPLETED": "Completada",

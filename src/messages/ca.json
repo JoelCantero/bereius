@@ -804,7 +804,8 @@
     },
     "states": {
       "IN_REVIEW": "En revisió",
-      "AWAITING_PAYMENT": "Esperant pagament",
+      "APPROVED": "Aprovada",
+      "AWAITING_PAYMENT": "Esperant el pagament de la reserva",
       "CONFIRMED": "Confirmada",
       "INVOICED": "Facturada",
       "COMPLETED": "Completada",
