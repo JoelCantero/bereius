@@ -73,7 +73,7 @@ export default async function ContractsPage({ params, searchParams }: ContractsP
     return (
       <main className="mx-auto flex w-full max-w-5xl flex-col gap-6 p-6">
         {heading}
-        <p className="text-sm text-zinc-600">
+        <p className="text-sm text-muted-foreground">
           {result.status === "no_key" ? t("noKey") : t("unavailable")}
         </p>
       </main>
@@ -101,7 +101,7 @@ export default async function ContractsPage({ params, searchParams }: ContractsP
       </p>
 
       {contracts.length === 0 ? (
-        <p className="text-sm text-zinc-600">{t("empty")}</p>
+        <p className="text-sm text-muted-foreground">{t("empty")}</p>
       ) : (
         <div className="overflow-hidden rounded-md border">
           <Table>

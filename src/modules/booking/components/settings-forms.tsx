@@ -52,7 +52,7 @@ function Feedback({ state }: { state: SettingsActionState }) {
   }
 
   return (
-    <p role="status" className="text-sm text-green-700">
+    <p role="status" className="text-sm text-green-700 dark:text-green-400">
       {state.status === "saved" ? t("saved") : t("verified")}
     </p>
   );
@@ -91,7 +91,7 @@ function Field({
         className="rounded-md border border-zinc-300 p-2 text-sm"
       />
       {hint ? (
-        <p id={hintId} className="text-xs text-zinc-600">
+        <p id={hintId} className="text-xs text-muted-foreground">
           {hint}
         </p>
       ) : null}
@@ -157,7 +157,7 @@ function Choice({
         )}
       </select>
       {hint ? (
-        <p id={hintId} className="text-xs text-zinc-600">
+        <p id={hintId} className="text-xs text-muted-foreground">
           {hint}
         </p>
       ) : null}
@@ -228,8 +228,8 @@ export function HoldedSettingsForm({
         <p
           className={
             catalogues.status === "no_key"
-              ? "text-sm text-zinc-600"
-              : "text-sm text-amber-700"
+              ? "text-sm text-muted-foreground"
+              : "text-sm text-amber-700 dark:text-amber-400"
           }
         >
           {notice}
@@ -320,7 +320,7 @@ export function HoldedSettingsForm({
               aria-describedby="negotiatedTaxIds-hint"
               className="rounded-md border border-zinc-300 p-2 font-mono text-sm"
             />
-            <p id="negotiatedTaxIds-hint" className="text-xs text-zinc-600">
+            <p id="negotiatedTaxIds-hint" className="text-xs text-muted-foreground">
               {t("holded.negotiatedTaxIdsHint")}
             </p>
           </div>
@@ -398,7 +398,7 @@ export function GravityFormsSettingsForm({
 
         <fieldset className="flex flex-col gap-2">
           <legend className="text-sm font-medium">{t("gravityForms.fields")}</legend>
-          <p className="text-xs text-zinc-600">{t("gravityForms.fieldsHint")}</p>
+          <p className="text-xs text-muted-foreground">{t("gravityForms.fieldsHint")}</p>
           <div className="grid grid-cols-2 gap-3">
             {GRAVITY_FORM_FIELD_KEYS.map((key) => (
               <Field
@@ -448,7 +448,7 @@ export function BookingMailSettingsForm({
         <h2 id="mail-heading" className="text-lg font-medium">
           {t("mail.title")}
         </h2>
-        <p className="text-sm text-zinc-600">{t("mail.description")}</p>
+        <p className="text-sm text-muted-foreground">{t("mail.description")}</p>
       </div>
 
       <form action={formAction} className="flex flex-col gap-3">

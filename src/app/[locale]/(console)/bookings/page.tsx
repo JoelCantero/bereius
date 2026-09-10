@@ -150,7 +150,7 @@ export default async function BookingsPage({ params, searchParams }: BookingsPag
       </p>
 
       {bookings.length === 0 ? (
-        <p className="text-sm text-zinc-600">
+        <p className="text-sm text-muted-foreground">
           {/* An empty queue and a filter that matches nothing need different advice. */}
           {isBookingState(query.state) || query.q
             ? t("queue.empty")

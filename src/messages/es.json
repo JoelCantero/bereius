@@ -845,7 +845,8 @@
       "none": "Este contacto no tiene presupuestos en Holded.",
       "hint": "El presupuesto es el contrato, así que vincular uno aprueba la solicitud.",
       "link": "Vincular a esta solicitud",
-      "linked": "Vinculado"
+      "linked": "Vinculado",
+      "suggested": "Fechas coinciden"
     },
     "documentTypes": {
       "ESTIMATE": "Presupuesto",

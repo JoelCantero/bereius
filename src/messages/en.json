@@ -845,7 +845,8 @@
       "none": "This contact has no estimates in Holded.",
       "hint": "The estimate is the contract, so linking one approves the request.",
       "link": "Link to this request",
-      "linked": "Linked"
+      "linked": "Linked",
+      "suggested": "Dates match"
     },
     "documentTypes": {
       "ESTIMATE": "Estimate",

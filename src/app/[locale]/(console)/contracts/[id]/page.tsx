@@ -66,7 +66,7 @@ export default async function ContractDetailPage({ params }: ContractDetailPageP
       <main className="mx-auto flex w-full max-w-3xl flex-col gap-6 p-6">
         {back}
         <h1 className="text-2xl font-semibold">{t("title")}</h1>
-        <p className="text-sm text-zinc-600">
+        <p className="text-sm text-muted-foreground">
           {detail.status === "no_key"
             ? t("noKey")
             : detail.status === "missing"
@@ -110,13 +110,13 @@ export default async function ContractDetailPage({ params }: ContractDetailPageP
           {t("detail.summary")}
         </h2>
         <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-sm">
-          <dt className="text-zinc-600">{t("columns.date")}</dt>
+          <dt className="text-muted-foreground">{t("columns.date")}</dt>
           <dd>{contract.date ? dateFormat.format(new Date(contract.date)) : "—"}</dd>
-          <dt className="text-zinc-600">{t("columns.total")}</dt>
+          <dt className="text-muted-foreground">{t("columns.total")}</dt>
           <dd className="tabular-nums">
             {contract.totalCents === null ? "—" : money.format(contract.totalCents / 100)}
           </dd>
-          <dt className="text-zinc-600">{t("columns.status")}</dt>
+          <dt className="text-muted-foreground">{t("columns.status")}</dt>
           <dd>
             {contract.status === null
               ? "—"
@@ -126,15 +126,15 @@ export default async function ContractDetailPage({ params }: ContractDetailPageP
           </dd>
           {contract.description ? (
             <>
-              <dt className="text-zinc-600">{t("detail.summary")}</dt>
+              <dt className="text-muted-foreground">{t("detail.summary")}</dt>
               <dd>{contract.description}</dd>
             </>
           ) : null}
-          <dt className="text-zinc-600">{t("detail.contact")}</dt>
+          <dt className="text-muted-foreground">{t("detail.contact")}</dt>
           <dd>
             {contract.contactName ?? "—"}
             {detail.status === "unlinked" && detail.taxId ? (
-              <span className="block text-xs text-zinc-600">{detail.taxId}</span>
+              <span className="block text-xs text-muted-foreground">{detail.taxId}</span>
             ) : null}
           </dd>
         </dl>
@@ -158,13 +158,13 @@ export default async function ContractDetailPage({ params }: ContractDetailPageP
             </Link>
           </>
         ) : detail.taxId === null ? (
-          <p className="text-sm text-zinc-600">{t("detail.noTaxId")}</p>
+          <p className="text-sm text-muted-foreground">{t("detail.noTaxId")}</p>
         ) : detail.candidates.length === 0 ? (
-          <p className="text-sm text-zinc-600">{t("detail.noCandidates")}</p>
+          <p className="text-sm text-muted-foreground">{t("detail.noCandidates")}</p>
         ) : (
           <>
-            <p className="text-sm text-zinc-600">{t("detail.candidatesHint")}</p>
-            <p className="text-sm text-zinc-600">{t("detail.approvalNote")}</p>
+            <p className="text-sm text-muted-foreground">{t("detail.candidatesHint")}</p>
+            <p className="text-sm text-muted-foreground">{t("detail.approvalNote")}</p>
             <ul className="flex flex-col gap-2 text-sm">
               {detail.candidates.map((candidate) => (
                 <li

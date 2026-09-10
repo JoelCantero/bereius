@@ -140,6 +140,22 @@ function shortDate(value: Date): string {
 }
 
 /**
+ * Whether an estimate's description names this stay. A hint for the operator,
+ * never a decision: the description is free text and may be edited in Holded.
+ */
+export function estimateNamesStay(
+  description: string | null,
+  startDate: Date,
+  endDate: Date,
+): boolean {
+  return (
+    description !== null &&
+    description.includes(shortDate(startDate)) &&
+    description.includes(shortDate(endDate))
+  );
+}
+
+/**
  * Requests that may take this contract: the tax id on the Holded contact is the
  * only accepted match, so an estimate cannot be attached to another customer.
  */
@@ -172,11 +188,7 @@ async function findCandidates(
     .map((booking) => ({
       ...booking,
       customerName: customer?.name ?? "",
-      // A hint, never a decision: the operator still chooses.
-      suggested:
-        description !== null &&
-        description.includes(shortDate(booking.startDate)) &&
-        description.includes(shortDate(booking.endDate)),
+      suggested: estimateNamesStay(description, booking.startDate, booking.endDate),
     }))
     .sort((a, b) => Number(b.suggested) - Number(a.suggested));
 }

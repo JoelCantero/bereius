@@ -70,7 +70,7 @@ export function DecisionForm({
             aria-describedby={`${reasonId}-hint`}
             className="rounded-md border border-zinc-300 p-2 text-sm"
           />
-          <p id={`${reasonId}-hint`} className="text-xs text-zinc-600">
+          <p id={`${reasonId}-hint`} className="text-xs text-muted-foreground">
             {t("reasonHint")}
           </p>
         </div>

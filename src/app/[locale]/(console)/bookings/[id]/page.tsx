@@ -6,6 +6,7 @@ import { ExternalLink } from "lucide-react";
 
 import { noIndexMetadata } from "@/lib/seo";
 import { holdedEstimateUrl } from "@/lib/holded/links";
+import { Badge } from "@/components/ui/badge";
 import {
   createContactAction,
   linkEstimateAction,
@@ -22,6 +23,7 @@ import { ContactSyncButton } from "@/modules/booking/components/contact-sync";
 import { DecisionForm, PaymentForm } from "@/modules/booking/components/decision-forms";
 import { BookingStateBadge } from "@/modules/booking/components/state-badge";
 import { inspectCustomerContact } from "@/modules/booking/services/contact-sync";
+import { estimateNamesStay } from "@/modules/booking/services/contracts";
 import { getBookingDetail } from "@/modules/booking/services/queries";
 import { getLoginPathForLocale, parseLoginLocale } from "@/modules/login/schema";
 
@@ -72,6 +74,22 @@ export default async function BookingDetailPage({ params }: BookingDetailPagePro
   const linkedEstimateId =
     booking.documents.find((document) => document.type === "ESTIMATE")?.holdedId ?? null;
 
+  // The estimate whose description names this stay is the one the operator is
+  // almost certainly looking for, so it is flagged and floated to the top.
+  const estimates =
+    contact.status === "matches" || contact.status === "differs"
+      ? contact.estimates
+          .map((estimate) => ({
+            estimate,
+            suggested: estimateNamesStay(
+              estimate.description,
+              booking.startDate,
+              booking.endDate,
+            ),
+          }))
+          .sort((a, b) => Number(b.suggested) - Number(a.suggested))
+      : [];
+
   return (
     <main className="mx-auto flex w-full max-w-4xl flex-col gap-8 p-6">
       <div className="flex flex-col items-start gap-2">
@@ -101,19 +119,19 @@ export default async function BookingDetailPage({ params }: BookingDetailPagePro
           {t("detail.customer")}
         </h2>
         <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-sm">
-          <dt className="text-zinc-600">{t("detail.taxId")}</dt>
+          <dt className="text-muted-foreground">{t("detail.taxId")}</dt>
           <dd>{booking.customer.taxId}</dd>
-          <dt className="text-zinc-600">{t("detail.email")}</dt>
+          <dt className="text-muted-foreground">{t("detail.email")}</dt>
           <dd>{booking.customer.email}</dd>
           {booking.customer.phone ? (
             <>
-              <dt className="text-zinc-600">{t("detail.phone")}</dt>
+              <dt className="text-muted-foreground">{t("detail.phone")}</dt>
               <dd>{booking.customer.phone}</dd>
             </>
           ) : null}
           {booking.customer.addressLine ? (
             <>
-              <dt className="text-zinc-600">{t("detail.address")}</dt>
+              <dt className="text-muted-foreground">{t("detail.address")}</dt>
               <dd>
                 {[
                   booking.customer.addressLine,
@@ -128,16 +146,16 @@ export default async function BookingDetailPage({ params }: BookingDetailPagePro
           ) : null}
         </dl>
 
-        <div className="flex flex-col gap-2 rounded-md border border-zinc-200 p-3 text-sm">
+        <div className="flex flex-col gap-2 rounded-md border p-3 text-sm">
           <p className="font-medium">{t("holdedContact.title")}</p>
 
           {contact.status === "no_key" || contact.status === "unavailable" ? (
-            <p className="text-zinc-600">{t(`holdedContact.${contact.status}`)}</p>
+            <p className="text-muted-foreground">{t(`holdedContact.${contact.status}`)}</p>
           ) : null}
 
           {contact.status === "missing" ? (
             <>
-              <p className="text-zinc-600">{t("holdedContact.missing")}</p>
+              <p className="text-muted-foreground">{t("holdedContact.missing")}</p>
               <ContactSyncButton
                 action={createContactAction}
                 bookingRequestId={booking.id}
@@ -147,15 +165,15 @@ export default async function BookingDetailPage({ params }: BookingDetailPagePro
           ) : null}
 
           {contact.status === "matches" ? (
-            <p className="text-green-700">{t("holdedContact.matches")}</p>
+            <p className="text-green-700 dark:text-green-400">{t("holdedContact.matches")}</p>
           ) : null}
 
           {contact.status === "differs" ? (
             <>
-              <p className="text-amber-700">{t("holdedContact.differs")}</p>
+              <p className="text-amber-700 dark:text-amber-400">{t("holdedContact.differs")}</p>
               <table className="w-full text-left text-xs">
                 <thead>
-                  <tr className="text-zinc-600">
+                  <tr className="text-muted-foreground">
                     <th scope="col" className="py-1">{t("holdedContact.field")}</th>
                     <th scope="col" className="py-1">{t("holdedContact.ours")}</th>
                     <th scope="col" className="py-1">{t("holdedContact.theirs")}</th>
@@ -163,8 +181,8 @@ export default async function BookingDetailPage({ params }: BookingDetailPagePro
                 </thead>
                 <tbody>
                   {contact.differences.map((difference) => (
-                    <tr key={difference.field} className="border-t border-zinc-100">
-                      <td className="py-1 text-zinc-600">
+                    <tr key={difference.field} className="border-t">
+                      <td className="py-1 text-muted-foreground">
                         {t(`holdedContact.fields.${difference.field}`)}
                       </td>
                       <td className="py-1">{difference.ours ?? "—"}</td>
@@ -188,28 +206,35 @@ export default async function BookingDetailPage({ params }: BookingDetailPagePro
           <h2 id="estimates-heading" className="text-lg font-medium">
             {t("holdedEstimates.title")}
           </h2>
-          <p className="text-sm text-zinc-600">{t("holdedEstimates.hint")}</p>
+          <p className="text-sm text-muted-foreground">{t("holdedEstimates.hint")}</p>
 
-          {contact.estimates.length === 0 ? (
-            <p className="text-sm text-zinc-600">{t("holdedEstimates.none")}</p>
+          {estimates.length === 0 ? (
+            <p className="text-sm text-muted-foreground">{t("holdedEstimates.none")}</p>
           ) : (
             <ul className="flex flex-col gap-2 text-sm">
-              {contact.estimates.map((estimate) => (
+              {estimates.map(({ estimate, suggested }) => (
                 <li
                   key={estimate.id}
-                  className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-zinc-200 p-2"
+                  className="flex flex-wrap items-center justify-between gap-2 rounded-md border p-2"
                 >
                   <span>
                     <span className="font-medium">{estimate.number ?? estimate.id}</span>
                     {estimate.description ? ` · ${estimate.description}` : ""}
-                    <span className="block text-xs text-zinc-600">
-                      {[estimate.date, cents(estimate.totalCents)]
-                        .filter(Boolean)
-                        .join(" · ")}
+                    <span className="mt-1 flex flex-wrap items-center gap-2">
+                      <span className="text-xs text-muted-foreground">
+                        {[estimate.date, cents(estimate.totalCents)]
+                          .filter(Boolean)
+                          .join(" · ")}
+                      </span>
+                      {suggested ? (
+                        <Badge className="bg-sky-100 text-sky-900 dark:bg-sky-950 dark:text-sky-200">
+                          {t("holdedEstimates.suggested")}
+                        </Badge>
+                      ) : null}
                     </span>
                   </span>
                   {linkedEstimateId === estimate.id ? (
-                    <span className="text-xs text-green-700">
+                    <span className="text-xs text-green-700 dark:text-green-400">
                       {t("holdedEstimates.linked")}
                     </span>
                   ) : (
@@ -233,18 +258,18 @@ export default async function BookingDetailPage({ params }: BookingDetailPagePro
           {t("detail.amounts")}
         </h2>
         {amountToConfirm === null ? (
-          <p className="text-sm text-zinc-600">{t("detail.pendingQuote")}</p>
+          <p className="text-sm text-muted-foreground">{t("detail.pendingQuote")}</p>
         ) : (
           <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-sm">
-            <dt className="text-zinc-600">{t("detail.advance")}</dt>
+            <dt className="text-muted-foreground">{t("detail.advance")}</dt>
             <dd>{cents(booking.advanceCents)}</dd>
-            <dt className="text-zinc-600">{t("detail.deposit")}</dt>
+            <dt className="text-muted-foreground">{t("detail.deposit")}</dt>
             <dd>{cents(booking.depositCents)}</dd>
-            <dt className="text-zinc-600">{t("detail.toConfirm")}</dt>
+            <dt className="text-muted-foreground">{t("detail.toConfirm")}</dt>
             <dd className="font-medium">{cents(amountToConfirm)}</dd>
             {booking.paymentDueAt ? (
               <>
-                <dt className="text-zinc-600">{t("detail.paymentDue")}</dt>
+                <dt className="text-muted-foreground">{t("detail.paymentDue")}</dt>
                 <dd>{dateFormat.format(booking.paymentDueAt)}</dd>
               </>
             ) : null}
@@ -257,7 +282,7 @@ export default async function BookingDetailPage({ params }: BookingDetailPagePro
           {t("detail.documents")}
         </h2>
         {booking.documents.length === 0 ? (
-          <p className="text-sm text-zinc-600">{t("detail.noDocuments")}</p>
+          <p className="text-sm text-muted-foreground">{t("detail.noDocuments")}</p>
         ) : (
           <ul className="text-sm">
             {booking.documents.map((document) => (
@@ -294,7 +319,7 @@ export default async function BookingDetailPage({ params }: BookingDetailPagePro
           {t("detail.payments")}
         </h2>
         {booking.payments.length === 0 ? (
-          <p className="text-sm text-zinc-600">{t("detail.noPayments")}</p>
+          <p className="text-sm text-muted-foreground">{t("detail.noPayments")}</p>
         ) : (
           <ul className="text-sm">
             {booking.payments.map((payment) => (
@@ -354,7 +379,7 @@ export default async function BookingDetailPage({ params }: BookingDetailPagePro
         <ol className="flex flex-col gap-1 text-sm">
           {booking.auditEvents.map((event) => (
             <li key={event.id}>
-              <span className="text-zinc-600">
+              <span className="text-muted-foreground">
                 {dateTimeFormat.format(event.createdAt)}
               </span>{" "}
               {t(`states.${event.toState}`)} ·{" "}

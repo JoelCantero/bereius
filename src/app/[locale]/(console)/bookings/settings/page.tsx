@@ -73,7 +73,7 @@ export default async function BookingSettingsPage({ params }: SettingsPageProps)
           {queue("title")}
         </Link>
         <h1 className="text-2xl font-semibold">{t("title")}</h1>
-        <p className="text-sm text-zinc-600">{t("description")}</p>
+        <p className="text-sm text-muted-foreground">{t("description")}</p>
       </div>
 
       <ul className="flex flex-col gap-1 text-sm">
