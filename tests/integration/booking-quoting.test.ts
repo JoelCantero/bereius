@@ -51,6 +51,13 @@ function stubClient(options: StubOptions = {}) {
     listEstimatesByContact: vi.fn(async () => track("listEstimatesByContact", () => [])),
     listEstimates: vi.fn(async () => track("listEstimates", () => [])),
     getEstimate: vi.fn(async () => track("getEstimate", () => null)),
+    listNumberingSeries: vi.fn(async () => track("listNumberingSeries", () => [])),
+    approveEstimate: vi.fn(async () => {
+      track("approveEstimate", () => undefined);
+    }),
+    approveInvoice: vi.fn(async () => {
+      track("approveInvoice", () => undefined);
+    }),
     getServicePriceCents: vi.fn(async () => track("getServicePriceCents", () => 1_800)),
     createEstimate: vi.fn(async () =>
       track("createEstimate", () => ({ id: `est-${calls.length}`, number: "PRE-1" })),
@@ -159,9 +166,11 @@ describe.skipIf(!runIntegrationTests)("booking quoting integration", () => {
     });
     expect(documents.filter((doc) => doc.type === "ESTIMATE")).toHaveLength(1);
     expect(documents.filter((doc) => doc.type === "RESERVE_INVOICE")).toHaveLength(1);
-    // The retry resumed rather than re-issuing the estimate.
+    // The retry resumed rather than re-issuing the estimate, and finally mailed
+    // it: the first attempt never got that far.
     expect(retry.client.createEstimate).not.toHaveBeenCalled();
-    expect(retry.client.sendEstimate).not.toHaveBeenCalled();
+    expect(failing.client.sendEstimate).not.toHaveBeenCalled();
+    expect(retry.client.sendEstimate).toHaveBeenCalledTimes(1);
   });
 
   it("reuses a stored Holded contact instead of looking it up again", async () => {
@@ -259,6 +268,51 @@ describe.skipIf(!runIntegrationTests)("booking quoting integration", () => {
     });
 
     expect(client.getServicePriceCents).toHaveBeenCalledWith("svc-dc40");
+  });
+
+  it("numbers both documents from a series and takes them out of draft", async () => {
+    const booking = await approvedBooking();
+    const { client } = stubClient();
+
+    await runQuoteJob(job(booking.id), {
+      client,
+      config: { ...config, estimateSeriesId: "series-e", invoiceSeriesId: "series-f" },
+    });
+
+    expect(client.createEstimate).toHaveBeenCalledWith(
+      expect.objectContaining({ numberingSeriesId: "series-e" }),
+    );
+    expect(client.createInvoice).toHaveBeenCalledWith(
+      expect.objectContaining({ numberingSeriesId: "series-f" }),
+    );
+    expect(client.approveEstimate).toHaveBeenCalledTimes(1);
+    expect(client.approveInvoice).toHaveBeenCalledTimes(1);
+  });
+
+  it("approves the estimate before mailing it, so the customer gets the final document", async () => {
+    const booking = await approvedBooking();
+    const { client, calls } = stubClient();
+
+    await runQuoteJob(job(booking.id), { client, config });
+
+    expect(calls.indexOf("replaceEstimateLines")).toBeLessThan(
+      calls.indexOf("approveEstimate"),
+    );
+    expect(calls.indexOf("approveEstimate")).toBeLessThan(calls.indexOf("sendEstimate"));
+  });
+
+  it("does not mail the estimate twice when a later step fails and the job retries", async () => {
+    const booking = await approvedBooking();
+
+    const failing = stubClient({ failOn: "getServicePriceCents" });
+    const first = stubClient();
+    await runQuoteJob(job(booking.id), { client: first.client, config });
+    expect(first.client.sendEstimate).toHaveBeenCalledTimes(1);
+    expect(failing.client.sendEstimate).not.toHaveBeenCalled();
+
+    const retry = stubClient();
+    await runQuoteJob(job(booking.id), { client: retry.client, config });
+    expect(retry.client.sendEstimate).not.toHaveBeenCalled();
   });
 
   it("invoices the advance alone, because the deposit is held and not earned", async () => {

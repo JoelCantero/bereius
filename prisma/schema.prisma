@@ -232,6 +232,8 @@ model HoldedDocument {
   holdedId         String
   documentNumber   String?
   totalCents       Int?
+  // Set once the document has been mailed, so a retry never sends it twice.
+  sentAt           DateTime?
   issuedAt         DateTime           @default(now())
 
   bookingRequest BookingRequest @relation(fields: [bookingRequestId], references: [id], onDelete: Cascade)

@@ -22,6 +22,8 @@ export interface HoldedCatalogueOptions {
   services: CatalogueOption[];
   salesChannels: CatalogueOption[];
   paymentMethods: CatalogueOption[];
+  estimateSeries: CatalogueOption[];
+  invoiceSeries: CatalogueOption[];
 }
 
 type SettingsAction = (
@@ -276,6 +278,23 @@ export function HoldedSettingsForm({
           options={DOCUMENT_LANGUAGES}
           defaultValue={String(config?.language ?? "ca")}
           required
+          emptyLabel={t("choose")}
+          unavailableLabel={unavailableLabel}
+        />
+        <Choice
+          name="estimateSeriesId"
+          label={t("holded.estimateSeriesId")}
+          options={catalogues.estimateSeries}
+          defaultValue={String(config?.estimateSeriesId ?? "")}
+          emptyLabel={t("choose")}
+          unavailableLabel={unavailableLabel}
+          hint={t("holded.seriesHint")}
+        />
+        <Choice
+          name="invoiceSeriesId"
+          label={t("holded.invoiceSeriesId")}
+          options={catalogues.invoiceSeries}
+          defaultValue={String(config?.invoiceSeriesId ?? "")}
           emptyLabel={t("choose")}
           unavailableLabel={unavailableLabel}
         />

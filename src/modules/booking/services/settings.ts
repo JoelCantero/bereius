@@ -65,6 +65,9 @@ const holdedConfigSchema = z.preprocess(
     /** Billed to these customers whatever their headcount and board type. */
     negotiatedServiceId: z.string().min(1).optional(),
     negotiatedTaxIds: z.array(z.string().min(1)).default([]),
+    /** Without a series a document is created unnumbered and stays a draft. */
+    estimateSeriesId: z.string().min(1).optional(),
+    invoiceSeriesId: z.string().min(1).optional(),
     })
     .strict(),
 );
@@ -242,10 +245,19 @@ export interface HoldedCatalogues {
   services: HoldedOption[];
   salesChannels: HoldedOption[];
   paymentMethods: HoldedOption[];
+  estimateSeries: HoldedOption[];
+  invoiceSeries: HoldedOption[];
 }
 
 function emptyCatalogues(status: HoldedCatalogueStatus): HoldedCatalogues {
-  return { status, services: [], salesChannels: [], paymentMethods: [] };
+  return {
+    status,
+    services: [],
+    salesChannels: [],
+    paymentMethods: [],
+    estimateSeries: [],
+    invoiceSeries: [],
+  };
 }
 
 /**
@@ -264,13 +276,23 @@ export async function readHoldedCatalogues(): Promise<HoldedCatalogues> {
   }
 
   try {
-    const [services, salesChannels, paymentMethods] = await Promise.all([
-      client.listCatalogue("services"),
-      client.listCatalogue("sales-channels"),
-      client.listCatalogue("payment-methods"),
-    ]);
+    const [services, salesChannels, paymentMethods, estimateSeries, invoiceSeries] =
+      await Promise.all([
+        client.listCatalogue("services"),
+        client.listCatalogue("sales-channels"),
+        client.listCatalogue("payment-methods"),
+        client.listNumberingSeries("estimate"),
+        client.listNumberingSeries("invoice"),
+      ]);
 
-    return { status: "ok", services, salesChannels, paymentMethods };
+    return {
+      status: "ok",
+      services,
+      salesChannels,
+      paymentMethods,
+      estimateSeries,
+      invoiceSeries,
+    };
   } catch (error) {
     const refused =
       error instanceof HoldedError &&

@@ -36,6 +36,11 @@ export const HOLDED_CATALOGUE_RESOURCES = [
 
 export type HoldedCatalogueResource = (typeof HOLDED_CATALOGUE_RESOURCES)[number];
 
+/** Holded keeps one numbering sequence per document type. */
+export const HOLDED_NUMBERING_TYPES = ["estimate", "invoice"] as const;
+
+export type HoldedNumberingType = (typeof HOLDED_NUMBERING_TYPES)[number];
+
 export class HoldedError extends Error {
   constructor(
     readonly code:
@@ -159,7 +164,7 @@ export interface HoldedDocumentLine {
   description?: string;
   serviceId?: string;
   units: number;
-  /** Net unit price; documents are issued with tax excluded. */
+  /** Unit price as the account keeps them: tax included. */
   price: number;
   taxes?: string[];
   salesChannelId?: string;
@@ -171,6 +176,8 @@ export interface HoldedDocumentInput {
   notes: string;
   language: string;
   paymentMethodId?: string;
+  /** Without a series the document is created unnumbered and stays a draft. */
+  numberingSeriesId?: string;
   items: HoldedDocumentLine[];
 }
 
@@ -233,6 +240,13 @@ export interface HoldedClient {
   /** Every estimate in the account, so an operator can find one without a booking. */
   listEstimates(): Promise<HoldedEstimateSummary[]>;
   getEstimate(estimateId: string): Promise<HoldedEstimateSummary | null>;
+  listNumberingSeries(type: HoldedNumberingType): Promise<HoldedOption[]>;
+  /**
+   * Takes the document out of draft and stamps its approval date. The number
+   * comes from the series at creation; this is what makes it final.
+   */
+  approveEstimate(estimateId: string): Promise<void>;
+  approveInvoice(invoiceId: string): Promise<void>;
   getServicePriceCents(serviceId: string): Promise<number>;
   createEstimate(input: HoldedDocumentInput): Promise<HoldedDocumentResult>;
   sendEstimate(estimateId: string, emails: string[], mailTemplateId?: string): Promise<void>;
@@ -641,9 +655,24 @@ export function createHoldedClient(
         language: input.language,
         currency: "EUR",
         tax_included: TAX_INCLUDED,
+        number_line_id: input.numberingSeriesId,
         payment_method_id: input.paymentMethodId,
         items: input.items.map(toLine),
       });
+    },
+
+    async listNumberingSeries(type) {
+      const payload = await request("GET", `/numbering-series/${type}`);
+      const { options } = readCataloguePage(payload);
+      return options;
+    },
+
+    async approveEstimate(estimateId) {
+      await request("POST", `/estimates/${estimateId}/approve`);
+    },
+
+    async approveInvoice(invoiceId) {
+      await request("POST", `/invoices/${invoiceId}/approve`);
     },
 
     async sendEstimate(estimateId, emails, mailTemplateId) {
@@ -664,6 +693,7 @@ export function createHoldedClient(
         language: input.language,
         currency: "EUR",
         tax_included: TAX_INCLUDED,
+        number_line_id: input.numberingSeriesId,
         payment_method_id: input.paymentMethodId,
         items: input.items.map(toLine),
       });

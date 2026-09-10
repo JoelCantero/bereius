@@ -206,7 +206,8 @@ export async function runQuoteJob(
     description: stayPhrase,
   };
 
-  // Step 3 — estimate.
+  // Step 3 — estimate. Created numbered but still a draft; it is approved at
+  // the end, once the deduction lines are on it.
   const existingEstimate = booking.documents.find((doc) => doc.type === "ESTIMATE");
   let estimateId = existingEstimate?.holdedId ?? null;
 
@@ -217,6 +218,7 @@ export async function runQuoteJob(
       notes,
       language: config.language,
       paymentMethodId: config.paymentMethodId,
+      numberingSeriesId: config.estimateSeriesId,
       items: [stayLine],
     });
     estimateId = estimate.id;
@@ -230,12 +232,6 @@ export async function runQuoteJob(
         totalCents: quote.stayTotalCents,
       },
     });
-
-    await client.sendEstimate(
-      estimate.id,
-      [booking.customer.email],
-      config.mailTemplateId,
-    );
   }
 
   // Step 4 — reserve invoice for the advance and the deposit.
@@ -250,6 +246,7 @@ export async function runQuoteJob(
       notes,
       language: config.language,
       paymentMethodId: config.paymentMethodId,
+      numberingSeriesId: config.invoiceSeriesId,
       dueDate: paymentDueAt,
       // The advance alone: the deposit is money held and returned, not income,
       // so it is asked for but never invoiced.
@@ -274,6 +271,8 @@ export async function runQuoteJob(
         totalCents: quote.advanceCents,
       },
     });
+
+    await client.approveInvoice(invoice.id);
   }
 
   // Step 5 — deduct what was invoiced, so the estimate shows the balance owed.
@@ -296,6 +295,24 @@ export async function runQuoteJob(
       description: ADVANCE_LINE.description,
     },
   ]);
+
+  // Step 6 — approve, which takes the estimate out of draft, then send. The
+  // customer must receive the final document, not the working copy.
+  await client.approveEstimate(estimateId);
+
+  const alreadySent = await db.holdedDocument.findFirst({
+    where: { bookingRequestId: booking.id, type: "ESTIMATE", sentAt: { not: null } },
+    select: { id: true },
+  });
+
+  if (!alreadySent) {
+    await client.sendEstimate(estimateId, [booking.customer.email], config.mailTemplateId);
+    // Persisted before anything else can fail, so a retry never mails twice.
+    await db.holdedDocument.updateMany({
+      where: { bookingRequestId: booking.id, type: "ESTIMATE" },
+      data: { sentAt: new Date() },
+    });
+  }
 
   await db.bookingRequest.update({
     where: { id: booking.id },
