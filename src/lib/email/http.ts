@@ -53,6 +53,7 @@ export function serializeProviderJson(value: unknown): string {
 async function readBoundedBody(
   response: Response,
   signal: AbortSignal,
+  maxBytes: number,
 ): Promise<{ body: string | null; bodyTooLarge: boolean }> {
   if (!response.body) return { body: "", bodyTooLarge: false };
 
@@ -66,7 +67,7 @@ async function readBoundedBody(
       const { done, value } = await reader.read();
       if (done) break;
       byteLength += value.byteLength;
-      if (byteLength > EMAIL_RESPONSE_LIMIT_BYTES) {
+      if (byteLength > maxBytes) {
         await reader.cancel();
         return { body: null, bodyTooLarge: true };
       }
@@ -90,11 +91,14 @@ export async function executeProviderRequest({
   logicalUrl,
   init,
   timeoutMs,
+  maxResponseBytes = EMAIL_RESPONSE_LIMIT_BYTES,
 }: {
   client: ProviderHttpClient;
   logicalUrl: string;
   init: RequestInit;
   timeoutMs: number;
+  /** Raised only by callers that legitimately read a large listing. */
+  maxResponseBytes?: number;
 }): Promise<ProviderHttpOutcome> {
   const startedAt = performance.now();
   const timeoutSignal = AbortSignal.timeout(timeoutMs);
@@ -109,7 +113,11 @@ export async function executeProviderRequest({
       redirect: "manual",
       signal,
     });
-    const { body, bodyTooLarge } = await readBoundedBody(response, signal);
+    const { body, bodyTooLarge } = await readBoundedBody(
+      response,
+      signal,
+      maxResponseBytes,
+    );
     return {
       kind: "response",
       status: response.status,

@@ -1,0 +1,370 @@
+// @vitest-environment node
+
+import { afterAll, afterEach, describe, expect, it, vi } from "vitest";
+
+vi.mock("server-only", () => ({}));
+
+const runIntegrationTests = process.env.RUN_INTEGRATION_TESTS === "true";
+
+import { db } from "@/lib/db";
+import type { HoldedClient } from "@/lib/holded/client";
+import type { HoldedConfig } from "@/modules/booking/services/settings";
+import type { OutboxJob } from "@/modules/booking/services/outbox";
+import { runQuoteJob } from "@/modules/booking/services/quoting";
+
+const config: HoldedConfig = {
+  salesChannelId: "channel-1",
+  depositServiceId: "svc-deposit",
+  mailTemplateId: "tpl-1",
+  paymentMethodId: "pay-1",
+  language: "ca",
+  serviceIdsBySku: { dc40: "svc-dc40", pc40: "svc-pc40" },
+  negotiatedTaxIds: [],
+};
+
+interface StubOptions {
+  failOn?: keyof HoldedClient;
+}
+
+function stubClient(options: StubOptions = {}) {
+  const calls: string[] = [];
+
+  const track = <T>(name: keyof HoldedClient, value: () => T) => {
+    calls.push(name);
+    if (options.failOn === name) {
+      throw new Error(`Holded failed at ${name}`);
+    }
+    return value();
+  };
+
+  const client: HoldedClient = {
+    ping: vi.fn(async () => {
+      track("ping", () => undefined);
+    }),
+    listCatalogue: vi.fn(async () => track("listCatalogue", () => [])),
+    findContactByTaxId: vi.fn(async () => track("findContactByTaxId", () => null)),
+    getContact: vi.fn(async () => track("getContact", () => null)),
+    createContact: vi.fn(async () => track("createContact", () => ({ id: "contact-1" }))),
+    updateContact: vi.fn(async () => {
+      track("updateContact", () => undefined);
+    }),
+    listEstimatesByContact: vi.fn(async () => track("listEstimatesByContact", () => [])),
+    listEstimates: vi.fn(async () => track("listEstimates", () => [])),
+    getEstimate: vi.fn(async () => track("getEstimate", () => null)),
+    listNumberingSeries: vi.fn(async (type) =>
+      track("listNumberingSeries", () =>
+        type === "estimate"
+          ? [{ id: "series-e", name: "E" }]
+          : [{ id: "series-f", name: "F" }],
+      ),
+    ),
+    approveEstimate: vi.fn(async () => {
+      track("approveEstimate", () => undefined);
+    }),
+    approveInvoice: vi.fn(async () => {
+      track("approveInvoice", () => undefined);
+    }),
+    getServicePriceCents: vi.fn(async () => track("getServicePriceCents", () => 1_800)),
+    createEstimate: vi.fn(async () =>
+      track("createEstimate", () => ({ id: `est-${calls.length}`, number: "PRE-1" })),
+    ),
+    sendEstimate: vi.fn(async () => {
+      track("sendEstimate", () => undefined);
+    }),
+    createInvoice: vi.fn(async () =>
+      track("createInvoice", () => ({ id: `inv-${calls.length}`, number: "FAC-1" })),
+    ),
+    replaceEstimateLines: vi.fn(async () => {
+      track("replaceEstimateLines", () => undefined);
+    }),
+  };
+
+  return { client, calls };
+}
+
+describe.skipIf(!runIntegrationTests)("booking quoting integration", () => {
+  const customerIds: string[] = [];
+
+  async function approvedBooking() {
+    const suffix = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    const customer = await db.customer.create({
+      data: {
+        taxId: `Q${suffix}`.slice(0, 20),
+        name: "Fixture group",
+        email: "group@example.test",
+      },
+    });
+    customerIds.push(customer.id);
+
+    return db.bookingRequest.create({
+      data: {
+        gravityEntryId: `quote-${suffix}`,
+        customerId: customer.id,
+        state: "AWAITING_PAYMENT",
+        boardType: "SELF_CATERING",
+        startDate: new Date("2027-06-01T00:00:00.000Z"),
+        endDate: new Date("2027-06-03T00:00:00.000Z"),
+        headcount: 40,
+        submittedAt: new Date(),
+      },
+    });
+  }
+
+  function job(bookingRequestId: string): OutboxJob {
+    return {
+      id: "job-1",
+      kind: "booking.quote",
+      idempotencyKey: `booking.quote:${bookingRequestId}`,
+      payload: { bookingRequestId },
+      attempts: 1,
+    };
+  }
+
+  afterEach(async () => {
+    await db.bookingRequest.deleteMany({ where: { customerId: { in: customerIds } } });
+    await db.customer.deleteMany({ where: { id: { in: customerIds } } });
+    customerIds.length = 0;
+  });
+
+  afterAll(async () => {
+    await db.$disconnect();
+  });
+
+  it("issues the contact, estimate and reserve invoice, and records both documents", async () => {
+    const booking = await approvedBooking();
+    const { client } = stubClient();
+
+    await runQuoteJob(job(booking.id), { client, config });
+
+    const documents = await db.holdedDocument.findMany({
+      where: { bookingRequestId: booking.id },
+      orderBy: { type: "asc" },
+    });
+
+    expect(documents.map((doc) => doc.type)).toEqual(["ESTIMATE", "RESERVE_INVOICE"]);
+    expect(client.sendEstimate).toHaveBeenCalledTimes(1);
+    expect(client.replaceEstimateLines).toHaveBeenCalledTimes(1);
+
+    const updated = await db.bookingRequest.findUniqueOrThrow({ where: { id: booking.id } });
+    // 2 nights x 40 people at 18 EUR, 30% advance plus the 200 EUR deposit.
+    expect(updated.billableUnits).toBe(80);
+    expect(updated.advanceCents).toBe(43_200);
+    expect(updated.depositCents).toBe(20_000);
+    expect(updated.paymentDueAt).not.toBeNull();
+  });
+
+  it("does not duplicate the estimate when the invoice step fails and the job retries", async () => {
+    const booking = await approvedBooking();
+
+    const failing = stubClient({ failOn: "createInvoice" });
+    await expect(runQuoteJob(job(booking.id), { client: failing.client, config })).rejects.toThrow();
+
+    const afterFailure = await db.holdedDocument.findMany({
+      where: { bookingRequestId: booking.id },
+    });
+    expect(afterFailure.map((doc) => doc.type)).toEqual(["ESTIMATE"]);
+
+    const retry = stubClient();
+    await runQuoteJob(job(booking.id), { client: retry.client, config });
+
+    const documents = await db.holdedDocument.findMany({
+      where: { bookingRequestId: booking.id },
+    });
+    expect(documents.filter((doc) => doc.type === "ESTIMATE")).toHaveLength(1);
+    expect(documents.filter((doc) => doc.type === "RESERVE_INVOICE")).toHaveLength(1);
+    // The retry resumed rather than re-issuing the estimate, and finally mailed
+    // it: the first attempt never got that far.
+    expect(retry.client.createEstimate).not.toHaveBeenCalled();
+    expect(failing.client.sendEstimate).not.toHaveBeenCalled();
+    expect(retry.client.sendEstimate).toHaveBeenCalledTimes(1);
+  });
+
+  it("reuses a stored Holded contact instead of looking it up again", async () => {
+    const booking = await approvedBooking();
+    await db.customer.update({
+      where: { id: booking.customerId },
+      data: { holdedContactId: "contact-existing" },
+    });
+
+    const { client } = stubClient();
+    await runQuoteJob(job(booking.id), { client, config });
+
+    expect(client.findContactByTaxId).not.toHaveBeenCalled();
+    expect(client.createContact).not.toHaveBeenCalled();
+  });
+
+  it("records no document when the estimate call itself fails", async () => {
+    const booking = await approvedBooking();
+    const { client } = stubClient({ failOn: "createEstimate" });
+
+    await expect(runQuoteJob(job(booking.id), { client, config })).rejects.toThrow();
+
+    await expect(
+      db.holdedDocument.count({ where: { bookingRequestId: booking.id } }),
+    ).resolves.toBe(0);
+  });
+
+  it("refuses to quote a booking that is not approved", async () => {
+    const booking = await approvedBooking();
+    await db.bookingRequest.update({
+      where: { id: booking.id },
+      data: { state: "IN_REVIEW" },
+    });
+    const { client } = stubClient();
+
+    await expect(
+      runQuoteJob(job(booking.id), { client, config }),
+    ).rejects.toMatchObject({ code: "wrong_state" });
+    expect(client.createEstimate).not.toHaveBeenCalled();
+  });
+
+  it("fails loudly when no service is configured for the band", async () => {
+    const booking = await approvedBooking();
+    await db.bookingRequest.update({
+      where: { id: booking.id },
+      data: { headcount: 90 },
+    });
+    const { client } = stubClient();
+
+    await expect(
+      runQuoteJob(job(booking.id), { client, config }),
+    ).rejects.toMatchObject({ code: "no_service" });
+  });
+
+  it("prefers a negotiated service over the band rate", async () => {
+    const booking = await approvedBooking();
+    await db.customer.update({
+      where: { id: booking.customerId },
+      data: { negotiatedServiceId: "svc-negotiated" },
+    });
+    const { client } = stubClient();
+
+    await runQuoteJob(job(booking.id), { client, config });
+
+    expect(client.getServicePriceCents).toHaveBeenCalledWith("svc-negotiated");
+  });
+
+  it("bills the negotiated service to a tax identifier on the settings list", async () => {
+    const booking = await approvedBooking();
+    const customer = await db.customer.findUniqueOrThrow({
+      where: { id: booking.customerId },
+    });
+    const { client } = stubClient();
+
+    await runQuoteJob(job(booking.id), {
+      client,
+      // Spaced and lower-cased on purpose: the identity is what matters.
+      config: {
+        ...config,
+        negotiatedServiceId: "svc-special",
+        negotiatedTaxIds: [` ${customer.taxId.toLowerCase()} `],
+      },
+    });
+
+    expect(client.getServicePriceCents).toHaveBeenCalledWith("svc-special");
+  });
+
+  it("leaves a customer off the list on the band rate", async () => {
+    const booking = await approvedBooking();
+    const { client } = stubClient();
+
+    await runQuoteJob(job(booking.id), {
+      client,
+      config: { ...config, negotiatedServiceId: "svc-special", negotiatedTaxIds: ["X0000000X"] },
+    });
+
+    expect(client.getServicePriceCents).toHaveBeenCalledWith("svc-dc40");
+  });
+
+  it("numbers both documents from a series and takes them out of draft", async () => {
+    const booking = await approvedBooking();
+    const { client } = stubClient();
+
+    await runQuoteJob(job(booking.id), { client, config });
+
+    expect(client.createEstimate).toHaveBeenCalledWith(
+      expect.objectContaining({ numberingSeriesId: "series-e" }),
+    );
+    expect(client.createInvoice).toHaveBeenCalledWith(
+      expect.objectContaining({ numberingSeriesId: "series-f" }),
+    );
+    expect(client.approveEstimate).toHaveBeenCalledTimes(1);
+    expect(client.approveInvoice).toHaveBeenCalledTimes(1);
+  });
+
+  it("approves the estimate before mailing it, so the customer gets the final document", async () => {
+    const booking = await approvedBooking();
+    const { client, calls } = stubClient();
+
+    await runQuoteJob(job(booking.id), { client, config });
+
+    expect(calls.indexOf("replaceEstimateLines")).toBeLessThan(
+      calls.indexOf("approveEstimate"),
+    );
+    expect(calls.indexOf("approveEstimate")).toBeLessThan(calls.indexOf("sendEstimate"));
+  });
+
+  it("does not mail the estimate twice when a later step fails and the job retries", async () => {
+    const booking = await approvedBooking();
+
+    const failing = stubClient({ failOn: "getServicePriceCents" });
+    const first = stubClient();
+    await runQuoteJob(job(booking.id), { client: first.client, config });
+    expect(first.client.sendEstimate).toHaveBeenCalledTimes(1);
+    expect(failing.client.sendEstimate).not.toHaveBeenCalled();
+
+    const retry = stubClient();
+    await runQuoteJob(job(booking.id), { client: retry.client, config });
+    expect(retry.client.sendEstimate).not.toHaveBeenCalled();
+  });
+
+  it("invoices the advance alone, because the deposit is held and not earned", async () => {
+    const booking = await approvedBooking();
+    const { client } = stubClient();
+
+    await runQuoteJob(job(booking.id), { client, config });
+
+    expect(client.createInvoice).toHaveBeenCalledWith(
+      expect.objectContaining({
+        items: [expect.objectContaining({ name: "Reserva" })],
+      }),
+    );
+
+    const invoice = await db.holdedDocument.findFirstOrThrow({
+      where: { bookingRequestId: booking.id, type: "RESERVE_INVOICE" },
+    });
+    // The advance, not the advance plus the deposit.
+    expect(invoice.totalCents).toBe(43_200);
+  });
+
+  it("describes the stay and names its lines the way the account already does", async () => {
+    const booking = await approvedBooking();
+    const { client } = stubClient();
+
+    await runQuoteJob(job(booking.id), { client, config });
+
+    expect(client.createEstimate).toHaveBeenCalledWith(
+      expect.objectContaining({ description: "01/06/27 - 03/06/27 - 40 persones DC" }),
+    );
+    expect(client.replaceEstimateLines).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.arrayContaining([
+        expect.objectContaining({ name: "Dipòsit" }),
+        expect.objectContaining({ name: "Reserva" }),
+      ]),
+    );
+  });
+
+  it("refuses to quote while the sales channel is still unconfigured", async () => {
+    const booking = await approvedBooking();
+    const { client } = stubClient();
+
+    await expect(
+      runQuoteJob(job(booking.id), {
+        client,
+        config: { ...config, salesChannelId: undefined },
+      }),
+    ).rejects.toMatchObject({ code: "incomplete_configuration" });
+    expect(client.createEstimate).not.toHaveBeenCalled();
+  });
+});

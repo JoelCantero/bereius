@@ -54,16 +54,13 @@ describe("AppHeader", () => {
     expect(mocks.appNavigation).toHaveBeenCalledWith(
       expect.objectContaining({
         authenticated: true,
-        user: {
-          image: "https://example.com/avatar.jpg",
-          initials: "JC",
-        },
         locale: "es",
         labels: expect.objectContaining({
-          account: "navigation.account",
           language: "navigation.language",
         }),
       }),
     );
+    // The avatar and its menu live in the console sidebar now.
+    expect(mocks.appNavigation.mock.calls[0][0]).not.toHaveProperty("user");
   });
 });

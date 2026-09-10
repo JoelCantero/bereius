@@ -64,7 +64,7 @@ vi.mock("@/modules/account/security/service", () => ({
 }));
 vi.mock("next-auth/react", () => ({ signOut: vi.fn() }));
 
-import AccountSecurityPage from "@/app/[locale]/account/security/page";
+import AccountSecurityPage from "@/app/[locale]/(console)/account/security/page";
 
 function cookieStore(value: string) {
   return { toString: () => value };

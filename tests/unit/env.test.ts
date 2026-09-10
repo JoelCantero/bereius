@@ -36,6 +36,7 @@ describe("validateEnv", () => {
     delete process.env.MAIL_API_BASE_URL;
     delete process.env.MAIL_FROM_NAME;
     delete process.env.TRUST_PROXY_HEADERS;
+    delete process.env.BOOKING_SECRET_KEY;
     Object.assign(process.env, validBrandEnv);
   });
 
@@ -384,5 +385,75 @@ describe("validateEnv", () => {
     process.env.TRUST_PROXY_HEADERS = "true";
 
     expect(validateEnv(process.env)).toMatchObject({ TRUST_PROXY_HEADERS: true });
+  });
+
+  describe("booking pipeline", () => {
+    const secretKey = Buffer.alloc(32, 7).toString("base64");
+
+    function setRequiredEnv() {
+      process.env.PROJECT_NAME = "test-app";
+      process.env.DATABASE_URL = "postgresql://user:pass@localhost:5432/app";
+      process.env.AUTH_SECRET = "test-auth-secret-at-least-32-chars-long";
+      process.env.NEXTAUTH_URL = "https://app.example.com";
+    }
+
+    it("leaves the envelope key unset when it is not provided", () => {
+      setRequiredEnv();
+
+      expect(validateEnv(process.env).BOOKING).toEqual({ secretKey: null });
+    });
+
+    it("decodes a valid envelope key at startup", () => {
+      setRequiredEnv();
+      process.env.BOOKING_SECRET_KEY = secretKey;
+
+      expect(validateEnv(process.env).BOOKING.secretKey).toEqual(
+        Buffer.from(secretKey, "base64"),
+      );
+    });
+
+    it.each([
+      Buffer.alloc(16, 1).toString("base64"),
+      Buffer.alloc(64, 1).toString("base64"),
+      "not base64 at all !!",
+    ])("rejects an envelope key that is not 32 bytes %j", (key) => {
+      setRequiredEnv();
+      process.env.BOOKING_SECRET_KEY = key;
+
+      expect(() => validateEnv(process.env)).toThrow(/BOOKING_SECRET_KEY/);
+    });
+
+    it("keeps the envelope key out of validation failures", () => {
+      setRequiredEnv();
+      process.env.BOOKING_SECRET_KEY = "short-but-secret-looking-value";
+
+      try {
+        validateEnv(process.env);
+        expect.unreachable("expected validation to fail");
+      } catch (error) {
+        const output = String(error);
+        expect(output).toContain("BOOKING_SECRET_KEY");
+        expect(output).not.toContain("short-but-secret-looking-value");
+      }
+    });
+
+    it("exposes no integration credential, because they are application settings", () => {
+      setRequiredEnv();
+      process.env.BOOKING_SECRET_KEY = secretKey;
+
+      const env = validateEnv(process.env);
+
+      expect(Object.keys(env.BOOKING)).toEqual(["secretKey"]);
+      for (const removed of [
+        "BOOKING_ENABLED",
+        "HOLDED_API_KEY",
+        "GRAVITY_FORMS_API_URL",
+        "GRAVITY_FORMS_CONSUMER_KEY",
+        "GRAVITY_FORMS_CONSUMER_SECRET",
+        "GRAVITY_FORMS_FORM_ID",
+      ]) {
+        expect(env).not.toHaveProperty(removed);
+      }
+    });
   });
 });

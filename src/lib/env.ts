@@ -55,6 +55,43 @@ export type MailConfig =
   | BrevoMailConfig
   | MailjetMailConfig;
 
+/** AES-256-GCM key length for booking credentials stored in the database. */
+export const BOOKING_SECRET_KEY_BYTES = 32;
+
+export interface BookingConfig {
+  /**
+   * Envelope key for booking settings. Every other booking credential is
+   * configured in the application and stored encrypted with it, so the key must
+   * live outside the database it protects.
+   */
+  secretKey: Buffer | null;
+}
+
+function decodeBookingSecretKey(value: string): Buffer | null {
+  let decoded: Buffer;
+  try {
+    decoded = Buffer.from(value, "base64");
+  } catch {
+    return null;
+  }
+  return decoded.length === BOOKING_SECRET_KEY_BYTES ? decoded : null;
+}
+
+function validateBookingConfig(
+  env: { BOOKING_SECRET_KEY?: string },
+  context: z.RefinementCtx,
+): void {
+  if (env.BOOKING_SECRET_KEY === undefined) return;
+
+  if (decodeBookingSecretKey(env.BOOKING_SECRET_KEY) === null) {
+    context.addIssue({
+      code: "custom",
+      path: ["BOOKING_SECRET_KEY"],
+      message: `BOOKING_SECRET_KEY must be ${BOOKING_SECRET_KEY_BYTES} bytes encoded as base64 (use \`openssl rand -base64 ${BOOKING_SECRET_KEY_BYTES}\`)`,
+    });
+  }
+}
+
 const rawEnvSchema = z
   .object({
     PROJECT_NAME: z.string().min(1, "PROJECT_NAME is required"),
@@ -108,6 +145,7 @@ const rawEnvSchema = z
       emptyToUndefined,
       z.enum(["true", "false"]).default("false").transform((value) => value === "true"),
     ),
+    BOOKING_SECRET_KEY: optionalString,
   })
   .superRefine((env, context) => {
     const senderName = env.PROJECT_NAME.trim();
@@ -185,6 +223,8 @@ const rawEnvSchema = z
       }
     }
 
+    validateBookingConfig(env, context);
+
     if (!env.MAIL_ENABLED) return;
 
     if (env.MAIL_PROVIDER !== "brevo" && env.MAIL_PROVIDER !== "mailjet") {
@@ -235,7 +275,7 @@ export type Env = Pick<
   | "ACCOUNT_DATA_EXPORT_MAX_BYTES"
   | "ACCOUNT_DATA_EXPORT_TIMEOUT_MS"
   | "TRUST_PROXY_HEADERS"
-> & { BRAND: EmailBrand; MAIL: MailConfig };
+> & { BRAND: EmailBrand; MAIL: MailConfig; BOOKING: BookingConfig };
 
 const envSchema = rawEnvSchema.transform((env): Env => {
   const brand = validateEmailBrand({
@@ -255,6 +295,11 @@ const envSchema = rawEnvSchema.transform((env): Env => {
     ACCOUNT_DATA_EXPORT_TIMEOUT_MS: env.ACCOUNT_DATA_EXPORT_TIMEOUT_MS,
     TRUST_PROXY_HEADERS: env.TRUST_PROXY_HEADERS,
     BRAND: brand,
+    BOOKING: {
+      secretKey: env.BOOKING_SECRET_KEY
+        ? decodeBookingSecretKey(env.BOOKING_SECRET_KEY)
+        : null,
+    } satisfies BookingConfig,
   };
 
   if (!env.MAIL_ENABLED) {

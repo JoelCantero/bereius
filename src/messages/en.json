@@ -182,6 +182,44 @@
     "title": "Web app",
     "description": "Self-hosted, Dockerized Next.js starter"
   },
+  "Console": {
+    "title": "Console",
+    "subtitle": "Everything this application manages, in one place.",
+    "toggleSidebar": "Show or hide the navigation",
+    "userMenu": "Account menu",
+    "logout": "Log out",
+    "sections": {
+      "bookings": "Bookings",
+      "holded": "Holded",
+      "account": "Account"
+    },
+    "links": {
+      "queue": {
+        "label": "Queue",
+        "description": "Review requests, approve them and record payments."
+      },
+      "contracts": {
+        "label": "Contracts",
+        "description": "Holded estimates and the request each one belongs to."
+      },
+      "integrations": {
+        "label": "Integrations",
+        "description": "Credentials and identifiers for Holded, Gravity Forms and mail."
+      },
+      "profile": {
+        "label": "Profile",
+        "description": "Your name, email address and language."
+      },
+      "security": {
+        "label": "Security",
+        "description": "Active sessions and account deletion."
+      },
+      "data": {
+        "label": "Personal data",
+        "description": "Export a copy of everything held about you."
+      }
+    }
+  },
   "HomePage": {
     "title": "Web app",
     "tagline": "A self-hosted, Dockerized Next.js starter.",
@@ -658,6 +696,252 @@
           "body": "This draft may be replaced by a later version. Signup records the notice version accepted with the onboarding link."
         }
       }
+    }
+  },
+  "Contracts": {
+    "title": "Contracts",
+    "description": "Holded estimates and the request each one belongs to.",
+    "searchLabel": "Search",
+    "linkLabel": "Link",
+    "allLinks": "All",
+    "filters": {
+      "linked": "Linked",
+      "unlinked": "Not linked"
+    },
+    "count": "{count, plural, =0 {No contracts} one {1 contract} other {# contracts}}",
+    "empty": "No contract matches this filter.",
+    "noKey": "Without the Holded key the estimates cannot be read. Save it under Integrations.",
+    "unavailable": "Holded did not answer, so the estimate list cannot be shown.",
+    "missing": "This estimate no longer exists in Holded.",
+    "columns": {
+      "number": "Number",
+      "date": "Date",
+      "customer": "Customer",
+      "total": "Amount",
+      "status": "Status",
+      "link": "Request"
+    },
+    "statuses": {
+      "pending": "Pending",
+      "completed": "Accepted",
+      "partial": "Partial"
+    },
+    "unlinked": "Not linked",
+    "detail": {
+      "back": "Back to contracts",
+      "openInHolded": "Open in Holded",
+      "summary": "Estimate",
+      "contact": "Customer in Holded",
+      "linkedTo": "Linked to the request from {name}.",
+      "open": "Open the request",
+      "candidates": "Link to a request",
+      "candidatesHint": "Only requests from the customer whose tax id matches the estimate's contact, and that hold no estimate yet, are offered.",
+      "link": "Link",
+      "suggested": "Dates match",
+      "approvalNote": "Linking approves the request: the estimate is the contract.",
+      "noTaxId": "Holded holds no tax id for this estimate's contact, so it cannot be matched to a request.",
+      "noCandidates": "This customer has no open request without an estimate.",
+      "stay": "{start} – {end} · {headcount} people"
+    }
+  },
+  "Bookings": {
+    "queue": {
+      "title": "Booking requests",
+      "description": "Review and decide on booking requests.",
+      "empty": "No booking requests match this filter.",
+      "noneYet": "No requests yet. They arrive from Gravity Forms every hour.",
+      "searchLabel": "Search by name, tax identifier or email",
+      "count": "{count, plural, one {# request} other {# requests}}",
+      "stateLabel": "State",
+      "allStates": "All states",
+      "columns": {
+        "customer": "Customer",
+        "stay": "Stay",
+        "group": "Group",
+        "state": "State",
+        "submitted": "Request date"
+      },
+      "nights": "{count, plural, one {# night} other {# nights}}",
+      "people": "{count, plural, one {# person} other {# people}}",
+      "open": "Open"
+    },
+    "detail": {
+      "title": "Booking request",
+      "description": "Full detail of a booking request.",
+      "notFound": "This booking request does not exist.",
+      "back": "Back to the queue",
+      "stay": "Stay",
+      "customer": "Customer",
+      "amounts": "Amounts",
+      "documents": "Holded documents",
+      "payments": "Payments",
+      "history": "History",
+      "noDocuments": "No document has been issued yet.",
+      "openInHolded": "Open in Holded",
+      "noPayments": "No payment has been recorded yet.",
+      "taxId": "Tax identifier",
+      "email": "Email",
+      "phone": "Phone",
+      "address": "Address",
+      "advance": "Advance",
+      "deposit": "Security deposit",
+      "toConfirm": "Total to confirm",
+      "paymentDue": "Payment due",
+      "pendingQuote": "Amounts appear once the estimate has been issued.",
+      "systemActor": "Scheduled job"
+    },
+    "actions": {
+      "approve": "Approve",
+      "reject": "Reject",
+      "cancel": "Cancel booking",
+      "reasonLabel": "Reason",
+      "reasonHint": "Recorded in the history and sent to the requester.",
+      "recordPayment": "Record payment",
+      "amountLabel": "Amount received (EUR)",
+      "receivedAtLabel": "Received on",
+      "referenceLabel": "Transfer reference",
+      "submit": "Save"
+    },
+    "states": {
+      "IN_REVIEW": "In review",
+      "APPROVED": "Approved",
+      "AWAITING_PAYMENT": "Awaiting reservation payment",
+      "CONFIRMED": "Confirmed",
+      "INVOICED": "Invoiced",
+      "COMPLETED": "Completed",
+      "REJECTED": "Rejected",
+      "EXPIRED": "Expired",
+      "CANCELLED": "Cancelled"
+    },
+    "board": {
+      "SELF_CATERING": "Self-catering",
+      "FULL_BOARD": "Full board"
+    },
+    "holdedContact": {
+      "title": "Holded contact",
+      "no_key": "Configure the Holded API key to check the contact.",
+      "unavailable": "Holded could not be reached. Try again shortly.",
+      "missing": "This tax id does not exist in Holded yet.",
+      "matches": "The contact exists and the details agree.",
+      "differs": "The contact exists, but these details do not agree.",
+      "create": "Create the contact in Holded",
+      "update": "Update the contact in Holded",
+      "field": "Detail",
+      "ours": "On the request",
+      "theirs": "In Holded",
+      "fields": {
+        "name": "Name",
+        "email": "Email",
+        "phone": "Phone",
+        "addressLine": "Address",
+        "city": "City",
+        "province": "Province",
+        "postalCode": "Postal code",
+        "country": "Country"
+      }
+    },
+    "holdedEstimates": {
+      "title": "Holded estimates for this contact",
+      "none": "This contact has no estimates in Holded.",
+      "hint": "The estimate is the contract, so linking one approves the request.",
+      "link": "Link to this request",
+      "linked": "Linked"
+    },
+    "documentTypes": {
+      "ESTIMATE": "Estimate",
+      "RESERVE_INVOICE": "Reserve invoice",
+      "FINAL_INVOICE": "Final invoice"
+    },
+    "errors": {
+      "unauthenticated": "Your session has expired. Sign in again.",
+      "forbidden": "You do not have permission for this action.",
+      "invalid": "Check the values and try again.",
+      "state_changed": "Someone else changed this booking. Reload to see the current state.",
+      "reason_required": "A reason is required.",
+      "amount_mismatch": "The amount does not match what is owed to the cent. Review it by hand.",
+      "authentication": "The service refused the credential. Check that it is correct and carries the right permissions.",
+      "connection": "The service could not be reached. Try again shortly.",
+      "not_found": "The service answers but cannot find the resource. Check the base URL and the form id.",
+      "rejected": "The service refused the request. Review the configuration.",
+      "unknown": "The action could not be completed."
+    },
+    "settings": {
+      "title": "Integrations",
+      "description": "Credentials and identifiers for the booking pipeline.",
+      "configured": "Configured",
+      "notConfigured": "Not configured",
+      "verifiedAt": "Last verified {date}",
+      "neverVerified": "Never verified",
+      "test": "Test connection",
+      "save": "Save",
+      "secretHint": "Leave empty to keep the stored credential.",
+      "secretStored": "A credential is stored. Type a new one only to replace it.",
+      "saved": "Settings saved.",
+      "verified": "The connection works.",
+      "holded": {
+        "title": "Holded",
+        "apiKey": "API key",
+        "salesChannelId": "Sales channel",
+        "salesChannelHint": "Holded posts each line to a sales channel, and the channel decides the revenue account. Stays belong to 'Casa de colònies Berea'.",
+        "depositServiceId": "Deposit service",
+        "paymentMethodId": "Payment method",
+        "language": "Document language",
+        "services": "Service per rate",
+        "negotiated": "Negotiated rate",
+        "negotiatedServiceId": "Negotiated-rate service",
+        "negotiatedServiceHint": "Billed to the customers listed below whatever their headcount and board type.",
+        "negotiatedTaxIds": "Tax identifiers on the negotiated rate",
+        "negotiatedTaxIdsHint": "One per line. Compared without spaces, hyphens or casing.",
+        "catalogueEmpty": "Not available",
+        "catalogue": {
+          "no_key": "Save the API key and the Holded lists will fill these dropdowns.",
+          "unauthorized": "Holded refused the key or it lacks read permission, so the dropdowns are empty.",
+          "unavailable": "Holded could not be reached, so the dropdowns are empty. Try again shortly."
+        }
+      },
+      "gravityForms": {
+        "title": "Gravity Forms",
+        "apiUrl": "REST API base URL",
+        "apiUrlHint": "The Gravity Forms API base, not the site root: https://your-domain.com/wp-json/gf/v2",
+        "formId": "Form id",
+        "consumerKey": "Consumer key",
+        "consumerSecret": "Consumer secret",
+        "fields": "Field id per value",
+        "fieldsHint": "Mapped by field id so renaming a label cannot break intake."
+      },
+      "mail": {
+        "title": "Notification email",
+        "host": "SMTP host",
+        "port": "Port",
+        "secure": "Use TLS on connect",
+        "username": "Username",
+        "password": "Password",
+        "fromEmail": "Sender address",
+        "description": "Mailbox used to notify requesters and operators."
+      },
+      "fieldLabels": {
+        "firstName": "First name",
+        "lastName": "Surname",
+        "organisation": "Organisation",
+        "taxId": "Tax identifier",
+        "email": "Email",
+        "phone": "Phone",
+        "addressLine": "Address",
+        "city": "City",
+        "province": "Province",
+        "postalCode": "Postal code",
+        "country": "Country",
+        "headcount": "Headcount",
+        "boardType": "Board type",
+        "startDate": "Arrival",
+        "endDate": "Departure"
+      },
+      "providers": {
+        "HOLDED": "Holded",
+        "GRAVITY_FORMS": "Gravity Forms",
+        "BOOKING_MAIL": "Notification email"
+      },
+      "choose": "Choose an option"
     }
   }
 }

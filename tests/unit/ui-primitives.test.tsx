@@ -19,8 +19,37 @@ import {
   FieldTitle,
 } from "@/components/ui/field";
 import { Separator } from "@/components/ui/separator";
+import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 
 describe("shared UI primitive contracts", () => {
+  // The proxy serves a nonce-based CSP with no 'unsafe-inline', and a nonce
+  // cannot cover a style attribute. Upstream shadcn sets the sidebar widths
+  // inline, which the browser blocks; they belong in globals.css.
+  it("lays the sidebar out without a style attribute the CSP would block", () => {
+    const { container } = render(
+      <SidebarProvider>
+        <span>Console</span>
+      </SidebarProvider>,
+    );
+
+    const wrapper = container.querySelector('[data-slot="sidebar-wrapper"]');
+    expect(wrapper).not.toBeNull();
+    expect(wrapper?.hasAttribute("style")).toBe(false);
+  });
+
+  // Upstream renders the inset as <main>, which would be a second landmark:
+  // every page inside the console already provides its own.
+  it("leaves the single main landmark to the page inside the console", () => {
+    render(
+      <SidebarProvider>
+        <SidebarInset>
+          <main>Page</main>
+        </SidebarInset>
+      </SidebarProvider>,
+    );
+
+    expect(screen.getAllByRole("main")).toHaveLength(1);
+  });
   it("keeps checkbox labeling, native form participation, and input refs", async () => {
     const inputRef = createRef<HTMLInputElement>();
     const { container } = render(

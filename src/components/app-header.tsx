@@ -4,7 +4,6 @@ import { getServerSession } from "next-auth";
 import { AppNavigation } from "@/components/app-navigation";
 import { Link } from "@/i18n/navigation";
 import { authOptions } from "@/lib/auth";
-import { getProfileInitials } from "@/modules/account/initials";
 import { parseLoginLocale } from "@/modules/login/schema";
 
 interface AppHeaderProps {
@@ -37,24 +36,11 @@ export async function AppHeader({ locale: localeInput, projectName }: AppHeaderP
           locale={locale}
           labels={{
             ariaLabel: t("ariaLabel"),
-            account: t("account"),
             login: t("login"),
             signup: t("signup"),
-            logout: t("logout"),
             toggleTheme: t("toggleTheme"),
             language: t("language"),
           }}
-          user={
-            session?.user?.email
-              ? {
-                  image: session.user.image ?? null,
-                  initials: getProfileInitials({
-                    name: session.user.name ?? null,
-                    email: session.user.email,
-                  }),
-                }
-              : undefined
-          }
         />
       </div>
     </header>

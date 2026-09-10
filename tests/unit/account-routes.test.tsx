@@ -98,16 +98,16 @@ vi.mock("next-auth/react", () => ({ signOut: vi.fn() }));
 
 import AccountPage, {
   generateMetadata as generateAccountMetadata,
-} from "@/app/[locale]/account/page";
+} from "@/app/[locale]/(console)/account/page";
 import AccountDataPage, {
   generateMetadata as generateAccountDataMetadata,
-} from "@/app/[locale]/account/data/page";
+} from "@/app/[locale]/(console)/account/data/page";
 import AccountDeletedPage, {
   generateMetadata as generateAccountDeletedMetadata,
 } from "@/app/[locale]/account-deleted/page";
 import AccountSecurityPage, {
   generateMetadata as generateAccountSecurityMetadata,
-} from "@/app/[locale]/account/security/page";
+} from "@/app/[locale]/(console)/account/security/page";
 
 describe("account route authentication", () => {
   beforeEach(() => {

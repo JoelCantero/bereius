@@ -182,6 +182,44 @@
     "title": "Aplicació web",
     "description": "Plantilla de Next.js autoallotjada i dockeritzada"
   },
+  "Console": {
+    "title": "Consola",
+    "subtitle": "Tot el que gestiona aquesta aplicació, en un sol lloc.",
+    "toggleSidebar": "Mostra o amaga la navegació",
+    "userMenu": "Menú del compte",
+    "logout": "Tanca la sessió",
+    "sections": {
+      "bookings": "Reserves",
+      "holded": "Holded",
+      "account": "Compte"
+    },
+    "links": {
+      "queue": {
+        "label": "Cua",
+        "description": "Revisa sol·licituds, aprova-les i registra pagaments."
+      },
+      "contracts": {
+        "label": "Contractes",
+        "description": "Pressupostos de Holded i la sol·licitud a què pertanyen."
+      },
+      "integrations": {
+        "label": "Integracions",
+        "description": "Credencials i identificadors de Holded, Gravity Forms i correu."
+      },
+      "profile": {
+        "label": "Perfil",
+        "description": "El teu nom, correu i idioma."
+      },
+      "security": {
+        "label": "Seguretat",
+        "description": "Sessions actives i baixa del compte."
+      },
+      "data": {
+        "label": "Dades personals",
+        "description": "Descarrega una còpia de tot el que en guardem."
+      }
+    }
+  },
   "HomePage": {
     "title": "Aplicació web",
     "tagline": "Una plantilla de Next.js autoallotjada i dockeritzada.",
@@ -658,6 +696,252 @@
           "body": "Aquest esborrany es pot substituir per una versió posterior. El registre conserva la versió de l'avís acceptada amb l'enllaç d'incorporació."
         }
       }
+    }
+  },
+  "Contracts": {
+    "title": "Contractes",
+    "description": "Pressupostos de Holded i la sol·licitud a què pertanyen.",
+    "searchLabel": "Cerca",
+    "linkLabel": "Vinculació",
+    "allLinks": "Tots",
+    "filters": {
+      "linked": "Vinculats",
+      "unlinked": "Sense vincular"
+    },
+    "count": "{count, plural, =0 {Cap contracte} one {1 contracte} other {# contractes}}",
+    "empty": "Cap contracte coincideix amb aquest filtre.",
+    "noKey": "Sense la clau de Holded no es poden llegir els pressupostos. Desa-la a Integracions.",
+    "unavailable": "Holded no ha respost, així que no es pot mostrar la llista de pressupostos.",
+    "missing": "Aquest pressupost ja no existeix a Holded.",
+    "columns": {
+      "number": "Número",
+      "date": "Data",
+      "customer": "Client",
+      "total": "Import",
+      "status": "Estat",
+      "link": "Sol·licitud"
+    },
+    "statuses": {
+      "pending": "Pendent",
+      "completed": "Acceptat",
+      "partial": "Parcial"
+    },
+    "unlinked": "Sense vincular",
+    "detail": {
+      "back": "Torna als contractes",
+      "openInHolded": "Obre a Holded",
+      "summary": "Pressupost",
+      "contact": "Client a Holded",
+      "linkedTo": "Vinculat a la sol·licitud de {name}.",
+      "open": "Obre la sol·licitud",
+      "candidates": "Vincula a una sol·licitud",
+      "candidatesHint": "Només apareixen les sol·licituds del client amb el mateix NIF que el contacte del pressupost i que encara no tenen pressupost.",
+      "link": "Vincula",
+      "suggested": "Les dates coincideixen",
+      "approvalNote": "En vincular, la sol·licitud passa a aprovada: el pressupost és el contracte.",
+      "noTaxId": "El contacte d'aquest pressupost no té NIF a Holded, així que no es pot aparellar amb cap sol·licitud.",
+      "noCandidates": "Aquest client no té cap sol·licitud oberta sense pressupost.",
+      "stay": "{start} – {end} · {headcount} persones"
+    }
+  },
+  "Bookings": {
+    "queue": {
+      "title": "Sol·licituds de reserva",
+      "description": "Revisa i decideix sobre les sol·licituds de reserva.",
+      "empty": "Cap sol·licitud coincideix amb aquest filtre.",
+      "noneYet": "Encara no hi ha sol·licituds. Arriben des de Gravity Forms cada hora.",
+      "searchLabel": "Cerca per nom, NIF o correu",
+      "count": "{count, plural, one {# sol·licitud} other {# sol·licituds}}",
+      "stateLabel": "Estat",
+      "allStates": "Tots els estats",
+      "columns": {
+        "customer": "Client",
+        "stay": "Estada",
+        "group": "Grup",
+        "state": "Estat",
+        "submitted": "Data de sol·licitud"
+      },
+      "nights": "{count, plural, one {# nit} other {# nits}}",
+      "people": "{count, plural, one {# persona} other {# persones}}",
+      "open": "Obre"
+    },
+    "detail": {
+      "title": "Sol·licitud de reserva",
+      "description": "Detall complet d'una sol·licitud de reserva.",
+      "notFound": "Aquesta sol·licitud de reserva no existeix.",
+      "back": "Torna a la llista",
+      "stay": "Estada",
+      "customer": "Client",
+      "amounts": "Imports",
+      "documents": "Documents de Holded",
+      "payments": "Pagaments",
+      "history": "Historial",
+      "noDocuments": "Encara no s'ha emès cap document.",
+      "openInHolded": "Obre a Holded",
+      "noPayments": "Encara no s'ha registrat cap pagament.",
+      "taxId": "NIF",
+      "email": "Correu",
+      "phone": "Telèfon",
+      "address": "Adreça",
+      "advance": "Bestreta",
+      "deposit": "Dipòsit",
+      "toConfirm": "Total per confirmar",
+      "paymentDue": "Venciment del pagament",
+      "pendingQuote": "Els imports apareixen quan s'emet el pressupost.",
+      "systemActor": "Tasca programada"
+    },
+    "actions": {
+      "approve": "Aprova",
+      "reject": "Rebutja",
+      "cancel": "Cancel·la la reserva",
+      "reasonLabel": "Motiu",
+      "reasonHint": "Queda a l'historial i s'envia al sol·licitant.",
+      "recordPayment": "Registra el pagament",
+      "amountLabel": "Import rebut (EUR)",
+      "receivedAtLabel": "Rebut el",
+      "referenceLabel": "Concepte de la transferència",
+      "submit": "Desa"
+    },
+    "states": {
+      "IN_REVIEW": "En revisió",
+      "APPROVED": "Aprovada",
+      "AWAITING_PAYMENT": "Esperant el pagament de la reserva",
+      "CONFIRMED": "Confirmada",
+      "INVOICED": "Facturada",
+      "COMPLETED": "Completada",
+      "REJECTED": "Rebutjada",
+      "EXPIRED": "Caducada",
+      "CANCELLED": "Cancel·lada"
+    },
+    "board": {
+      "SELF_CATERING": "Dret a cuina",
+      "FULL_BOARD": "Pensió completa"
+    },
+    "holdedContact": {
+      "title": "Contacte a Holded",
+      "no_key": "Configura la clau d'API de Holded per comprovar el contacte.",
+      "unavailable": "No s'ha pogut consultar Holded. Torna-ho a provar més tard.",
+      "missing": "Aquest NIF encara no existeix a Holded.",
+      "matches": "El contacte existeix i les dades coincideixen.",
+      "differs": "El contacte existeix, però aquestes dades no coincideixen.",
+      "create": "Crea el contacte a Holded",
+      "update": "Actualitza el contacte a Holded",
+      "field": "Dada",
+      "ours": "A la sol·licitud",
+      "theirs": "A Holded",
+      "fields": {
+        "name": "Nom",
+        "email": "Correu",
+        "phone": "Telèfon",
+        "addressLine": "Adreça",
+        "city": "Població",
+        "province": "Província",
+        "postalCode": "Codi postal",
+        "country": "País"
+      }
+    },
+    "holdedEstimates": {
+      "title": "Pressupostos del contacte a Holded",
+      "none": "Aquest contacte no té pressupostos a Holded.",
+      "hint": "El pressupost és el contracte, així que vincular-ne un aprova la sol·licitud.",
+      "link": "Vincula a aquesta sol·licitud",
+      "linked": "Vinculat"
+    },
+    "documentTypes": {
+      "ESTIMATE": "Pressupost",
+      "RESERVE_INVOICE": "Factura de reserva",
+      "FINAL_INVOICE": "Factura final"
+    },
+    "errors": {
+      "unauthenticated": "La teva sessió ha caducat. Torna a iniciar sessió.",
+      "forbidden": "No tens permís per a aquesta acció.",
+      "invalid": "Revisa els valors i torna-ho a provar.",
+      "state_changed": "Una altra persona ha canviat aquesta reserva. Recarrega per veure l'estat actual.",
+      "reason_required": "Cal un motiu.",
+      "amount_mismatch": "L'import no coincideix al cèntim amb el que es deu. Revisa-ho a mà.",
+      "authentication": "El servei ha rebutjat la credencial. Comprova que sigui correcta i que tingui permisos.",
+      "connection": "No s'ha pogut contactar amb el servei. Torna-ho a provar més tard.",
+      "not_found": "El servei respon però no troba el recurs. Revisa la URL base i l'identificador del formulari.",
+      "rejected": "El servei ha rebutjat la petició. Revisa la configuració.",
+      "unknown": "No s'ha pogut completar l'acció."
+    },
+    "settings": {
+      "title": "Integracions",
+      "description": "Credencials i identificadors del pipeline de reserves.",
+      "configured": "Configurada",
+      "notConfigured": "Sense configurar",
+      "verifiedAt": "Verificada per últim cop el {date}",
+      "neverVerified": "Mai verificada",
+      "test": "Prova la connexió",
+      "save": "Desa",
+      "secretHint": "Deixa-ho buit per conservar la credencial desada.",
+      "secretStored": "Hi ha una credencial desada. Escriu-ne una de nova només si vols substituir-la.",
+      "saved": "Configuració desada.",
+      "verified": "La connexió funciona.",
+      "holded": {
+        "title": "Holded",
+        "apiKey": "Clau d'API",
+        "salesChannelId": "Canal de venda",
+        "salesChannelHint": "Holded imputa cada línia a un canal de venda, i el canal determina el compte comptable d'ingressos. Per a les estades és «Casa de colònies Berea».",
+        "depositServiceId": "Servei de dipòsit",
+        "paymentMethodId": "Mètode de pagament",
+        "language": "Idioma dels documents",
+        "services": "Servei per tarifa",
+        "negotiated": "Preu especial",
+        "negotiatedServiceId": "Servei de preu especial",
+        "negotiatedServiceHint": "S'aplica als clients de la llista sigui quin sigui el nombre de persones i el règim.",
+        "negotiatedTaxIds": "NIF amb preu especial",
+        "negotiatedTaxIdsHint": "Un per línia. Es comparen sense espais, guions ni majúscules.",
+        "catalogueEmpty": "No disponible",
+        "catalogue": {
+          "no_key": "Desa la clau d'API i les llistes de Holded ompliran els desplegables.",
+          "unauthorized": "Holded ha rebutjat la clau o li manquen permisos de lectura, així que els desplegables són buits.",
+          "unavailable": "No s'ha pogut contactar amb Holded, així que els desplegables són buits. Torna-ho a provar més tard."
+        }
+      },
+      "gravityForms": {
+        "title": "Gravity Forms",
+        "apiUrl": "URL base de l'API REST",
+        "apiUrlHint": "Base de l'API de Gravity Forms, no la del lloc: https://el-teu-domini.com/wp-json/gf/v2",
+        "formId": "Id del formulari",
+        "consumerKey": "Clau de consumidor",
+        "consumerSecret": "Secret de consumidor",
+        "fields": "Id de camp per valor",
+        "fieldsHint": "Mapejat per id de camp, perquè reanomenar una etiqueta no trenqui l'entrada."
+      },
+      "mail": {
+        "title": "Correu de notificacions",
+        "host": "Servidor SMTP",
+        "port": "Port",
+        "secure": "Usa TLS en connectar",
+        "username": "Usuari",
+        "password": "Contrasenya",
+        "fromEmail": "Adreça remitent",
+        "description": "Bústia des de la qual s'avisa sol·licitants i operadors."
+      },
+      "fieldLabels": {
+        "firstName": "Nom",
+        "lastName": "Cognoms",
+        "organisation": "Organització",
+        "taxId": "NIF",
+        "email": "Correu",
+        "phone": "Telèfon",
+        "addressLine": "Adreça",
+        "city": "Població",
+        "province": "Província",
+        "postalCode": "Codi postal",
+        "country": "País",
+        "headcount": "Nombre de persones",
+        "boardType": "Tipus de pensió",
+        "startDate": "Entrada",
+        "endDate": "Sortida"
+      },
+      "providers": {
+        "HOLDED": "Holded",
+        "GRAVITY_FORMS": "Gravity Forms",
+        "BOOKING_MAIL": "Correu de notificacions"
+      },
+      "choose": "Tria una opció"
     }
   }
 }

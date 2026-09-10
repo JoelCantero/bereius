@@ -182,6 +182,44 @@
     "title": "Aplicación web",
     "description": "Plantilla de Next.js autoalojada y dockerizada"
   },
+  "Console": {
+    "title": "Consola",
+    "subtitle": "Todo lo que gestiona esta aplicación, en un solo sitio.",
+    "toggleSidebar": "Mostrar u ocultar la navegación",
+    "userMenu": "Menú de la cuenta",
+    "logout": "Cerrar sesión",
+    "sections": {
+      "bookings": "Reservas",
+      "holded": "Holded",
+      "account": "Cuenta"
+    },
+    "links": {
+      "queue": {
+        "label": "Cola",
+        "description": "Revisa solicitudes, apruébalas y registra pagos."
+      },
+      "contracts": {
+        "label": "Contratos",
+        "description": "Presupuestos de Holded y la solicitud a la que pertenecen."
+      },
+      "integrations": {
+        "label": "Integraciones",
+        "description": "Credenciales e identificadores de Holded, Gravity Forms y correo."
+      },
+      "profile": {
+        "label": "Perfil",
+        "description": "Tu nombre, correo e idioma."
+      },
+      "security": {
+        "label": "Seguridad",
+        "description": "Sesiones activas y baja de la cuenta."
+      },
+      "data": {
+        "label": "Datos personales",
+        "description": "Descarga una copia de todo lo que guardamos sobre ti."
+      }
+    }
+  },
   "HomePage": {
     "title": "Aplicación web",
     "tagline": "Una plantilla de Next.js autoalojada y dockerizada.",
@@ -658,6 +696,252 @@
           "body": "Este borrador puede sustituirse por una versión posterior. El registro conserva la versión del aviso aceptada con el enlace de incorporación."
         }
       }
+    }
+  },
+  "Contracts": {
+    "title": "Contratos",
+    "description": "Presupuestos de Holded y la solicitud a la que pertenecen.",
+    "searchLabel": "Buscar",
+    "linkLabel": "Vinculación",
+    "allLinks": "Todos",
+    "filters": {
+      "linked": "Vinculados",
+      "unlinked": "Sin vincular"
+    },
+    "count": "{count, plural, =0 {Ningún contrato} one {1 contrato} other {# contratos}}",
+    "empty": "Ningún contrato coincide con este filtro.",
+    "noKey": "Sin la clave de Holded no se pueden leer los presupuestos. Guárdala en Integraciones.",
+    "unavailable": "Holded no ha respondido, así que no se puede mostrar la lista de presupuestos.",
+    "missing": "Este presupuesto ya no existe en Holded.",
+    "columns": {
+      "number": "Número",
+      "date": "Fecha",
+      "customer": "Cliente",
+      "total": "Importe",
+      "status": "Estado",
+      "link": "Solicitud"
+    },
+    "statuses": {
+      "pending": "Pendiente",
+      "completed": "Aceptado",
+      "partial": "Parcial"
+    },
+    "unlinked": "Sin vincular",
+    "detail": {
+      "back": "Volver a contratos",
+      "openInHolded": "Ver en Holded",
+      "summary": "Presupuesto",
+      "contact": "Cliente en Holded",
+      "linkedTo": "Vinculado a la solicitud de {name}.",
+      "open": "Abrir la solicitud",
+      "candidates": "Vincular a una solicitud",
+      "candidatesHint": "Solo aparecen las solicitudes del cliente cuyo NIF coincide con el contacto del presupuesto y que aún no tienen presupuesto.",
+      "link": "Vincular",
+      "suggested": "Fechas coinciden",
+      "approvalNote": "Al vincular, la solicitud pasa a aprobada: el presupuesto es el contrato.",
+      "noTaxId": "El contacto de este presupuesto no tiene NIF en Holded, así que no se puede emparejar con ninguna solicitud.",
+      "noCandidates": "Este cliente no tiene ninguna solicitud abierta sin presupuesto.",
+      "stay": "{start} – {end} · {headcount} personas"
+    }
+  },
+  "Bookings": {
+    "queue": {
+      "title": "Solicitudes de reserva",
+      "description": "Revisa y decide sobre las solicitudes de reserva.",
+      "empty": "Ninguna solicitud coincide con este filtro.",
+      "noneYet": "Todavía no hay solicitudes. Entran desde Gravity Forms cada hora.",
+      "searchLabel": "Buscar por nombre, NIF o correo",
+      "count": "{count, plural, one {# solicitud} other {# solicitudes}}",
+      "stateLabel": "Estado",
+      "allStates": "Todos los estados",
+      "columns": {
+        "customer": "Cliente",
+        "stay": "Estancia",
+        "group": "Grupo",
+        "state": "Estado",
+        "submitted": "Fecha solicitud"
+      },
+      "nights": "{count, plural, one {# noche} other {# noches}}",
+      "people": "{count, plural, one {# persona} other {# personas}}",
+      "open": "Abrir"
+    },
+    "detail": {
+      "title": "Solicitud de reserva",
+      "description": "Detalle completo de una solicitud de reserva.",
+      "notFound": "Esta solicitud de reserva no existe.",
+      "back": "Volver a la lista",
+      "stay": "Estancia",
+      "customer": "Cliente",
+      "amounts": "Importes",
+      "documents": "Documentos de Holded",
+      "payments": "Pagos",
+      "history": "Historial",
+      "noDocuments": "Todavía no se ha emitido ningún documento.",
+      "openInHolded": "Ver en Holded",
+      "noPayments": "Todavía no se ha registrado ningún pago.",
+      "taxId": "NIF",
+      "email": "Correo",
+      "phone": "Teléfono",
+      "address": "Dirección",
+      "advance": "Paga y señal",
+      "deposit": "Fianza",
+      "toConfirm": "Total para confirmar",
+      "paymentDue": "Vencimiento del pago",
+      "pendingQuote": "Los importes aparecen cuando se emite el presupuesto.",
+      "systemActor": "Trabajo programado"
+    },
+    "actions": {
+      "approve": "Aprobar",
+      "reject": "Rechazar",
+      "cancel": "Cancelar reserva",
+      "reasonLabel": "Motivo",
+      "reasonHint": "Queda en el historial y se envía al solicitante.",
+      "recordPayment": "Registrar pago",
+      "amountLabel": "Importe recibido (EUR)",
+      "receivedAtLabel": "Recibido el",
+      "referenceLabel": "Concepto de la transferencia",
+      "submit": "Guardar"
+    },
+    "states": {
+      "IN_REVIEW": "En revisión",
+      "APPROVED": "Aprobada",
+      "AWAITING_PAYMENT": "Esperando pago de la reserva",
+      "CONFIRMED": "Confirmada",
+      "INVOICED": "Facturada",
+      "COMPLETED": "Completada",
+      "REJECTED": "Rechazada",
+      "EXPIRED": "Caducada",
+      "CANCELLED": "Cancelada"
+    },
+    "board": {
+      "SELF_CATERING": "Derecho a cocina",
+      "FULL_BOARD": "Pensión completa"
+    },
+    "holdedContact": {
+      "title": "Contacto en Holded",
+      "no_key": "Configura la clave de API de Holded para comprobar el contacto.",
+      "unavailable": "No se ha podido consultar Holded. Inténtalo de nuevo más tarde.",
+      "missing": "Este NIF no existe todavía en Holded.",
+      "matches": "El contacto existe y los datos coinciden.",
+      "differs": "El contacto existe, pero estos datos no coinciden.",
+      "create": "Crear contacto en Holded",
+      "update": "Actualizar contacto en Holded",
+      "field": "Dato",
+      "ours": "En la solicitud",
+      "theirs": "En Holded",
+      "fields": {
+        "name": "Nombre",
+        "email": "Correo",
+        "phone": "Teléfono",
+        "addressLine": "Dirección",
+        "city": "Población",
+        "province": "Provincia",
+        "postalCode": "Código postal",
+        "country": "País"
+      }
+    },
+    "holdedEstimates": {
+      "title": "Presupuestos del contacto en Holded",
+      "none": "Este contacto no tiene presupuestos en Holded.",
+      "hint": "El presupuesto es el contrato, así que vincular uno aprueba la solicitud.",
+      "link": "Vincular a esta solicitud",
+      "linked": "Vinculado"
+    },
+    "documentTypes": {
+      "ESTIMATE": "Presupuesto",
+      "RESERVE_INVOICE": "Factura de reserva",
+      "FINAL_INVOICE": "Factura final"
+    },
+    "errors": {
+      "unauthenticated": "Tu sesión ha caducado. Vuelve a iniciar sesión.",
+      "forbidden": "No tienes permiso para esta acción.",
+      "invalid": "Revisa los valores e inténtalo de nuevo.",
+      "state_changed": "Otra persona ha cambiado esta reserva. Recarga para ver el estado actual.",
+      "reason_required": "Hace falta un motivo.",
+      "amount_mismatch": "El importe no coincide al céntimo con lo debido. Revísalo a mano.",
+      "authentication": "El servicio ha rechazado la credencial. Comprueba que sea correcta y que tenga permisos.",
+      "connection": "No se ha podido contactar con el servicio. Inténtalo de nuevo más tarde.",
+      "not_found": "El servicio responde pero no encuentra el recurso. Revisa la URL base y el identificador del formulario.",
+      "rejected": "El servicio ha rechazado la petición. Revisa la configuración.",
+      "unknown": "No se ha podido completar la acción."
+    },
+    "settings": {
+      "title": "Integraciones",
+      "description": "Credenciales e identificadores del pipeline de reservas.",
+      "configured": "Configurada",
+      "notConfigured": "Sin configurar",
+      "verifiedAt": "Verificada por última vez el {date}",
+      "neverVerified": "Nunca verificada",
+      "test": "Probar conexión",
+      "save": "Guardar",
+      "secretHint": "Déjalo vacío para conservar la credencial guardada.",
+      "secretStored": "Hay una credencial guardada. Escribe una nueva solo si quieres sustituirla.",
+      "saved": "Ajustes guardados.",
+      "verified": "La conexión funciona.",
+      "holded": {
+        "title": "Holded",
+        "apiKey": "Clave de API",
+        "salesChannelId": "Canal de venta",
+        "salesChannelHint": "Holded imputa cada línea a un canal de venta, y el canal determina la cuenta contable de ingresos. Para las estancias es «Casa de colònies Berea».",
+        "depositServiceId": "Servicio de fianza",
+        "paymentMethodId": "Método de pago",
+        "language": "Idioma de los documentos",
+        "services": "Servicio por tarifa",
+        "negotiated": "Precio especial",
+        "negotiatedServiceId": "Servicio de precio especial",
+        "negotiatedServiceHint": "Se aplica a los clientes de la lista sea cual sea el número de personas y el régimen.",
+        "negotiatedTaxIds": "NIF con precio especial",
+        "negotiatedTaxIdsHint": "Uno por línea. Se comparan sin espacios, guiones ni mayúsculas.",
+        "catalogueEmpty": "No disponible",
+        "catalogue": {
+          "no_key": "Guarda la clave de API y las listas de Holded se cargarán en los desplegables.",
+          "unauthorized": "Holded ha rechazado la clave o le faltan permisos de lectura, así que los desplegables están vacíos.",
+          "unavailable": "No se ha podido contactar con Holded, así que los desplegables están vacíos. Inténtalo de nuevo más tarde."
+        }
+      },
+      "gravityForms": {
+        "title": "Gravity Forms",
+        "apiUrl": "URL base de la API REST",
+        "apiUrlHint": "Base de la API de Gravity Forms, no la del sitio: https://tu-dominio.com/wp-json/gf/v2",
+        "formId": "Id del formulario",
+        "consumerKey": "Clave de consumidor",
+        "consumerSecret": "Secreto de consumidor",
+        "fields": "Id de campo por valor",
+        "fieldsHint": "Mapeado por id de campo, para que renombrar una etiqueta no rompa la entrada."
+      },
+      "mail": {
+        "title": "Correo de notificaciones",
+        "host": "Servidor SMTP",
+        "port": "Puerto",
+        "secure": "Usar TLS al conectar",
+        "username": "Usuario",
+        "password": "Contraseña",
+        "fromEmail": "Dirección remitente",
+        "description": "Buzón desde el que se avisa a solicitantes y operadores."
+      },
+      "fieldLabels": {
+        "firstName": "Nombre",
+        "lastName": "Apellidos",
+        "organisation": "Organización",
+        "taxId": "NIF",
+        "email": "Correo",
+        "phone": "Teléfono",
+        "addressLine": "Dirección",
+        "city": "Población",
+        "province": "Provincia",
+        "postalCode": "Código postal",
+        "country": "País",
+        "headcount": "Número de personas",
+        "boardType": "Tipo de pensión",
+        "startDate": "Entrada",
+        "endDate": "Salida"
+      },
+      "providers": {
+        "HOLDED": "Holded",
+        "GRAVITY_FORMS": "Gravity Forms",
+        "BOOKING_MAIL": "Correo de notificaciones"
+      },
+      "choose": "Elige una opción"
     }
   }
 }

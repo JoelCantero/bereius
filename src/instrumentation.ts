@@ -19,4 +19,21 @@ export function register(): void {
 
     throw error;
   }
+
+  // Node runtime only: the Edge runtime has no database access and no timers
+  // that outlive a request. Every Node instance runs it; the outbox claims jobs
+  // atomically and intake is idempotent per entry, so duplicates are harmless.
+  if (process.env.NEXT_RUNTIME !== "nodejs") return;
+
+  // Deliberately not awaited: environment validation above must stay
+  // synchronous so a malformed configuration fails before readiness.
+  void import("@/modules/booking/services/scheduler")
+    .then(({ registerScheduler }) => registerScheduler())
+    .catch((error: unknown) => {
+      const message =
+        error instanceof Error ? error.message : "Unknown scheduler failure";
+      // console rather than process.stderr: this module is also analysed for
+      // the Edge runtime, where Node APIs are unavailable.
+      console.error(`Booking scheduler failed to start: ${message}`);
+    });
 }
