@@ -39,6 +39,7 @@ jobs:
           SUPPORT_EMAIL: ${{ vars.SUPPORT_EMAIL }}
           POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
           AUTH_SECRET: ${{ secrets.AUTH_SECRET }}
+          BOOKING_SECRET_KEY: ${{ secrets.BOOKING_SECRET_KEY }}
           MAIL_ENABLED: ${{ vars.MAIL_ENABLED }}
           MAIL_PROVIDER: ${{ vars.MAIL_PROVIDER }}
           MAIL_FROM: ${{ vars.MAIL_FROM }}
@@ -55,6 +56,7 @@ jobs:
           [ -n "$SUPPORT_EMAIL" ] || missing+=("SUPPORT_EMAIL (Variable)")
           [ -n "$POSTGRES_PASSWORD" ] || missing+=("POSTGRES_PASSWORD (Secret)")
           [ -n "$AUTH_SECRET" ] || missing+=("AUTH_SECRET (Secret)")
+          [ -n "$BOOKING_SECRET_KEY" ] || missing+=("BOOKING_SECRET_KEY (Secret)")
           [ -n "$MAIL_ENABLED" ] || missing+=("MAIL_ENABLED (Variable)")
           if [ "$MAIL_ENABLED" = "true" ]; then
             [ -n "$MAIL_PROVIDER" ] || missing+=("MAIL_PROVIDER (Variable)")
@@ -129,6 +131,8 @@ jobs:
           POSTGRES_DB: ${{ vars.PROJECT_NAME }}
           POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
           AUTH_SECRET: ${{ secrets.AUTH_SECRET }}
+          # AES-256-GCM envelope key for the stored integration credentials.
+          BOOKING_SECRET_KEY: ${{ secrets.BOOKING_SECRET_KEY }}
           # Transactional email config. Endpoints are fixed in application code.
           MAIL_ENABLED: ${{ vars.MAIL_ENABLED }}
           MAIL_PROVIDER: ${{ vars.MAIL_PROVIDER }}
