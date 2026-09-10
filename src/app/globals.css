@@ -131,4 +131,14 @@
     outline: 2px solid var(--ring);
     outline-offset: 3px;
   }
+
+  /* The sidebar widths live here rather than on a style attribute, because the
+     nonce-based CSP has no 'unsafe-inline' and a nonce cannot cover one. */
+  [data-slot="sidebar-wrapper"] {
+    --sidebar-width: 16rem;
+    --sidebar-width-icon: 3rem;
+  }
+  [data-slot="sidebar"][data-mobile="true"] {
+    --sidebar-width: 18rem;
+  }
 }
