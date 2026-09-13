@@ -188,9 +188,10 @@ and do not revoke it. The existing forward link may remain because the new reade
 queue item should be removed only after the person reads back with the new principal-scoped marker
 and Bereius discovers it through `/contacts` pagination.
 
-An earlier successful full `PUT` of that delegate's fiscal principal altered its populated
-`social_networks` metadata. Restore that value manually in Holded after confirming the intended
-content; never attempt recovery with another v2 full-contact `PUT`.
+An earlier successful full `PUT` raised concern that the delegate's fiscal principal might have
+lost `social_networks` metadata. On 2026-09-13 the operator confirmed that no social-network value
+is intended, and the Holded UI showed every supported field empty. No restoration write was made;
+never attempt recovery with another v2 full-contact `PUT`.
 
 ## The customer identity model
 
