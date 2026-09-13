@@ -112,9 +112,12 @@ delegate operation performs a fiscal-principal `PUT`: production proved that rep
 contact can erase GET-only provider metadata such as `social_networks` even after a successful 2xx.
 An old forward `contact_persons` link is deliberately left untouched and has no role in discovery.
 
-Revocation calls `POST /contacts/bulk-archive` directly with `{"ids":["person-id"]}` after ownership
-verification. Public Holded material confirms the endpoint but not that body shape, so verify it
-against a disposable managed person before relying on production revocation.
+Revocation calls `POST /contacts/bulk-archive` directly with
+`{"contact_ids":["person-id"]}` after ownership verification. An isolated production probe on
+2026-09-13 proved that `ids` is rejected with HTTP 400 while `contact_ids` is accepted with HTTP
+204. Holded continues returning the contact from GET and list calls after that successful archive
+and exposes no archive-state field, so HTTP 204 is the API postcondition. The normal Holded People
+view no longer listed the disposable person, confirming that the accepted command archived it.
 
 ### Queue recovery
 
@@ -173,7 +176,8 @@ state is designed to prevent.
 4. Audit n8n so WordPress writes require role `cliente`, account type `principal` and
   `berea_sync_managed=1`, and Holded reads exclude person contacts.
 5. With a disposable delegate, exercise invitation, acceptance, same-person update, direct archive
-  and reinvitation generation. Verify the remaining bulk-archive contract here.
+  and reinvitation generation. The `contact_ids` bulk-archive contract was verified separately with
+  an isolated disposable person on 2026-09-13.
 6. Send one controlled estimate and confirm the fiscal address is primary, every matching marked
   person is explicit CC, recipients are frozen, and global Holded copy recipients remain disabled.
 

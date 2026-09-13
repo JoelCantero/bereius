@@ -53,10 +53,15 @@ description: "Task list for WordPress-owned customer delegates and estimate reci
 - [X] T031 Update the original project-specification amendments so they no longer authorize or describe the retired HMAC bridge.
 - [X] T032 Run Prisma validation, lint, focused/full tests and production build; record unrelated failures separately.
 - [X] T033 Deploy the WordPress plugin and account for host opcode caching.
-- [ ] T034 Verify the `bulk-archive` body with a disposable person; production already proved `code` persistence/filtering and `custom_id` read-only behavior.
+- [X] T034 Verify the `bulk-archive` body with a disposable person; production returned HTTP 400 for `ids` and HTTP 204 for `contact_ids` on 2026-09-13, and the active People view no longer listed it.
 - [X] T035 Run backfill and confirm the existing production delegate remains active while its existing person receives the marker for the expected fiscal principal; do not revoke it or remove the stale forward link.
-- [ ] T036 Send one controlled estimate and verify fiscal `emails`, delegate `cc`, persisted recipients and no duplicate delivery.
-- [ ] T037 Restore the fiscal principal's lost `social_networks` manually in Holded; do not use another v2 full-contact PUT.
+
+## Operational Follow-up
+
+These production operations remain pending and are not implementation-compliance tasks:
+
+- T036 (pending): Send one controlled estimate and verify fiscal `emails`, delegate `cc`, persisted recipients and no duplicate delivery.
+- T037 (pending): Restore the fiscal principal's lost `social_networks` manually in Holded; do not use another v2 full-contact PUT.
 
 ## Release Gate
 
