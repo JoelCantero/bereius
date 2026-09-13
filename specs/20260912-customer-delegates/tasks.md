@@ -55,13 +55,13 @@ description: "Task list for WordPress-owned customer delegates and estimate reci
 - [X] T033 Deploy the WordPress plugin and account for host opcode caching.
 - [X] T034 Verify the `bulk-archive` body with a disposable person; production returned HTTP 400 for `ids` and HTTP 204 for `contact_ids` on 2026-09-13, and the active People view no longer listed it.
 - [X] T035 Run backfill and confirm the existing production delegate remains active while its existing person receives the marker for the expected fiscal principal; do not revoke it or remove the stale forward link.
+- [X] T037 Confirm the fiscal principal should have no `social_networks` values and verify all supported fields are empty in Holded; no restoration write was required.
 
 ## Operational Follow-up
 
 These production operations remain pending and are not implementation-compliance tasks:
 
 - T036 (pending): Send one controlled estimate and verify fiscal `emails`, delegate `cc`, persisted recipients and no duplicate delivery.
-- T037 (pending): Restore the fiscal principal's lost `social_networks` manually in Holded; do not use another v2 full-contact PUT.
 
 ## Release Gate
 
