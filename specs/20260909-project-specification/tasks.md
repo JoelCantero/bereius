@@ -13,6 +13,11 @@ description: "Task list for Berea Booking Manager — Phase 1"
 
 **Organization**: Tasks are grouped by capability so each group can be implemented and verified independently once the foundational phase is complete.
 
+**Amendment (2026-09-12)**: WordPress-owned delegate lifecycle and Holded projection, plus estimate
+CC delivery from principal-scoped marked Holded people, are tracked separately in
+[`20260912-customer-delegates`](../20260912-customer-delegates/tasks.md). Gravity Forms booking
+intake remains pull-only and Bereius accepts no inbound WordPress delegate calls.
+
 ## Format: `[ID] [P?] Description`
 
 - **[P]**: Can run in parallel (different files, no dependencies)

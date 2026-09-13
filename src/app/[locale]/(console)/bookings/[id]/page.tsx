@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { notFound, redirect } from "next/navigation";
 import { getTranslations, setRequestLocale } from "next-intl/server";
-import { ExternalLink } from "lucide-react";
+import { ExternalLink, TriangleAlert } from "lucide-react";
 
 import { Link } from "@/i18n/navigation";
 import { noIndexMetadata } from "@/lib/seo";
@@ -72,6 +72,10 @@ export default async function BookingDetailPage({ params }: BookingDetailPagePro
   const contact = await inspectCustomerContact(booking.id);
   const linkedEstimateId =
     booking.documents.find((document) => document.type === "ESTIMATE")?.holdedId ?? null;
+  const hasUnknownEstimateDelivery = booking.documents.some(
+    (document) =>
+      document.type === "ESTIMATE" && document.estimateDelivery?.status === "UNKNOWN",
+  );
 
   // Linking an estimate approves the request, so the picker is only offered
   // while the request is under review and nothing is linked yet, and only for
@@ -263,6 +267,15 @@ export default async function BookingDetailPage({ params }: BookingDetailPagePro
         <h2 id="documents-heading" className="text-lg font-medium">
           {t("detail.documents")}
         </h2>
+        {hasUnknownEstimateDelivery ? (
+          <p
+            role="alert"
+            className="flex items-start gap-2 rounded-md border border-amber-500/50 bg-amber-50 p-3 text-sm text-amber-950 dark:bg-amber-950/30 dark:text-amber-100"
+          >
+            <TriangleAlert className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
+            {t("detail.deliveryUnknown")}
+          </p>
+        ) : null}
         {booking.documents.length === 0 ? (
           <p className="text-sm text-muted-foreground">{t("detail.noDocuments")}</p>
         ) : (

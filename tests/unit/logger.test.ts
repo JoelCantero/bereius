@@ -154,6 +154,59 @@ describe("createLogger", () => {
     }
   });
 
+  it("logs estimate delivery operations using identifiers without delegate PII", async () => {
+    const lines: string[] = [];
+    const destination: DestinationStream = {
+      write(chunk) {
+        lines.push(chunk);
+      },
+    };
+    const { createLogger } = await import("@/lib/logger");
+    const logger = createLogger(process.env, destination);
+    const privateValues = {
+      name: "Private Delegate",
+      firstName: "Private",
+      lastName: "Delegate",
+      email: "delegate@example.test",
+      phone: "+34900111222",
+      taxId: "12345678Z",
+      rawBody: '{"delegate":"private"}',
+    };
+
+    logger.info(
+      {
+        event: "booking_estimate_delivery_prepared",
+        linkedPerson: privateValues,
+        delivery: {
+          holdedDocumentId: "document-42",
+          toEmail: "fiscal@example.test",
+          ccEmails: [privateValues.email],
+          status: "UNKNOWN",
+        },
+      },
+      "delegate operation",
+    );
+
+    const serialized = lines.at(-1)!;
+    for (const privateValue of [
+      ...Object.values(privateValues),
+      "fiscal@example.test",
+    ]) {
+      expect(serialized).not.toContain(privateValue);
+    }
+    expect(JSON.parse(serialized)).toMatchObject({
+      event: "booking_estimate_delivery_prepared",
+      linkedPerson: {
+        email: "[redacted]",
+        phone: "[redacted]",
+      },
+      delivery: {
+        holdedDocumentId: "document-42",
+        status: "UNKNOWN",
+      },
+    });
+  });
+
   it("creates a child logger with request context", async () => {
     const { getRequestLogger } = await import("@/lib/logger");
     const request = new Request("https://example.test/api/health", {

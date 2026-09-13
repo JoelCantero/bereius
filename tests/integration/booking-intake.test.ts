@@ -122,6 +122,33 @@ describe.skipIf(!runIntegrationTests)("booking intake integration", () => {
     expect(booking.customer.taxId).toMatch(/^X[A-Z0-9]+$/u);
   });
 
+  it("persists field 66 as the fiscal email without requester identity", async () => {
+    const [only] = track([
+      entry({
+        [F.email]: " Fiscal@Example.test ",
+        requesterEmail: "requester@example.test",
+        delegateEmail: "delegate@example.test",
+        author: "wordpress-user-91",
+      }),
+    ]);
+
+    await runIntake({ client: clientReturning([only!]) });
+
+    const booking = await db.bookingRequest.findUniqueOrThrow({
+      where: { gravityEntryId: only!.id },
+      include: { customer: true },
+    });
+
+    expect(F.email).toBe("66");
+    expect(booking.customer.email).toBe("fiscal@example.test");
+    expect(JSON.stringify(booking)).not.toMatch(
+      /requester@example\.test|delegate@example\.test|wordpress-user-91/u,
+    );
+    expect(booking).not.toHaveProperty("requester");
+    expect(booking).not.toHaveProperty("delegate");
+    expect(booking).not.toHaveProperty("author");
+  });
+
   it("creates nothing on a second pass over the same entry", async () => {
     const entries = track([entry()]);
 

@@ -63,7 +63,9 @@ export default async function BookingSettingsPage({ params }: SettingsPageProps)
     readHoldedCatalogues(),
   ]);
 
-  const statusFor = (provider: "HOLDED" | "GRAVITY_FORMS" | "BOOKING_MAIL") =>
+  const statusFor = (
+    provider: "HOLDED" | "GRAVITY_FORMS" | "BOOKING_MAIL",
+  ) =>
     statuses.find((status) => status.provider === provider);
 
   return (

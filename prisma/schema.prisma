@@ -170,9 +170,17 @@ enum IntegrationProvider {
   BOOKING_MAIL
 }
 
+enum EstimateDeliveryStatus {
+  PREPARED
+  IN_FLIGHT
+  ACCEPTED
+  FAILED
+  UNKNOWN
+}
+
 model Customer {
-  id                  String           @id @default(cuid())
-  taxId               String           @unique
+  id                  String                   @id @default(cuid())
+  taxId               String                   @unique
   name                String
   email               String
   phone               String?
@@ -186,8 +194,8 @@ model Customer {
   // Replaces the tax identifiers the retired workflow hardcoded in an expression.
   negotiatedServiceId String?
   bookingRequests     BookingRequest[]
-  createdAt           DateTime         @default(now())
-  updatedAt           DateTime         @updatedAt
+  createdAt           DateTime                 @default(now())
+  updatedAt           DateTime                 @updatedAt
 }
 
 model BookingRequest {
@@ -235,10 +243,29 @@ model HoldedDocument {
   sentAt           DateTime?
   issuedAt         DateTime           @default(now())
 
-  bookingRequest BookingRequest @relation(fields: [bookingRequestId], references: [id], onDelete: Cascade)
+  bookingRequest   BookingRequest    @relation(fields: [bookingRequestId], references: [id], onDelete: Cascade)
+  estimateDelivery EstimateDelivery?
 
   // One document of each kind per booking: the quoting retry cannot duplicate.
   @@unique([bookingRequestId, type])
+}
+
+model EstimateDelivery {
+  id               String                 @id @default(cuid())
+  holdedDocumentId String                 @unique
+  status           EstimateDeliveryStatus @default(PREPARED)
+  toEmail          String
+  ccEmails         Json
+  attemptedAt      DateTime?
+  acceptedAt       DateTime?
+  outcomeUnknownAt DateTime?
+  lastFailureCode  String?
+  createdAt        DateTime               @default(now())
+  updatedAt        DateTime               @updatedAt
+
+  holdedDocument HoldedDocument @relation(fields: [holdedDocumentId], references: [id], onDelete: Cascade)
+
+  @@index([status, updatedAt])
 }
 
 model Payment {

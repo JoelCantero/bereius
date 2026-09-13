@@ -197,4 +197,5 @@ describe.skipIf(!runIntegrationTests)("booking integration settings", () => {
       await restore();
     }
   });
+
 });

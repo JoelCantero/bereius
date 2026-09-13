@@ -82,4 +82,27 @@ describe("Gravity Forms submission parsing", () => {
     expect(result.submission.customer.taxId).toBe("B12345678");
     expect(result.submission.customer.email).toBe("hola@example.test");
   });
+
+  it("keeps field 66 as the fiscal email and drops requester metadata", () => {
+    expect(f.email).toBe("66");
+
+    const result = parse(
+      entry({
+        [f.email]: " Fiscal@Example.test ",
+        requesterEmail: "requester@example.test",
+        delegateEmail: "delegate@example.test",
+        author: "wordpress-user-91",
+      }),
+    );
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.submission.customer.email).toBe("fiscal@example.test");
+    expect(JSON.stringify(result.submission)).not.toMatch(
+      /requester@example\.test|delegate@example\.test|wordpress-user-91/u,
+    );
+    expect(result.submission).not.toHaveProperty("requester");
+    expect(result.submission).not.toHaveProperty("delegate");
+    expect(result.submission).not.toHaveProperty("author");
+  });
 });

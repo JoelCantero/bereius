@@ -48,6 +48,9 @@ function stubClient(options: StubOptions = {}) {
     updateContact: vi.fn(async () => {
       track("updateContact", () => undefined);
     }),
+    listDelegateEmails: vi.fn(async () =>
+      track("listDelegateEmails", () => []),
+    ),
     listEstimatesByContact: vi.fn(async () => track("listEstimatesByContact", () => [])),
     listEstimates: vi.fn(async () => track("listEstimates", () => [])),
     getEstimate: vi.fn(async () => track("getEstimate", () => null)),
@@ -419,5 +422,75 @@ describe.skipIf(!runIntegrationTests)("booking quoting integration", () => {
         ],
       }),
     );
+  });
+
+  it("reads Holded and sends the estimate to fiscal To plus every delegate CC", async () => {
+    const booking = await approvedBooking();
+    const { client } = stubClient();
+    vi.mocked(client.listDelegateEmails).mockResolvedValueOnce([
+      "zulu@example.test",
+      "alpha@example.test",
+    ]);
+
+    await runQuoteJob(job(booking.id), { client, config });
+
+    expect(client.listDelegateEmails).toHaveBeenCalledWith("contact-1");
+    expect(client.sendEstimate).toHaveBeenCalledWith(
+      expect.any(String),
+      {
+        emails: ["group@example.test"],
+        cc: ["alpha@example.test", "zulu@example.test"],
+      },
+      config.mailTemplateId,
+    );
+    await expect(
+      db.estimateDelivery.findFirstOrThrow({
+        where: { holdedDocument: { bookingRequestId: booking.id } },
+      }),
+    ).resolves.toMatchObject({
+      status: "ACCEPTED",
+      toEmail: "group@example.test",
+      ccEmails: ["alpha@example.test", "zulu@example.test"],
+    });
+  });
+
+  it("defers delivery and persists no recipients when Holded lookup fails", async () => {
+    const booking = await approvedBooking();
+    const { client } = stubClient();
+    vi.mocked(client.listDelegateEmails).mockRejectedValueOnce(new Error("Holded unavailable"));
+
+    await expect(
+      runQuoteJob(job(booking.id), { client, config }),
+    ).rejects.toThrow("Holded unavailable");
+
+    expect(client.sendEstimate).not.toHaveBeenCalled();
+    await expect(
+      db.estimateDelivery.count({
+        where: { holdedDocument: { bookingRequestId: booking.id } },
+      }),
+    ).resolves.toBe(0);
+  });
+
+  it("parks an ambiguous send outcome and does not resend on quote retry", async () => {
+    const booking = await approvedBooking();
+    const first = stubClient();
+    first.client.sendEstimate = vi.fn(async () => {
+      const { HoldedDeliveryError } = await import("@/lib/holded/client");
+      throw new HoldedDeliveryError("unavailable", "unknown", "timeout");
+    });
+
+    await expect(
+      runQuoteJob(job(booking.id), { client: first.client, config }),
+    ).rejects.toThrow("timeout");
+
+    const retry = stubClient();
+    await runQuoteJob(job(booking.id), { client: retry.client, config });
+
+    expect(retry.client.sendEstimate).not.toHaveBeenCalled();
+    await expect(
+      db.estimateDelivery.findFirstOrThrow({
+        where: { holdedDocument: { bookingRequestId: booking.id } },
+      }),
+    ).resolves.toMatchObject({ status: "UNKNOWN" });
   });
 });

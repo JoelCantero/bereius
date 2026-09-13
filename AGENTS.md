@@ -15,6 +15,7 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 - Treat `.specify/memory/constitution.md` as the authoritative engineering policy and `README.md` as the operational overview. Do not duplicate or weaken their requirements.
 - For feature work, read the applicable artifacts under `specs/<feature>/` before editing implementation code.
 - `emails/` is a separate Next.js application with its own `AGENTS.md`, configuration, and tests.
+- Read `docs/berea-cat-wordpress.md` before touching booking intake, Holded integration, or customer identity. It describes the upstream WordPress site, its customer area, the booking form's field mapping, and the nightly Holded sync.
 
 ## Stack and architecture
 
