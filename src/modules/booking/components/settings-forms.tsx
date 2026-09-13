@@ -10,7 +10,10 @@ import {
 } from "@/modules/booking/schema";
 
 /** Mirrors the Prisma enum: a client module must not import from the server. */
-type IntegrationProvider = "HOLDED" | "GRAVITY_FORMS" | "BOOKING_MAIL";
+type IntegrationProvider =
+  | "HOLDED"
+  | "GRAVITY_FORMS"
+  | "BOOKING_MAIL";
 
 export interface CatalogueOption {
   id: string;

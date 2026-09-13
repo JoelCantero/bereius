@@ -779,6 +779,7 @@
       "noDocuments": "Encara no s'ha emès cap document.",
       "openEstimate": "Veure el pressupost",
       "openInHolded": "Obre a Holded",
+      "deliveryUnknown": "Holded podria haver enviat aquest pressupost, però no n'ha confirmat el resultat. Comprova-ho a Holded abans de fer cap acció; no es tornarà a enviar automàticament.",
       "noPayments": "Encara no s'ha registrat cap pagament.",
       "taxId": "NIF",
       "email": "Correu",

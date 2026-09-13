@@ -9,6 +9,10 @@ import {
   type HoldedService,
 } from "@/lib/holded/client";
 import { logger } from "@/lib/logger";
+import {
+  deliverPreparedEstimate,
+  prepareEstimateDelivery,
+} from "@/modules/booking/services/estimate-delivery";
 import { enqueueJob, type OutboxJob } from "@/modules/booking/services/outbox";
 import { paymentDeadlineFrom } from "@/modules/booking/services/expiry";
 import {
@@ -263,6 +267,7 @@ export async function runQuoteJob(
   // the end, once the deduction lines are on it.
   const existingEstimate = booking.documents.find((doc) => doc.type === "ESTIMATE");
   let estimateId = existingEstimate?.holdedId ?? null;
+  let estimateDocumentId = existingEstimate?.id ?? null;
 
   if (!estimateId) {
     const estimate = await client.createEstimate({
@@ -276,7 +281,7 @@ export async function runQuoteJob(
     });
     estimateId = estimate.id;
 
-    await db.holdedDocument.create({
+    const document = await db.holdedDocument.create({
       data: {
         bookingRequestId: booking.id,
         type: "ESTIMATE",
@@ -285,6 +290,7 @@ export async function runQuoteJob(
         totalCents: quote.stayTotalCents,
       },
     });
+    estimateDocumentId = document.id;
   }
 
   // Step 4 — reserve invoice for the advance and the deposit.
@@ -356,18 +362,12 @@ export async function runQuoteJob(
   // customer must receive the final document, not the working copy.
   await client.approveEstimate(estimateId);
 
-  const alreadySent = await db.holdedDocument.findFirst({
-    where: { bookingRequestId: booking.id, type: "ESTIMATE", sentAt: { not: null } },
-    select: { id: true },
-  });
-
-  if (!alreadySent) {
-    await client.sendEstimate(estimateId, [booking.customer.email], config.mailTemplateId);
-    // Persisted before anything else can fail, so a retry never mails twice.
-    await db.holdedDocument.updateMany({
-      where: { bookingRequestId: booking.id, type: "ESTIMATE" },
-      data: { sentAt: new Date() },
-    });
+  if (!estimateDocumentId) {
+    throw new QuotingError("unknown_booking", "Estimate document was not persisted");
+  }
+  const delivery = await prepareEstimateDelivery(estimateDocumentId, client);
+  if (delivery) {
+    await deliverPreparedEstimate(estimateDocumentId, client, config.mailTemplateId);
   }
 
   await db.bookingRequest.update({

@@ -779,6 +779,7 @@
       "noDocuments": "Todavía no se ha emitido ningún documento.",
       "openEstimate": "Ver el presupuesto",
       "openInHolded": "Ver en Holded",
+      "deliveryUnknown": "Holded podría haber enviado este presupuesto, pero no ha confirmado el resultado. Compruébalo en Holded antes de realizar ninguna acción; no se volverá a enviar automáticamente.",
       "noPayments": "Todavía no se ha registrado ningún pago.",
       "taxId": "NIF",
       "email": "Correo",

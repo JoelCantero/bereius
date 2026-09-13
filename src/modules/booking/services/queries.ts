@@ -98,7 +98,10 @@ export async function getBookingDetail(bookingRequestId: string) {
     where: { id: bookingRequestId },
     include: {
       customer: true,
-      documents: { orderBy: { issuedAt: "asc" } },
+      documents: {
+        orderBy: { issuedAt: "asc" },
+        include: { estimateDelivery: { select: { status: true } } },
+      },
       payments: { orderBy: { receivedAt: "asc" } },
       auditEvents: {
         orderBy: { createdAt: "asc" },

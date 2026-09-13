@@ -3,7 +3,11 @@ import { describe, expect, it, vi } from "vitest";
 
 vi.mock("server-only", () => ({}));
 
-import { createHoldedClient, HOLDED_BASE_URL } from "@/lib/holded/client";
+import {
+  createHoldedClient,
+  HoldedDeliveryError,
+  HOLDED_BASE_URL,
+} from "@/lib/holded/client";
 import { createHttpMailProvider, type FakeProviderBehavior } from "../helpers/http-mail-provider";
 
 function page(body: unknown): FakeProviderBehavior {
@@ -201,6 +205,7 @@ describe("Holded contacts", () => {
         name: "Old",
         code: "G1",
         email: "old@example.test",
+        website: "",
         iban: "ES00",
         client_record: { num: 43000001, name: "Clients" },
         supplier_record: { num: 40000001 },
@@ -232,6 +237,8 @@ describe("Holded contacts", () => {
       bill_address: { address: "New street", country: null },
     });
     expect(sentBody(update.body)).not.toHaveProperty("id");
+    expect(sentBody(update.body)).not.toHaveProperty("custom_id");
+    expect(sentBody(update.body)).not.toHaveProperty("website");
     expect(sentBody(update.body)).not.toHaveProperty("created_at");
     expect(sentBody(update.body)).not.toHaveProperty("rate");
   });
@@ -242,6 +249,140 @@ describe("Holded contacts", () => {
     await expect(
       codeOf(client.updateContact("c1", { name: "N", code: "G1", email: "n@example.test" })),
     ).resolves.toBe("malformed_response");
+  });
+
+  it("pages contacts and lists only delegates projected for the requested principal", async () => {
+    const { http, client } = holded([
+      page({
+        items: [
+          {
+            id: "person-manual",
+            name: "Manual contact",
+            email: "manual@example.test",
+            is_person: true,
+          },
+          {
+            id: "person-other-principal",
+            code: "berea-wp-delegate:principal-2:90:1",
+            name: "Other principal delegate",
+            email: "other@example.test",
+            is_person: true,
+          },
+          {
+            id: "person-zulu",
+            code: "berea-wp-delegate:principal-1:91:1",
+            name: "Zulu delegate",
+            email: " Zulu@Example.test ",
+            is_person: true,
+          },
+        ],
+        has_more: true,
+        cursor: "next-page",
+      }),
+      page({
+        items: [
+          {
+            id: "person-alpha",
+            code: "berea-wp-delegate:principal-1:92:4",
+            name: "Alpha delegate",
+            email: "alpha@example.test",
+            is_person: true,
+          },
+          {
+            id: "person-old-marker",
+            code: "berea-wp-delegate:93:1",
+            name: "Unmigrated delegate",
+            email: "old@example.test",
+            is_person: true,
+          },
+        ],
+        has_more: false,
+        cursor: null,
+      }),
+    ]);
+
+    await expect(client.listDelegateEmails("principal-1")).resolves.toEqual([
+      "alpha@example.test",
+      "zulu@example.test",
+    ]);
+    expect(http.requests.map((request) => request.method)).toEqual(["GET", "GET"]);
+    expect(http.requests[0].logicalUrl).toBe(`${HOLDED_BASE_URL}/contacts?limit=100`);
+    expect(http.requests[1].logicalUrl).toContain("cursor=next-page");
+  });
+
+  it("deduplicates delegate addresses and ignores malformed non-managed contacts", async () => {
+    const { client } = holded([
+      page({
+        items: [
+          {
+            id: "person-1",
+            code: "berea-wp-delegate:principal-1:91:1",
+            name: "Delegate one",
+            email: "delegate@example.test",
+            is_person: true,
+          },
+          {
+            id: "person-2",
+            code: "berea-wp-delegate:principal-1:92:1",
+            name: "Delegate two",
+            email: "DELEGATE@example.test",
+            is_person: true,
+          },
+          {
+            id: "person-3",
+            code: "other-system:93:1",
+            name: "Other system",
+            email: "not-an-email",
+            is_person: true,
+          },
+        ],
+        has_more: false,
+      }),
+    ]);
+
+    await expect(client.listDelegateEmails("principal-1")).resolves.toEqual([
+      "delegate@example.test",
+    ]);
+  });
+
+  it.each([
+    [
+      "marker",
+      {
+        id: "person-1",
+        code: "berea-wp-delegate:principal-1:not-a-user:1",
+        email: "delegate@example.test",
+        is_person: true,
+      },
+    ],
+    [
+      "email",
+      {
+        id: "person-1",
+        code: "berea-wp-delegate:principal-1:91:1",
+        email: "not-an-email",
+        is_person: true,
+      },
+    ],
+  ])("fails closed for a malformed managed delegate %s", async (_field, contact) => {
+    const { client } = holded([
+      page({ items: [contact], has_more: false }),
+    ]);
+
+    await expect(codeOf(client.listDelegateEmails("principal-1"))).resolves.toBe(
+      "malformed_response",
+    );
+  });
+
+  it("fails closed when a later contact page cannot be read", async () => {
+    const { client } = holded([
+      page({ items: [], has_more: true, cursor: "next-page" }),
+      status(503),
+    ]);
+
+    await expect(codeOf(client.listDelegateEmails("principal-1"))).resolves.toBe(
+      "unavailable",
+    );
   });
 });
 
@@ -535,13 +676,57 @@ describe("Holded document writes", () => {
   it("sends an estimate through the configured template", async () => {
     const { http, client } = holded([page({})]);
 
-    await client.sendEstimate("e1", ["hola@example.test"], "tpl-1");
+    await client.sendEstimate(
+      "e1",
+      {
+        emails: ["fiscal@example.test"],
+        cc: ["delegate@example.test", "other@example.test"],
+      },
+      "tpl-1",
+    );
 
     expect(http.requests[0].logicalUrl).toBe(`${HOLDED_BASE_URL}/estimates/e1/send`);
     expect(sentBody(http.requests[0].body)).toEqual({
-      emails: ["hola@example.test"],
+      emails: ["fiscal@example.test"],
+      cc: ["delegate@example.test", "other@example.test"],
       mail_template_id: "tpl-1",
     });
+  });
+
+  it("marks an explicit provider refusal as a definitive delivery failure", async () => {
+    const { client } = holded([status(400)]);
+
+    try {
+      await client.sendEstimate(
+        "e1",
+        { emails: ["fiscal@example.test"], cc: [] },
+      );
+      expect.unreachable("expected Holded to refuse the send");
+    } catch (error) {
+      expect(error).toBeInstanceOf(HoldedDeliveryError);
+      expect(error).toMatchObject({
+        code: "invalid_request",
+        deliveryOutcome: "definitive_failure",
+      });
+    }
+  });
+
+  it("marks a network failure as an unknown delivery outcome", async () => {
+    const { client } = holded([{ error: new Error("socket closed") }]);
+
+    try {
+      await client.sendEstimate(
+        "e1",
+        { emails: ["fiscal@example.test"], cc: [] },
+      );
+      expect.unreachable("expected Holded delivery to fail");
+    } catch (error) {
+      expect(error).toBeInstanceOf(HoldedDeliveryError);
+      expect(error).toMatchObject({
+        code: "unavailable",
+        deliveryOutcome: "unknown",
+      });
+    }
   });
 
   // There is no line patch: sending `items` replaces the whole collection.

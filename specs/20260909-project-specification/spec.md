@@ -8,6 +8,21 @@
 
 **Input**: Replace the n8n workflow "Crear presupuesto cuando se recibe un formulario de reserva, crear factura y actualizar contrato" with a web application.
 
+## Amendment — 2026-09-12
+
+Feature [`20260912-customer-delegates`](../20260912-customer-delegates/spec.md) supersedes the broad
+delegate assumptions in this document without changing booking intake:
+
+- Gravity Forms submissions remain pull-only. WordPress does not push bookings or requester
+  identity to Bereius.
+- WordPress owns delegate lifecycle and projects accepted delegates directly into Holded as
+  principal-scoped, technically marked people without writing the fiscal contact. Pending
+  delegates are not projected.
+- Bereius has no WordPress endpoint, credentials or local delegate directory. It reads the linked
+  principal-scoped Holded people immediately before freezing estimate recipients.
+- Estimate delivery follows that feature's fiscal-primary plus active-delegate-CC policy and its
+  explicit delivery state machine. Invoice and other booking-message recipients are unchanged.
+
 ## Overview
 
 Berea is a summer camp house (*casa de colonies*). Booking requests arrive through a Gravity Forms
@@ -121,8 +136,10 @@ reason. Every transition writes an `AuditEvent`.
 ### 1. Intake
 
 The application reads submissions from the Gravity Forms REST API v2 **every hour**. There is no
-inbound webhook: WordPress never calls the application, which removes the public endpoint, its
-shared secret and its replay protection from the design entirely.
+inbound **booking** webhook: WordPress never pushes a Gravity Forms submission to the application,
+which removes that public intake endpoint, its shared secret and its replay protection from the
+booking-ingestion design. Delegate lifecycle also remains outside Bereius: WordPress projects
+accepted delegates into Holded, which Bereius reads only when preparing estimate recipients.
 
 This is a deliberate reversal of the n8n arrangement, which relied on the Webhooks add-on pushing
 each submission. A push has no reliable retry, so a submission arriving while the application is
@@ -168,8 +185,8 @@ On approval the application, in order:
 4. Issues the reserve invoice covering the advance and the security deposit.
 5. Rewrites the estimate lines so the advance and the deposit appear deducted, leaving the balance
    payable after the stay.
-6. Approves the estimate, which takes it out of draft, and asks Holded to send it to the requester
-   using the configured mail template.
+6. Approves the estimate, which takes it out of draft, and asks Holded to send it using the
+  configured mail template and the recipient policy defined by the 2026-09-12 amendment.
 7. Stores the returned Holded identifiers on the `BookingRequest`.
 
 The estimate is sent last, once it already shows the deducted balance, so the requester never
@@ -190,7 +207,7 @@ Commercial documents and operational notices travel by different paths, delibera
 | Message | Sent by | When |
 |---|---|---|
 | Acknowledgement of receipt | Gravity Forms notification | On submission, before the application has seen the entry |
-| Estimate and invoices | Holded, using its mail templates | On approval and after the stay |
+| Estimate and invoices | Holded, using its mail templates | On approval and after the stay; estimate copies follow the 2026-09-12 delegate policy |
 | Booking confirmation | Application, over SMTP as `hola@berea.cat` | When an operator confirms the payment match |
 | Rejection, cancellation, expiry notices | Application, over SMTP as `hola@berea.cat` | On the corresponding transition |
 | Operator notifications | Application, over SMTP as `hola@berea.cat` | New request pending review, proposed payment match, consent about to expire |
@@ -521,7 +538,7 @@ credits are the shortest-lived records in the system.
 
 ### Credentials
 
-Four distinct secrets exist, each with a different blast radius:
+Five distinct secrets exist, each with a different blast radius:
 
 | Secret | If leaked | Storage |
 |---|---|---|
@@ -549,18 +566,19 @@ set, never what it is, and no credential appears in a log, an error message or a
 - **The iCalendar feed is fetched unauthenticated.** It contains occupancy blocks and nothing else:
   no names, no identifiers, no amounts. Its unguessable path is obfuscation, not access control, and
   the feed is designed to be harmless if found.
-- **Pull-based intake removes the inbound webhook** that the n8n design exposed, along with its
-  shared secret and replay window.
+- **Pull-based booking intake removes the booking webhook** that the n8n design exposed. Bereius
+  exposes no WordPress delegate endpoint; it discovers eligible copies from principal-scoped marked
+  people in Holded only while preparing an estimate delivery.
 - **Bank access is read-only** under PSD2 account information scope. The application cannot initiate
   a payment even if fully compromised.
 - **Structured logs redact** tax identifiers, addresses and phone numbers.
 
 ### Integration settings
 
-Holded, Gravity Forms, the booking mailbox and the bank connection are all configured from an
-administrator-only settings area rather than from deployment configuration. Each integration reports
-whether it is configured and reachable, and a *test connection* action validates credentials at the
-moment they are entered instead of at the first scheduled run.
+Holded, Gravity Forms, the booking mailbox and the bank connection are all
+configured from an administrator-only settings area rather than from deployment configuration. Each
+integration reports whether it is configured and reachable, and a *test connection* action validates
+credentials at the moment they are entered instead of at the first scheduled run.
 
 An integration that is not configured is simply inactive: the scheduled jobs skip it and the
 corresponding screens say so. There is no separate enable flag to fall out of step with the

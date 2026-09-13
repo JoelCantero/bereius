@@ -46,7 +46,11 @@ export type SettingsActionState =
         | "unknown";
     };
 
-const providerSchema = z.enum(["HOLDED", "GRAVITY_FORMS", "BOOKING_MAIL"]);
+const providerSchema = z.enum([
+  "HOLDED",
+  "GRAVITY_FORMS",
+  "BOOKING_MAIL",
+]);
 
 const RATE_SKUS = [
   "dc30",
@@ -85,7 +89,10 @@ function toErrorState(error: unknown): SettingsActionState {
   if (error instanceof SmtpError) {
     return { status: "error", reason: error.code };
   }
-  if (error instanceof HoldedError || error instanceof GravityFormsError) {
+  if (
+    error instanceof HoldedError ||
+    error instanceof GravityFormsError
+  ) {
     if (error.code === "unauthorized") {
       return { status: "error", reason: "authentication" };
     }

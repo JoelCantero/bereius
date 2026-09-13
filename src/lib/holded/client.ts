@@ -57,14 +57,35 @@ export class HoldedError extends Error {
   }
 }
 
+export class HoldedDeliveryError extends HoldedError {
+  constructor(
+    code: HoldedError["code"],
+    readonly deliveryOutcome: "definitive_failure" | "unknown",
+    message: string,
+  ) {
+    super(code, message);
+    this.name = "HoldedDeliveryError";
+  }
+}
+
 const contactSchema = z
   .object({
     id: z.string().min(1),
+    custom_id: z.string().nullish(),
     name: z.string().nullish(),
     code: z.string().nullish(),
+    vat_number: z.string().nullish(),
+    trade_name: z.string().nullish(),
+    is_person: z.boolean().optional(),
     email: z.string().nullish(),
     phone: z.string().nullish(),
     mobile: z.string().nullish(),
+    website: z.string().nullish(),
+    type: z.enum(["client", "debtor", "supplier", "creditor", "lead"]).nullish(),
+    iban: z.string().nullish(),
+    swift: z.string().nullish(),
+    sepa_ref: z.string().nullish(),
+    tags: z.array(z.string()).nullish(),
     bill_address: z
       .object({
         address: z.string().nullish(),
@@ -72,8 +93,69 @@ const contactSchema = z
         province: z.string().nullish(),
         postal_code: z.string().nullish(),
         country: z.string().nullish(),
+        country_code: z.string().nullish(),
+        info: z.string().nullish(),
       })
       .nullish(),
+    client_record: z
+      .object({ num: z.number().int(), name: z.string().optional() })
+      .nullish(),
+    supplier_record: z
+      .object({ num: z.number().int(), name: z.string().optional() })
+      .nullish(),
+    defaults: z
+      .object({
+        sales_channel: z.string().nullish(),
+        expenses_account: z.string().nullish(),
+        due_days: z.number().int().nullish(),
+        payment_day: z.number().int().nullish(),
+        payment_method: z.string().nullish(),
+        discount: z.number().nullish(),
+        language: z.string().nullish(),
+        currency: z.string().nullish(),
+        sales_tax: z.array(z.string()).nullish(),
+        purchases_tax: z.array(z.string()).nullish(),
+        numbering_series: z
+          .object({
+            invoice: z.string().nullish(),
+            receipt: z.string().nullish(),
+            salesorder: z.string().nullish(),
+            estimate: z.string().nullish(),
+            order: z.string().nullish(),
+            proform: z.string().nullish(),
+            waybill: z.string().nullish(),
+          })
+          .nullish(),
+      })
+      .nullish(),
+    contact_persons: z
+      .array(
+        z
+          .object({
+            person_id: z.string().min(1),
+            name: z.string().nullish(),
+            job: z.string().nullish(),
+            phone: z.string().nullish(),
+            email: z.string().nullish(),
+            send_documents_by_default: z.boolean().optional(),
+          })
+          .catchall(z.unknown()),
+      )
+      .nullish(),
+    custom_fields: z
+      .array(z.object({ field: z.string().min(1), value: z.unknown() }))
+      .nullish(),
+  })
+  .catchall(z.unknown());
+
+const delegateCodeSuffixSchema = z.string().regex(/^[1-9]\d*:[1-9]\d*$/u);
+const delegateEmailSchema = z.email().max(320);
+
+const contactPageSchema = z
+  .object({
+    items: z.array(contactSchema),
+    has_more: z.boolean().optional(),
+    cursor: z.string().nullish(),
   })
   .catchall(z.unknown());
 
@@ -208,6 +290,11 @@ export interface HoldedDocumentResult {
   number: string | null;
 }
 
+export interface HoldedEstimateRecipients {
+  emails: string[];
+  cc: string[];
+}
+
 /** What the booking screen compares against; not the whole Holded record. */
 export interface HoldedContact {
   id: string;
@@ -247,6 +334,8 @@ export interface HoldedClient {
   getContact(contactId: string): Promise<HoldedContact | null>;
   createContact(input: HoldedContactInput): Promise<{ id: string }>;
   updateContact(contactId: string, input: HoldedContactInput): Promise<void>;
+  /** Linked WordPress-managed people that must receive estimate copies. */
+  listDelegateEmails(contactId: string): Promise<string[]>;
   listEstimatesByContact(contactId: string): Promise<HoldedEstimateSummary[]>;
   /** Every estimate in the account, so an operator can find one without a booking. */
   listEstimates(): Promise<HoldedEstimateSummary[]>;
@@ -260,7 +349,11 @@ export interface HoldedClient {
   approveInvoice(invoiceId: string): Promise<void>;
   readService(serviceId: string): Promise<HoldedService>;
   createEstimate(input: HoldedDocumentInput): Promise<HoldedDocumentResult>;
-  sendEstimate(estimateId: string, emails: string[], mailTemplateId?: string): Promise<void>;
+  sendEstimate(
+    estimateId: string,
+    recipients: HoldedEstimateRecipients,
+    mailTemplateId?: string,
+  ): Promise<void>;
   createInvoice(input: HoldedInvoiceInput): Promise<HoldedDocumentResult>;
   replaceEstimateLines(estimateId: string, items: HoldedDocumentLine[]): Promise<void>;
 }
@@ -317,6 +410,65 @@ function isoDate(value: Date): string {
 
 function today(): string {
   return isoDate(new Date());
+}
+
+function writableContact(raw: z.infer<typeof contactSchema>): Record<string, unknown> {
+  return {
+    name: raw.name,
+    code: raw.code,
+    vat_number: raw.vat_number,
+    trade_name: raw.trade_name,
+    is_person: raw.is_person,
+    email: raw.email,
+    phone: raw.phone,
+    mobile: raw.mobile,
+    website: raw.website?.trim() ? raw.website : undefined,
+    type: raw.type,
+    client_record: raw.client_record?.num,
+    supplier_record: raw.supplier_record?.num,
+    iban: raw.iban,
+    swift: raw.swift,
+    sepa_ref: raw.sepa_ref,
+    bill_address: raw.bill_address
+      ? {
+          address: raw.bill_address.address,
+          city: raw.bill_address.city,
+          postal_code: raw.bill_address.postal_code,
+          province: raw.bill_address.province,
+          country: raw.bill_address.country,
+          country_code: raw.bill_address.country_code,
+          info: raw.bill_address.info,
+        }
+      : raw.bill_address,
+    tags: raw.tags,
+    contact_persons: raw.contact_persons?.map(({ person_id }) => ({ person_id })),
+    custom_fields: raw.custom_fields,
+    defaults: raw.defaults
+      ? {
+          sales_channel: raw.defaults.sales_channel,
+          expenses_account: raw.defaults.expenses_account,
+          due_days: raw.defaults.due_days,
+          payment_day: raw.defaults.payment_day,
+          payment_method: raw.defaults.payment_method,
+          discount: raw.defaults.discount,
+          language: raw.defaults.language,
+          currency: raw.defaults.currency,
+          sales_tax: raw.defaults.sales_tax,
+          purchases_tax: raw.defaults.purchases_tax,
+          numbering_series: raw.defaults.numbering_series
+            ? {
+                invoice: raw.defaults.numbering_series.invoice,
+                receipt: raw.defaults.numbering_series.receipt,
+                salesorder: raw.defaults.numbering_series.salesorder,
+                estimate: raw.defaults.numbering_series.estimate,
+                order: raw.defaults.numbering_series.order,
+                proform: raw.defaults.numbering_series.proform,
+                waybill: raw.defaults.numbering_series.waybill,
+              }
+            : raw.defaults.numbering_series,
+        }
+      : raw.defaults,
+  };
 }
 
 const cataloguePageSchema = z.object({
@@ -445,6 +597,30 @@ export function createHoldedClient(
       id: parsed.data.id,
       number: await readDocumentNumber(collection, parsed.data.id),
     };
+  }
+
+  async function readContactForWrite(contactId: string) {
+    const parsed = contactSchema.safeParse(
+      await request("GET", `/contacts/${contactId}`),
+    );
+    if (!parsed.success || !parsed.data.name?.trim()) {
+      throw new HoldedError(
+        "malformed_response",
+        "Holded contact did not match the writable shape",
+      );
+    }
+    return parsed.data;
+  }
+
+  async function replaceContact(
+    contactId: string,
+    current: z.infer<typeof contactSchema>,
+    changes: Record<string, unknown>,
+  ) {
+    await request("PUT", `/contacts/${contactId}`, {
+      ...writableContact(current),
+      ...changes,
+    });
   }
 
   return {
@@ -595,38 +771,14 @@ export function createHoldedClient(
      * billing address included — so the record is read back and merged.
      */
     async updateContact(contactId, input) {
-      const current = await request("GET", `/contacts/${contactId}`);
-      const parsed = contactSchema.safeParse(current);
-
-      if (!parsed.success) {
-        throw new HoldedError(
-          "malformed_response",
-          "Holded contact did not match the expected shape",
-        );
-      }
-
-      const before = parsed.data as Record<string, unknown>;
-      const record = (value: unknown) =>
-        value && typeof value === "object" && "num" in value
-          ? (value as { num: number }).num
-          : undefined;
-
-      await request("PUT", `/contacts/${contactId}`, {
-        // Read back so the accounting defaults and bank details survive; the
-        // records are objects when read and plain numbers when written.
-        ...before,
-        id: undefined,
-        created_at: undefined,
-        updated_at: undefined,
-        rate: undefined,
-        client_record: record(before.client_record),
-        supplier_record: record(before.supplier_record),
+      const current = await readContactForWrite(contactId);
+      await replaceContact(contactId, current, {
         name: input.name,
         code: input.code,
         email: input.email,
         phone: input.phone ?? null,
         bill_address: {
-          ...(typeof before.bill_address === "object" ? before.bill_address : {}),
+          ...(current.bill_address ?? {}),
           address: input.address ?? null,
           city: input.city ?? null,
           postal_code: input.postalCode ?? null,
@@ -634,6 +786,59 @@ export function createHoldedClient(
           country: input.country ?? null,
         },
       });
+    },
+
+    async listDelegateEmails(contactId) {
+      const emails = new Set<string>();
+      const markerPrefix = `berea-wp-delegate:${contactId}:`;
+      let cursor: string | null = null;
+
+      for (let page = 0; page < HOLDED_MAX_CATALOGUE_PAGES; page += 1) {
+        const query = new URLSearchParams({ limit: String(HOLDED_CATALOGUE_PAGE_SIZE) });
+        if (cursor) query.set("cursor", cursor);
+
+        const payload = await request("GET", `/contacts?${query.toString()}`);
+        const parsed = contactPageSchema.safeParse(payload);
+        if (!parsed.success) {
+          throw new HoldedError(
+            "malformed_response",
+            "Holded contact list did not match the expected shape",
+          );
+        }
+
+        for (const person of parsed.data.items) {
+          const code = person.code?.trim() ?? "";
+          if (!code.startsWith(markerPrefix)) continue;
+
+          const normalizedEmail = person.email?.trim().toLowerCase() ?? "";
+          if (
+            !delegateCodeSuffixSchema.safeParse(code.slice(markerPrefix.length)).success ||
+            person.is_person !== true ||
+            !delegateEmailSchema.safeParse(normalizedEmail).success
+          ) {
+            throw new HoldedError(
+              "malformed_response",
+              "A managed Holded delegate did not match the expected shape",
+            );
+          }
+          emails.add(normalizedEmail);
+        }
+
+        const next = parsed.data.cursor?.trim() || null;
+        if (parsed.data.has_more !== true && !next) return [...emails].sort();
+        if (!next || next === cursor) {
+          throw new HoldedError(
+            "malformed_response",
+            "Holded contact pagination did not return a usable cursor",
+          );
+        }
+        cursor = next;
+      }
+
+      throw new HoldedError(
+        "malformed_response",
+        "Holded contact pagination exceeded the safety limit",
+      );
     },
 
     async readService(serviceId) {
@@ -689,12 +894,43 @@ export function createHoldedClient(
       await request("POST", `/invoices/${invoiceId}/approve`);
     },
 
-    async sendEstimate(estimateId, emails, mailTemplateId) {
-      // The success response carries no body, so nothing is parsed.
-      await request("POST", `/estimates/${estimateId}/send`, {
-        emails,
-        mail_template_id: mailTemplateId,
+    async sendEstimate(estimateId, recipients, mailTemplateId) {
+      const outcome = await executeProviderRequest({
+        client: httpClient,
+        logicalUrl: `${HOLDED_BASE_URL}/estimates/${estimateId}/send`,
+        init: {
+          method: "POST",
+          headers: {
+            accept: "application/json",
+            authorization: `Bearer ${apiKey}`,
+            "content-type": "application/json",
+          },
+          body: serializeProviderJson({
+            emails: recipients.emails,
+            cc: recipients.cc,
+            mail_template_id: mailTemplateId,
+          }),
+        },
+        timeoutMs: HOLDED_TIMEOUT_MS,
+        maxResponseBytes: HOLDED_CATALOGUE_RESPONSE_LIMIT_BYTES,
       });
+
+      if (outcome.kind === "network_error") {
+        throw new HoldedDeliveryError(
+          "unavailable",
+          "unknown",
+          "Holded delivery outcome is unknown",
+        );
+      }
+
+      const failure = classify(outcome);
+      if (failure) {
+        throw new HoldedDeliveryError(
+          failure.code,
+          "definitive_failure",
+          "Holded refused estimate delivery",
+        );
+      }
     },
 
     async createInvoice(input) {

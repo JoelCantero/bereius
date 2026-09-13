@@ -779,6 +779,7 @@
       "noDocuments": "No document has been issued yet.",
       "openEstimate": "Open the estimate",
       "openInHolded": "Open in Holded",
+      "deliveryUnknown": "Holded may have sent this estimate but did not confirm the outcome. Check it in Holded before taking action; it will not be sent again automatically.",
       "noPayments": "No payment has been recorded yet.",
       "taxId": "Tax identifier",
       "email": "Email",

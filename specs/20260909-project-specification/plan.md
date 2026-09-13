@@ -8,6 +8,12 @@
 4 — bank reconciliation, calendar synchronisation and closing the cycle — get their own feature
 directories once Phase 1 is merged.
 
+**Amendment (2026-09-12)**: [`20260912-customer-delegates`](../20260912-customer-delegates/plan.md)
+keeps delegate authority and Holded person projection in WordPress. Bereius exposes no WordPress
+route and stores no delegate directory; it pages principal-scoped marked people from Holded before
+freezing estimate recipients. The projection never writes the fiscal principal. This does not
+change pull-based Gravity Forms intake or add an environment secret, container or dependency.
+
 ## Summary
 
 Replace the n8n booking workflow with an application-owned pipeline. Booking requests are read
@@ -70,11 +76,10 @@ is passed `BOOKING_SECRET_KEY` there. Ingress, networks and the image are unchan
 **CI/CD**: GitHub Actions. No pipeline change beyond the existing gates covering the new code.
 
 **Secrets**: One new environment secret, `BOOKING_SECRET_KEY`: the AES-256-GCM envelope key that
-encrypts every stored integration credential. Read through `src/lib/env.ts`. The Holded API key, the
-Gravity Forms credentials and the booking SMTP password are deliberately **not** environment
-variables: administrators configure them in the application and they are stored encrypted, so
-changing a provider key never requires a redeploy. The envelope key must stay outside the database
-it protects.
+encrypts every stored integration credential. Read through `src/lib/env.ts`. The Holded API key,
+Gravity Forms credentials and booking SMTP password are deliberately **not** environment variables:
+administrators configure them in the application and they are stored encrypted, so changing a
+provider key never requires a redeploy. The envelope key must stay outside the database it protects.
 
 **Observability**: Existing Pino logger. New structured events for intake batches (entries read,
 created, skipped), state transitions, outbox attempts with outcome class, and Holded call outcomes.
