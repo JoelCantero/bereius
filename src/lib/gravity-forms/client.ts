@@ -81,9 +81,12 @@ function entriesUrl(
   url.searchParams.set("paging[page_size]", String(GRAVITY_FORMS_PAGE_SIZE));
 
   if (afterEntryId !== null) {
-    url.searchParams.set("search[field_filters][0][key]", "id");
-    url.searchParams.set("search[field_filters][0][operator]", ">");
-    url.searchParams.set("search[field_filters][0][value]", afterEntryId);
+    url.searchParams.set(
+      "search",
+      JSON.stringify({
+        field_filters: [{ key: "id", operator: ">", value: afterEntryId }],
+      }),
+    );
   }
 
   return url.toString();

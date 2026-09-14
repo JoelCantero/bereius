@@ -15,8 +15,10 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { noIndexMetadata } from "@/lib/seo";
+import { refreshIntakeAction } from "@/modules/booking/actions/intake";
 import { AuthorizationError, requireBookingActor } from "@/modules/booking/authorization";
 import { QueueFilters } from "@/modules/booking/components/queue-filters";
+import { QueueRefresh } from "@/modules/booking/components/queue-refresh";
 import { BookingStateBadge } from "@/modules/booking/components/state-badge";
 import {
   BOOKING_QUEUE_SORTS,
@@ -136,7 +138,10 @@ export default async function BookingsPage({ params, searchParams }: BookingsPag
 
   return (
     <main className="mx-auto flex w-full max-w-5xl flex-col gap-6 p-6">
-      <h1 className="text-2xl font-semibold">{t("queue.title")}</h1>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <h1 className="text-2xl font-semibold">{t("queue.title")}</h1>
+        <QueueRefresh action={refreshIntakeAction} />
+      </div>
 
       <QueueFilters
         states={BOOKING_STATES}

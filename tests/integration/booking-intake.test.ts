@@ -219,6 +219,25 @@ describe.skipIf(!runIntegrationTests)("booking intake integration", () => {
     expect(client.fetchEntriesAfter).toHaveBeenNthCalledWith(2, entries[0]!.id);
   });
 
+  it("does not let a stale overlapping run move the cursor backwards", async () => {
+    const stale = entry();
+    const newerId = `${stale.id}9`;
+    track([stale]);
+    await db.intakeCursor.upsert({
+      where: { source: INTAKE_SOURCE },
+      create: { source: INTAKE_SOURCE, lastEntryId: newerId },
+      update: { lastEntryId: newerId },
+    });
+
+    await expect(
+      runIntake({ client: clientReturning([stale]) }),
+    ).resolves.toMatchObject({ created: 1, cursor: newerId });
+
+    await expect(
+      db.intakeCursor.findUniqueOrThrow({ where: { source: INTAKE_SOURCE } }),
+    ).resolves.toMatchObject({ lastEntryId: newerId });
+  });
+
   it("honours a remapped form, so a rebuilt form needs no code change", async () => {
     const remapped = { ...F, taxId: "901", headcount: "902" };
     const base = entry();

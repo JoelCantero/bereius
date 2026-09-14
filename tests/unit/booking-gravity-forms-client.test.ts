@@ -77,7 +77,7 @@ describe("Gravity Forms entries", () => {
     expect(searchParams.get("sorting[key]")).toBe("id");
     expect(searchParams.get("sorting[direction]")).toBe("ASC");
     expect(searchParams.get("paging[page_size]")).toBe(String(GRAVITY_FORMS_PAGE_SIZE));
-    expect(searchParams.get("search[field_filters][0][key]")).toBeNull();
+    expect(searchParams.get("search")).toBeNull();
   });
 
   it("filters on the stored cursor once one exists", async () => {
@@ -86,9 +86,10 @@ describe("Gravity Forms entries", () => {
     await client.fetchEntriesAfter("417");
 
     const { searchParams } = new URL(http.requests[0].logicalUrl);
-    expect(searchParams.get("search[field_filters][0][key]")).toBe("id");
-    expect(searchParams.get("search[field_filters][0][operator]")).toBe(">");
-    expect(searchParams.get("search[field_filters][0][value]")).toBe("417");
+    expect(JSON.parse(searchParams.get("search") ?? "null")).toEqual({
+      field_filters: [{ key: "id", operator: ">", value: "417" }],
+    });
+    expect(searchParams.get("search[field_filters][0][key]")).toBeNull();
   });
 
   it("accepts a numeric identifier and reports it as a string", async () => {
