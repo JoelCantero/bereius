@@ -754,6 +754,9 @@
       "count": "{count, plural, one {# request} other {# requests}}",
       "stateLabel": "State",
       "allStates": "All states",
+      "refresh": "Refresh requests",
+      "refreshing": "Refreshing requests…",
+      "refreshResult": "{created, plural, one {# request imported} other {# requests imported}}; {skipped, plural, one {# already present} other {# already present}}; {rejected, plural, one {# rejected} other {# rejected}}.",
       "columns": {
         "customer": "Customer",
         "stay": "Stay",

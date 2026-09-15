@@ -754,6 +754,9 @@
       "count": "{count, plural, one {# solicitud} other {# solicitudes}}",
       "stateLabel": "Estado",
       "allStates": "Todos los estados",
+      "refresh": "Actualizar solicitudes",
+      "refreshing": "Actualizando solicitudes…",
+      "refreshResult": "{created, plural, one {# solicitud importada} other {# solicitudes importadas}}; {skipped, plural, one {# ya existente} other {# ya existentes}}; {rejected, plural, one {# rechazada} other {# rechazadas}}.",
       "columns": {
         "customer": "Cliente",
         "stay": "Estancia",

@@ -35,6 +35,45 @@ async function readCursor(): Promise<string | null> {
   return row?.lastEntryId ?? null;
 }
 
+async function advanceCursor(entryId: string): Promise<string> {
+  for (;;) {
+    const current = await db.intakeCursor.findUnique({
+      where: { source: INTAKE_SOURCE },
+      select: { lastEntryId: true },
+    });
+
+    if (
+      current &&
+      entryId.localeCompare(current.lastEntryId, undefined, { numeric: true }) <= 0
+    ) {
+      return current.lastEntryId;
+    }
+
+    if (!current) {
+      try {
+        await db.intakeCursor.create({
+          data: { source: INTAKE_SOURCE, lastEntryId: entryId },
+        });
+        return entryId;
+      } catch (error) {
+        if (
+          error instanceof Prisma.PrismaClientKnownRequestError &&
+          error.code === "P2002"
+        ) {
+          continue;
+        }
+        throw error;
+      }
+    }
+
+    const advanced = await db.intakeCursor.updateMany({
+      where: { source: INTAKE_SOURCE, lastEntryId: current.lastEntryId },
+      data: { lastEntryId: entryId },
+    });
+    if (advanced.count === 1) return entryId;
+  }
+}
+
 async function persistSubmission(submission: BookingSubmission): Promise<boolean> {
   const { customer, stay } = submission;
 
@@ -157,12 +196,7 @@ export async function runIntake(
       summary.skipped += 1;
     }
 
-    await db.intakeCursor.upsert({
-      where: { source: INTAKE_SOURCE },
-      create: { source: INTAKE_SOURCE, lastEntryId: entry.id },
-      update: { lastEntryId: entry.id },
-    });
-    summary.cursor = entry.id;
+    summary.cursor = await advanceCursor(entry.id);
   }
 
   logger.info(

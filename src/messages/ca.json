@@ -754,6 +754,9 @@
       "count": "{count, plural, one {# sol·licitud} other {# sol·licituds}}",
       "stateLabel": "Estat",
       "allStates": "Tots els estats",
+      "refresh": "Actualitza les sol·licituds",
+      "refreshing": "Actualitzant les sol·licituds…",
+      "refreshResult": "{created, plural, one {# sol·licitud importada} other {# sol·licituds importades}}; {skipped, plural, one {# ja existent} other {# ja existents}}; {rejected, plural, one {# rebutjada} other {# rebutjades}}.",
       "columns": {
         "customer": "Client",
         "stay": "Estada",
