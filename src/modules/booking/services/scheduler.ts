@@ -1,6 +1,13 @@
 import "server-only";
 
 import { logger } from "@/lib/logger";
+import { BANK_SYNC_SWEEP_INTERVAL_MS } from "@/modules/banking/schema";
+import {
+  claimNextBankSync,
+  enqueueDueBankSyncRuns,
+  processBankSync,
+} from "@/modules/banking/services/synchronization";
+import { runBankRetention } from "@/modules/banking/services/retention";
 import { expireUnpaidBookings } from "@/modules/booking/services/expiry";
 import { runIntake } from "@/modules/booking/services/intake";
 import { drainOutbox, type JobHandler } from "@/modules/booking/services/outbox";
@@ -9,26 +16,45 @@ import {
   runBookingMailJob,
 } from "@/modules/booking/services/mail";
 import { QUOTE_JOB_KIND, runQuoteJob } from "@/modules/booking/services/quoting";
+import {
+  RESERVE_INVOICE_JOB_KIND,
+  runReserveInvoiceJob,
+} from "@/modules/booking/services/reserve-invoice";
 
 const HOUR_MS = 3_600_000;
 
 export const SCHEDULES = {
+  banking: BANK_SYNC_SWEEP_INTERVAL_MS,
   intake: HOUR_MS,
   outbox: 60_000,
   expiry: 24 * HOUR_MS,
+  retention: 24 * HOUR_MS,
 } as const;
 
 const JOB_HANDLERS: Readonly<Record<string, JobHandler>> = {
   [QUOTE_JOB_KIND]: runQuoteJob,
+  [RESERVE_INVOICE_JOB_KIND]: runReserveInvoiceJob,
   [BOOKING_MAIL_JOB_KIND]: runBookingMailJob,
 };
 
 type TaskName = keyof typeof SCHEDULES;
 
+async function runBankingSweep() {
+  const now = new Date();
+  const enqueued = await enqueueDueBankSyncRuns(now);
+  const lease = await claimNextBankSync(now);
+  if (!lease) return { enqueued, processed: false };
+
+  await processBankSync(lease);
+  return { enqueued, processed: true, runId: lease.runId };
+}
+
 const TASKS: Readonly<Record<TaskName, () => Promise<unknown>>> = {
+  banking: runBankingSweep,
   intake: () => runIntake(),
   outbox: () => drainOutbox(JOB_HANDLERS),
   expiry: () => expireUnpaidBookings(),
+  retention: () => runBankRetention(),
 };
 
 export interface SchedulerHandle {
@@ -43,14 +69,13 @@ async function runTask(name: TaskName): Promise<void> {
       { event: "worker_task_completed", task: name, durationMs: Date.now() - startedAt, result },
       "worker task completed",
     );
-  } catch (error) {
+  } catch {
     // A failing task must never take the worker down: the next tick retries.
     logger.error(
       {
         event: "worker_task_failed",
         task: name,
         durationMs: Date.now() - startedAt,
-        reason: error instanceof Error ? error.message : "unknown",
       },
       "worker task failed",
     );

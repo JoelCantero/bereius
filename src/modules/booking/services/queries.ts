@@ -100,7 +100,11 @@ export async function getBookingDetail(bookingRequestId: string) {
       customer: true,
       documents: {
         orderBy: { issuedAt: "asc" },
-        include: { estimateDelivery: { select: { status: true } } },
+        include: { delivery: { select: { status: true } } },
+      },
+      documentIssuances: {
+        where: { type: "RESERVE_INVOICE" },
+        select: { status: true },
       },
       payments: { orderBy: { receivedAt: "asc" } },
       auditEvents: {

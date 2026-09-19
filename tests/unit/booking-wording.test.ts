@@ -1,10 +1,21 @@
 import { describe, expect, it } from "vitest";
 
-import { quoteNotes, stayDescription, stayPhrase } from "@/modules/booking/wording";
+import {
+  bookingManagementSubject,
+  quoteNotes,
+  stayDescription,
+  stayPhrase,
+} from "@/modules/booking/wording";
 
 const day = (iso: string) => new Date(`${iso}T00:00:00.000Z`);
 
 describe("booking wording", () => {
+  it("translates the Holded email subject into the three supported locales", () => {
+    expect(bookingManagementSubject("ca")).toBe("Gestió de reserves Berea");
+    expect(bookingManagementSubject("es")).toBe("Gestión de reservas Berea");
+    expect(bookingManagementSubject("en")).toBe("Berea booking management");
+  });
+
   it("titles a document the way every existing one is titled", () => {
     expect(stayDescription(day("2027-11-19"), day("2027-11-21"), 40, "DC")).toBe(
       "19/11/27 - 21/11/27 - 40 persones DC",

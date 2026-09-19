@@ -76,6 +76,7 @@ free_port() {
 
 export PROJECT_NAME="playwright"
 export AUTH_SECRET="playwright-secret-not-used-in-runtime-000"
+export BOOKING_SECRET_KEY="$(node -e 'process.stdout.write(Buffer.alloc(32, 7).toString("base64"))')"
 export TRUST_PROXY_HEADERS="true"
 export E2E_PROVIDER_HTTP_PORT="$(free_port)"
 export E2E_PROVIDER_HTTP_URL="http://127.0.0.1:${E2E_PROVIDER_HTTP_PORT}"

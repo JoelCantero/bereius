@@ -7,6 +7,7 @@ const appPort = Number(process.env.E2E_APP_PORT ?? "3100");
 const baseURL = `http://127.0.0.1:${appPort}`;
 const distDir = process.env.NEXT_DIST_DIR ?? ".next";
 const providerFixtureUrl = process.env.E2E_PROVIDER_HTTP_URL;
+const chromiumChannel = process.env.E2E_CHROMIUM_CHANNEL;
 const mailProvider = process.env.E2E_MAIL_PROVIDER ?? "brevo";
 const brandEnv = {
   BRAND_COLOR: process.env.BRAND_COLOR ?? "#0057B8",
@@ -57,13 +58,17 @@ export default defineConfig({
     {
       name: "chromium",
       grepInvert: /@mobile/,
-      use: { ...devices["Desktop Chrome"] },
+      use: {
+        ...devices["Desktop Chrome"],
+        ...(chromiumChannel ? { channel: chromiumChannel } : {}),
+      },
     },
     {
       name: "chromium-320",
       grep: /@mobile/,
       use: {
         ...devices["Desktop Chrome"],
+        ...(chromiumChannel ? { channel: chromiumChannel } : {}),
         viewport: { width: 320, height: 900 },
       },
     },

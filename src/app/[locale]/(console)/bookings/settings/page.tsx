@@ -4,6 +4,13 @@ import { redirect } from "next/navigation";
 import { getTranslations, setRequestLocale } from "next-intl/server";
 
 import { noIndexMetadata } from "@/lib/seo";
+import { saveTreasuryAccountAction } from "@/modules/banking/actions/settings";
+import { TreasuryAccountSettings } from "@/modules/banking/components/treasury-account-settings";
+import {
+  defaultBankImportStartDate,
+  getTreasuryAccountSettings,
+  listTreasuryAccountOptions,
+} from "@/modules/banking/services/accounts";
 import {
   saveBookingMailSettings,
   saveGravityFormsSettings,
@@ -55,12 +62,22 @@ export default async function BookingSettingsPage({ params }: SettingsPageProps)
   const queue = await getTranslations({ locale, namespace: "Bookings.queue" });
   const dateFormat = new Intl.DateTimeFormat(locale, { dateStyle: "medium" });
 
-  const [statuses, holded, gravityForms, mail, catalogues] = await Promise.all([
+  const [
+    statuses,
+    holded,
+    gravityForms,
+    mail,
+    catalogues,
+    treasuryOptions,
+    treasurySettings,
+  ] = await Promise.all([
     listIntegrationStatus(),
     readIntegrationConfig("HOLDED"),
     readIntegrationConfig("GRAVITY_FORMS"),
     readIntegrationConfig("BOOKING_MAIL"),
     readHoldedCatalogues(),
+    listTreasuryAccountOptions(),
+    getTreasuryAccountSettings(),
   ]);
 
   const statusFor = (
@@ -97,6 +114,14 @@ export default async function BookingSettingsPage({ params }: SettingsPageProps)
         config={holded}
         hasSecret={statusFor("HOLDED")?.hasSecret ?? false}
         catalogues={catalogues}
+      />
+
+      <TreasuryAccountSettings
+        status={treasuryOptions.status}
+        options={treasuryOptions.options}
+        current={treasurySettings}
+        defaultImportStartDate={defaultBankImportStartDate()}
+        action={saveTreasuryAccountAction}
       />
 
       <GravityFormsSettingsForm

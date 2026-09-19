@@ -9,7 +9,9 @@ type ProviderTarget =
   | "brevo.health"
   | "brevo.send"
   | "mailjet.health"
-  | "mailjet.send";
+  | "mailjet.send"
+  | "holded.accounts"
+  | "holded.movements";
 
 interface ProviderBehavior {
   status: number;
@@ -23,6 +25,7 @@ interface ProviderBehaviorRule {
   target: ProviderTarget;
   behavior: ProviderBehavior;
   bodyIncludes?: string;
+  urlIncludes?: string;
   once?: boolean;
 }
 
@@ -45,9 +48,53 @@ const logicalUrlByTarget: Record<ProviderTarget, string> = {
   "brevo.send": "https://api.brevo.com/v3/smtp/email",
   "mailjet.health": "https://api.mailjet.com/v3/REST/sender?Limit=1",
   "mailjet.send": "https://api.mailjet.com/v3.1/send",
+  "holded.accounts": "https://api.holded.com/api/v2/treasury/accounts",
+  "holded.movements": "https://api.holded.com/api/v2/treasury/accounts",
 };
+const providerTargets = new Set<ProviderTarget>([
+  "brevo.health",
+  "brevo.send",
+  "mailjet.health",
+  "mailjet.send",
+  "holded.accounts",
+  "holded.movements",
+]);
 const requests: CapturedRequest[] = [];
 const behaviors: ProviderBehaviorRule[] = [];
+
+function isProviderTarget(value: unknown): value is ProviderTarget {
+  return typeof value === "string" && providerTargets.has(value as ProviderTarget);
+}
+
+function resolveProviderRequest(url: URL): {
+  target: ProviderTarget;
+  logicalUrl: string;
+} | null {
+  const fixedTarget = targetByPath.get(url.pathname);
+  if (fixedTarget) {
+    return { target: fixedTarget, logicalUrl: logicalUrlByTarget[fixedTarget] };
+  }
+
+  const prefix = "/provider/holded";
+  if (!url.pathname.startsWith(`${prefix}/`)) return null;
+  const logicalPath = url.pathname.slice(prefix.length);
+  const accountsPath = "/api/v2/treasury/accounts";
+  const movementsPath = new RegExp(
+    `^${accountsPath}/[0-9a-f]{24}/bank-movements$`,
+    "iu",
+  );
+  const target =
+    logicalPath === accountsPath
+      ? "holded.accounts"
+      : movementsPath.test(logicalPath)
+        ? "holded.movements"
+        : null;
+  if (!target) return null;
+  return {
+    target,
+    logicalUrl: `https://api.holded.com${logicalPath}${url.search}`,
+  };
+}
 
 function json(response: ServerResponse, status: number, body: unknown) {
   response.statusCode = status;
@@ -68,6 +115,12 @@ async function readBody(request: IncomingMessage) {
 }
 
 function defaultResponse(target: ProviderTarget, body: string): ProviderBehavior {
+  if (target.startsWith("holded.")) {
+    return {
+      status: 200,
+      body: JSON.stringify({ items: [], has_more: false, cursor: null }),
+    };
+  }
   if (target.endsWith(".health")) {
     return { status: 200, body: "{}" };
   }
@@ -129,9 +182,10 @@ async function handleControl(
       target?: ProviderTarget;
       behavior?: ProviderBehavior;
       bodyIncludes?: string;
+      urlIncludes?: string;
       once?: boolean;
     };
-    if (!payload.target || !logicalUrlByTarget[payload.target] || !payload.behavior) {
+    if (!isProviderTarget(payload.target) || !payload.behavior) {
       json(response, 400, { status: "invalid" });
       return true;
     }
@@ -145,6 +199,10 @@ async function handleControl(
         (typeof payload.bodyIncludes !== "string" ||
           payload.bodyIncludes.length === 0 ||
           payload.bodyIncludes.length > 320))
+      || (payload.urlIncludes !== undefined &&
+        (typeof payload.urlIncludes !== "string" ||
+          payload.urlIncludes.length === 0 ||
+          payload.urlIncludes.length > 320))
       || (payload.once !== undefined && typeof payload.once !== "boolean")
     ) {
       json(response, 400, { status: "invalid" });
@@ -153,14 +211,68 @@ async function handleControl(
     const existingRule = behaviors.findIndex(
       (rule) =>
         rule.target === payload.target &&
-        rule.bodyIncludes === payload.bodyIncludes,
+        rule.bodyIncludes === payload.bodyIncludes &&
+        rule.urlIncludes === payload.urlIncludes,
     );
     if (existingRule >= 0) behaviors.splice(existingRule, 1);
     behaviors.push({
       target: payload.target,
       behavior: payload.behavior,
       bodyIncludes: payload.bodyIncludes,
+      urlIncludes: payload.urlIncludes,
       once: payload.once,
+    });
+    json(response, 200, { status: "configured", target: payload.target });
+    return true;
+  }
+  if (request.method === "POST" && pathname === "/control/holded/page") {
+    const payload = JSON.parse(await readBody(request)) as {
+      target?: "holded.accounts" | "holded.movements";
+      urlIncludes?: string;
+      items?: unknown[];
+      hasMore?: boolean;
+      cursor?: string | null;
+      once?: boolean;
+    };
+    const hasMore = payload.hasMore ?? false;
+    const cursor = payload.cursor ?? null;
+    if (
+      (payload.target !== "holded.accounts" &&
+        payload.target !== "holded.movements") ||
+      !Array.isArray(payload.items) ||
+      payload.items.length > 100 ||
+      typeof hasMore !== "boolean" ||
+      (cursor !== null &&
+        (typeof cursor !== "string" || cursor.length === 0 || cursor.length > 320)) ||
+      (hasMore && cursor === null) ||
+      (payload.urlIncludes !== undefined &&
+        (typeof payload.urlIncludes !== "string" ||
+          payload.urlIncludes.length === 0 ||
+          payload.urlIncludes.length > 320)) ||
+      (payload.once !== undefined && typeof payload.once !== "boolean")
+    ) {
+      json(response, 400, { status: "invalid" });
+      return true;
+    }
+    const existingRule = behaviors.findIndex(
+      (rule) =>
+        rule.target === payload.target &&
+        rule.bodyIncludes === undefined &&
+        rule.urlIncludes === payload.urlIncludes,
+    );
+    if (existingRule >= 0) behaviors.splice(existingRule, 1);
+    behaviors.push({
+      target: payload.target,
+      urlIncludes: payload.urlIncludes,
+      once: payload.once,
+      behavior: {
+        status: 200,
+        body: JSON.stringify({
+          items: payload.items,
+          has_more: hasMore,
+          cursor,
+        }),
+      },
     });
     json(response, 200, { status: "configured", target: payload.target });
     return true;
@@ -170,31 +282,33 @@ async function handleControl(
 
 const server = createServer(async (request, response) => {
   try {
-    const pathname = new URL(request.url ?? "/", "http://fixture.test").pathname;
+    const requestUrl = new URL(request.url ?? "/", "http://fixture.test");
+    const pathname = requestUrl.pathname;
     if (await handleControl(request, response, pathname)) return;
 
-    const target = targetByPath.get(pathname);
-    if (!target) {
+    const providerRequest = resolveProviderRequest(requestUrl);
+    if (!providerRequest) {
       json(response, 404, { status: "not_found" });
       return;
     }
     const body = await readBody(request);
     requests.push({
-      target,
-      logicalUrl: logicalUrlByTarget[target],
+      target: providerRequest.target,
+      logicalUrl: providerRequest.logicalUrl,
       method: request.method ?? "GET",
       headers: request.headers as Record<string, string | string[]>,
       body,
     });
     const ruleIndex = behaviors.findIndex(
       (rule) =>
-        rule.target === target &&
-        (!rule.bodyIncludes || body.includes(rule.bodyIncludes)),
+        rule.target === providerRequest.target &&
+        (!rule.bodyIncludes || body.includes(rule.bodyIncludes)) &&
+        (!rule.urlIncludes || providerRequest.logicalUrl.includes(rule.urlIncludes)),
     );
     const rule = ruleIndex >= 0 ? behaviors[ruleIndex] : undefined;
     const behavior = rule
       ? rule.behavior
-      : defaultResponse(target, body);
+      : defaultResponse(providerRequest.target, body);
     if (rule?.once) behaviors.splice(ruleIndex, 1);
     if (behavior.delayMs) {
       await new Promise((resolve) => setTimeout(resolve, behavior.delayMs));

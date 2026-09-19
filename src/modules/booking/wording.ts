@@ -4,6 +4,20 @@
  * the ones the retired workflow produced.
  */
 
+const BOOKING_MANAGEMENT_SUBJECTS = {
+  ca: "Gestió de reserves Berea",
+  en: "Berea booking management",
+  es: "Gestión de reservas Berea",
+} as const;
+
+export function bookingManagementSubject(language: string): string {
+  return (
+    BOOKING_MANAGEMENT_SUBJECTS[
+      language as keyof typeof BOOKING_MANAGEMENT_SUBJECTS
+    ] ?? BOOKING_MANAGEMENT_SUBJECTS.en
+  );
+}
+
 const WEEKDAYS = [
   "diumenge",
   "dilluns",

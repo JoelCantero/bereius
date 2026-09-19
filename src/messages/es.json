@@ -202,6 +202,10 @@
         "label": "Contratos",
         "description": "Presupuestos de Holded y la solicitud a la que pertenecen."
       },
+      "bankMovements": {
+        "label": "Movimientos bancarios",
+        "description": "Busca ingresos y gastos importados de Holded."
+      },
       "integrations": {
         "label": "Integraciones",
         "description": "Credenciales e identificadores de Holded, Gravity Forms y correo."
@@ -744,6 +748,152 @@
       "stay": "{start} – {end} · {headcount} personas"
     }
   },
+  "BankMovements": {
+    "title": "Movimientos bancarios",
+    "description": "Busca movimientos importados de Holded y compara los totales exactos de los filtros actuales.",
+    "invalidFilters": "Algunos filtros no son válidos.",
+    "clearFilters": "Borrar filtros",
+    "empty": "Ningún movimiento bancario coincide con estos filtros.",
+    "loading": "Cargando movimientos bancarios",
+    "emptyValue": "No disponible",
+    "filters": {
+      "direction": "Dirección",
+      "from": "Desde",
+      "to": "Hasta",
+      "account": "Cuenta",
+      "currency": "Divisa",
+      "search": "Buscar concepto o referencia",
+      "all": "Todas las direcciones",
+      "allAccounts": "Todas las cuentas",
+      "allCurrencies": "Todas las divisas"
+    },
+    "directions": {
+      "income": "Ingreso",
+      "expense": "Gasto"
+    },
+    "statuses": {
+      "pending": "Pendiente",
+      "reconciled": "Conciliado"
+    },
+    "table": {
+      "caption": "Movimientos bancarios importados",
+      "date": "Fecha",
+      "valueDate": "Fecha valor",
+      "concept": "Concepto",
+      "reference": "Referencia",
+      "counterparty": "Contraparte",
+      "account": "Cuenta",
+      "amount": "Importe",
+      "currency": "Divisa",
+      "status": "Estado",
+      "direction": "Dirección"
+    },
+    "totals": {
+      "title": "Totales filtrados",
+      "income": "Ingresos",
+      "expense": "Gastos"
+    },
+    "proposals": {
+      "title": "Propuesta de conciliación",
+      "estimate": "Presupuesto {number}",
+      "pending": "Pendiente de revisión",
+      "confirmed": "Confirmada",
+      "dismissed": "Descartada",
+      "invalidated": "Invalidada",
+      "confirm": "Confirmar pago",
+      "dismiss": "Descartar propuesta",
+      "confirmedAnnouncement": "Pago confirmado.",
+      "dismissedAnnouncement": "Propuesta descartada.",
+      "decidedBy": "Decidida por {name}",
+      "errors": {
+        "unauthenticated": "Tu sesión ha caducado. Inicia sesión de nuevo.",
+        "forbidden": "No tienes permiso para decidir esta propuesta.",
+        "invalid": "La solicitud de propuesta no es válida.",
+        "not_found": "La propuesta ya no está disponible.",
+        "state_changed": "El estado de la reserva ha cambiado. Revisa los datos actuales.",
+        "proposal_changed": "Esta propuesta ya se ha decidido o ha cambiado.",
+        "movement_ineligible": "El movimiento ya no cumple las reglas de conciliación.",
+        "amount_mismatch": "El importe del movimiento ya no coincide con el pago esperado.",
+        "movement_already_used": "Este movimiento ya está vinculado a un pago.",
+        "unknown": "No se ha podido actualizar la propuesta. Inténtalo de nuevo."
+      }
+    },
+    "synchronization": {
+      "title": "Sincronización con Holded",
+      "status": {
+        "queued": "Esperando para sincronizar",
+        "running": "Sincronización en curso",
+        "retrying": "Esperando para reintentar",
+        "succeeded": "Sincronización completada",
+        "partial": "Sincronización completada parcialmente",
+        "failed": "La sincronización ha fallado"
+      },
+      "state": {
+        "unconfigured": "Configura una cuenta de tesorería para sincronizar.",
+        "initial_active": "La sincronización inicial está en curso.",
+        "healthy": "Los datos bancarios están actualizados.",
+        "stale": "Los datos bancarios pueden estar desactualizados.",
+        "retrying": "Holded no está disponible temporalmente; hay un reintento programado.",
+        "partial": "Algunas páginas o movimientos requieren revisión.",
+        "failed": "La última sincronización no ha importado ninguna página."
+      },
+      "refresh": "Actualizar movimientos",
+      "retry": "Reintentar sincronización",
+      "refreshing": "Solicitando actualización",
+      "cooldown": "La actualización estará disponible a las {date}.",
+      "accepted": "Actualización aceptada.",
+      "alreadyRunning": "Ya hay una sincronización activa.",
+      "lastSuccess": "Última sincronización correcta: {date}",
+      "finishedAt": "Último intento finalizado: {date}",
+      "nextAttempt": "Próximo reintento: {date}",
+      "pendingProposals": "{count, plural, one {# propuesta pendiente} other {# propuestas pendientes}}",
+      "retainedData": "Los movimientos importados anteriormente siguen disponibles para su revisión.",
+      "expiryDeferred": "Las reservas impagadas no caducarán hasta completar correctamente una revisión bancaria nueva.",
+      "progress": {
+        "pages": "{count, plural, one {# página} other {# páginas}}",
+        "items": "{count, plural, one {# elemento} other {# elementos}}",
+        "inserted": "{count} insertados",
+        "updated": "{count} actualizados",
+        "unchanged": "{count} sin cambios",
+        "incidents": "{count, plural, one {# incidencia} other {# incidencias}}"
+      },
+      "incidentAtPage": "{reason} (página {page})",
+      "incidentAtItem": "{reason} (página {page}, elemento {item})",
+      "incidents": {
+        "PROVIDER_UNAUTHORIZED": "Holded ha rechazado las credenciales de la integración.",
+        "PROVIDER_NOT_FOUND": "Holded no ha encontrado la cuenta de tesorería configurada.",
+        "PROVIDER_RATE_LIMITED": "Holded ha limitado temporalmente las solicitudes de sincronización.",
+        "PROVIDER_UNAVAILABLE": "Holded no estaba disponible durante la sincronización.",
+        "PROVIDER_REQUEST_REJECTED": "Holded ha rechazado la solicitud de sincronización.",
+        "RESPONSE_TOO_LARGE": "Una respuesta de Holded ha superado el tamaño permitido.",
+        "MALFORMED_PAGE": "Holded ha devuelto una página de movimientos no válida.",
+        "MISSING_CURSOR": "Holded ha omitido el cursor de la página siguiente.",
+        "REPEATED_CURSOR": "Holded ha repetido un cursor de paginación.",
+        "INVALID_MOVEMENT_ID": "Un movimiento tenía un identificador no válido.",
+        "ACCOUNT_MISMATCH": "Un movimiento pertenecía a otra cuenta de tesorería.",
+        "INVALID_BOOKING_DATE": "Un movimiento tenía una fecha contable no válida.",
+        "INVALID_VALUE_DATE": "Un movimiento tenía una fecha valor no válida.",
+        "INVALID_AMOUNT": "Un movimiento tenía un importe no válido.",
+        "ZERO_AMOUNT": "Se ha excluido un movimiento de importe cero.",
+        "INVALID_CURRENCY": "Un movimiento utilizaba una divisa no admitida.",
+        "DESCRIPTION_TOO_LONG": "La descripción de un movimiento superaba la longitud permitida.",
+        "CONFIRMED_MATCH_CHANGED": "Un movimiento confirmado ha cambiado y requiere revisión."
+      },
+      "errors": {
+        "unauthenticated": "Tu sesión ha caducado. Inicia sesión de nuevo.",
+        "forbidden": "No tienes permiso para solicitar una actualización bancaria.",
+        "not_configured": "Configura una cuenta de tesorería antes de actualizar.",
+        "rate_limited": "Espera antes de solicitar otra actualización.",
+        "invalid": "La solicitud de actualización no es válida.",
+        "unknown": "No se ha podido solicitar la actualización. Inténtalo de nuevo."
+      }
+    },
+    "pagination": {
+      "previous": "Página anterior",
+      "next": "Página siguiente",
+      "summary": "Página {page} de {pages}"
+    }
+  },
   "Bookings": {
     "queue": {
       "title": "Solicitudes de reserva",
@@ -783,6 +933,11 @@
       "openEstimate": "Ver el presupuesto",
       "openInHolded": "Ver en Holded",
       "deliveryUnknown": "Holded podría haber enviado este presupuesto, pero no ha confirmado el resultado. Compruébalo en Holded antes de realizar ninguna acción; no se volverá a enviar automáticamente.",
+      "reserveInvoiceProcessing": "La factura de reserva está pendiente de emisión o envío.",
+      "reserveInvoiceSent": "La factura de reserva está aprobada y enviada.",
+      "reserveInvoiceBlocked": "La emisión de la factura de reserva está bloqueada porque los datos existentes en Holded requieren revisión.",
+      "reserveInvoiceUnknown": "Holded podría haber creado la factura de reserva, pero no ha confirmado el resultado. Compruébalo en Holded antes de realizar ninguna acción; no se volverá a crear automáticamente.",
+      "reserveInvoiceDeliveryUnknown": "Holded podría haber enviado la factura de reserva, pero no ha confirmado el resultado. Compruébalo en Holded antes de realizar ninguna acción; no se volverá a enviar automáticamente.",
       "noPayments": "Todavía no se ha registrado ningún pago.",
       "taxId": "NIF",
       "email": "Correo",
@@ -806,6 +961,38 @@
       "receivedAtLabel": "Recibido el",
       "referenceLabel": "Concepto de la transferencia",
       "submit": "Guardar"
+    },
+    "bankCandidates": {
+      "title": "Ingresos bancarios coincidentes",
+      "range": "Desde la creación del presupuesto · margen del 5 %",
+      "empty": "Todavía no hay ningún ingreso sin vincular que coincida con esta reserva.",
+      "date": "Fecha",
+      "concept": "Concepto",
+      "amount": "Recibido",
+      "expected": "Esperado",
+      "difference": "Diferencia",
+      "reference": "Referencia del presupuesto",
+      "actions": "Acciones",
+      "noConcept": "Sin concepto",
+      "exact": "Exacto",
+      "referenceFound": "Referencia del presupuesto encontrada",
+      "referenceMissing": "No se ha encontrado la referencia del presupuesto",
+      "link": "Vincular pago",
+      "dismiss": "Descartar",
+      "confirmed": "Pago vinculado y reserva confirmada.",
+      "dismissed": "Ingreso descartado para esta reserva.",
+      "errors": {
+        "unauthenticated": "Tu sesión ha caducado. Vuelve a iniciar sesión.",
+        "forbidden": "No tienes permiso para esta acción.",
+        "invalid": "El ingreso seleccionado no es válido.",
+        "not_found": "Este ingreso ya no está disponible.",
+        "state_changed": "La reserva ha cambiado. Recarga la página.",
+        "proposal_changed": "Otra persona ya ha revisado este ingreso.",
+        "movement_ineligible": "El ingreso ya no cumple las reglas de fecha o moneda.",
+        "amount_mismatch": "El ingreso ya no está dentro del 5 % del importe esperado.",
+        "movement_already_used": "Este ingreso ya está vinculado a otro pago.",
+        "unknown": "No se ha podido vincular el ingreso."
+      }
     },
     "states": {
       "IN_REVIEW": "En revisión",
@@ -848,6 +1035,7 @@
     "holdedEstimates": {
       "title": "Presupuestos del contacto en Holded",
       "none": "Este contacto no tiene ningún presupuesto en Holded con estas fechas.",
+      "unnumbered": "Presupuesto sin número",
       "hint": "El presupuesto es el contrato, así que vincular uno aprueba la solicitud.",
       "link": "Vincular a esta solicitud"
     },
@@ -901,6 +1089,34 @@
           "no_key": "Guarda la clave de API y las listas de Holded se cargarán en los desplegables.",
           "unauthorized": "Holded ha rechazado la clave o le faltan permisos de lectura, así que los desplegables están vacíos.",
           "unavailable": "No se ha podido contactar con Holded, así que los desplegables están vacíos. Inténtalo de nuevo más tarde."
+        }
+      },
+      "treasury": {
+        "title": "Cuenta bancaria",
+        "description": "Elige la cuenta de Holded cuyos movimientos en EUR importará Bereius para la conciliación.",
+        "account": "Cuenta bancaria de Holded",
+        "choose": "Elige una cuenta",
+        "accountUnavailable": "No hay cuentas en EUR disponibles",
+        "importStartDate": "Importar movimientos desde",
+        "importStartDateHint": "La primera importación puede incluir hasta los 90 días anteriores.",
+        "importStartDateLocked": "Esta fecha es fija porque ya se ha iniciado una importación.",
+        "save": "Guardar cuenta bancaria",
+        "saving": "Guardando…",
+        "saved": "Cuenta bancaria guardada y sincronización en cola.",
+        "availability": {
+          "not_configured": "Guarda la clave de API de Holded antes de elegir una cuenta bancaria.",
+          "unauthorized": "Holded ha rechazado la clave o le faltan permisos de lectura de tesorería.",
+          "unavailable": "No se han podido cargar las cuentas bancarias de Holded. Inténtalo de nuevo en breve."
+        },
+        "errors": {
+          "unauthenticated": "Vuelve a iniciar sesión antes de guardar la cuenta bancaria.",
+          "forbidden": "Solo los administradores pueden cambiar la cuenta bancaria.",
+          "invalid": "Elige una cuenta y una fecha de inicio válidas.",
+          "not_configured": "Guarda la clave de API de Holded antes de elegir una cuenta bancaria.",
+          "account_unavailable": "La cuenta está archivada, no está en EUR o ya no está disponible.",
+          "start_date_locked": "La fecha de inicio no puede cambiar después de comenzar la sincronización.",
+          "connection": "No se ha podido contactar con Holded. Inténtalo de nuevo en breve.",
+          "unknown": "No se ha podido guardar la cuenta bancaria. Inténtalo de nuevo."
         }
       },
       "gravityForms": {

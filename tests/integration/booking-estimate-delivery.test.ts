@@ -14,9 +14,9 @@ import {
   type HoldedClient,
 } from "@/lib/holded/client";
 import {
-  deliverPreparedEstimate,
-  prepareEstimateDelivery,
-} from "@/modules/booking/services/estimate-delivery";
+  deliverPreparedDocument,
+  prepareDocumentDelivery,
+} from "@/modules/booking/services/document-delivery";
 
 describe.skipIf(!runIntegrationTests)("estimate delivery persistence", () => {
   const customerIds: string[] = [];
@@ -63,7 +63,10 @@ describe.skipIf(!runIntegrationTests)("estimate delivery persistence", () => {
   function holdedSender(
     implementation: HoldedClient["sendEstimate"] = vi.fn(async () => undefined),
   ) {
-    return { sendEstimate: vi.fn(implementation) };
+    return {
+      sendEstimate: vi.fn(implementation),
+      sendInvoice: vi.fn(async () => undefined),
+    };
   }
 
   afterEach(async () => {
@@ -84,8 +87,8 @@ describe.skipIf(!runIntegrationTests)("estimate delivery persistence", () => {
       "alpha@example.test",
     ]);
 
-    const first = await prepareEstimateDelivery(document.id, holded);
-    const second = await prepareEstimateDelivery(document.id, holded);
+    const first = await prepareDocumentDelivery(document.id, holded);
+    const second = await prepareDocumentDelivery(document.id, holded);
 
     expect(first).toMatchObject({
       status: "PREPARED",
@@ -95,7 +98,7 @@ describe.skipIf(!runIntegrationTests)("estimate delivery persistence", () => {
     expect(second).toEqual(first);
     expect(holded.listDelegateEmails).toHaveBeenCalledTimes(1);
     await expect(
-      db.estimateDelivery.count({ where: { holdedDocumentId: document.id } }),
+      db.documentDelivery.count({ where: { holdedDocumentId: document.id } }),
     ).resolves.toBe(1);
   });
 
@@ -107,22 +110,22 @@ describe.skipIf(!runIntegrationTests)("estimate delivery persistence", () => {
       }),
     };
 
-    await expect(prepareEstimateDelivery(document.id, holded)).rejects.toThrow("offline");
+    await expect(prepareDocumentDelivery(document.id, holded)).rejects.toThrow("offline");
     await expect(
-      db.estimateDelivery.count({ where: { holdedDocumentId: document.id } }),
+      db.documentDelivery.count({ where: { holdedDocumentId: document.id } }),
     ).resolves.toBe(0);
   });
 
   it("records acceptance and suppresses every later send", async () => {
     const { document } = await fixture();
-    await prepareEstimateDelivery(document.id, holdedDelegates());
+    await prepareDocumentDelivery(document.id, holdedDelegates());
     const holded = holdedSender();
 
     await expect(
-      deliverPreparedEstimate(document.id, holded, "template-1"),
+      deliverPreparedDocument(document.id, holded, "template-1"),
     ).resolves.toBe("accepted");
     await expect(
-      deliverPreparedEstimate(document.id, holded, "template-1"),
+      deliverPreparedDocument(document.id, holded, "template-1"),
     ).resolves.toBe("accepted");
 
     expect(holded.sendEstimate).toHaveBeenCalledTimes(1);
@@ -132,7 +135,7 @@ describe.skipIf(!runIntegrationTests)("estimate delivery persistence", () => {
       "template-1",
     );
     await expect(
-      db.estimateDelivery.findUniqueOrThrow({
+      db.documentDelivery.findUniqueOrThrow({
         where: { holdedDocumentId: document.id },
       }),
     ).resolves.toMatchObject({ status: "ACCEPTED", acceptedAt: expect.any(Date) });
@@ -143,7 +146,7 @@ describe.skipIf(!runIntegrationTests)("estimate delivery persistence", () => {
 
   it("retries a definitive refusal with the same frozen recipients", async () => {
     const { document } = await fixture();
-    await prepareEstimateDelivery(
+    await prepareDocumentDelivery(
       document.id,
       holdedDelegates(["delegate@example.test"]),
     );
@@ -155,15 +158,15 @@ describe.skipIf(!runIntegrationTests)("estimate delivery persistence", () => {
       );
     });
 
-    await expect(deliverPreparedEstimate(document.id, refused)).rejects.toThrow();
+    await expect(deliverPreparedDocument(document.id, refused)).rejects.toThrow();
     await expect(
-      db.estimateDelivery.findUniqueOrThrow({
+      db.documentDelivery.findUniqueOrThrow({
         where: { holdedDocumentId: document.id },
       }),
     ).resolves.toMatchObject({ status: "FAILED", lastFailureCode: "invalid_request" });
 
     const retry = holdedSender();
-    await deliverPreparedEstimate(document.id, retry);
+    await deliverPreparedDocument(document.id, retry);
 
     expect(retry.sendEstimate).toHaveBeenCalledWith(
       document.holdedId,
@@ -177,14 +180,14 @@ describe.skipIf(!runIntegrationTests)("estimate delivery persistence", () => {
 
   it("parks an unknown outcome and never sends it automatically again", async () => {
     const { document } = await fixture();
-    await prepareEstimateDelivery(document.id, holdedDelegates());
+    await prepareDocumentDelivery(document.id, holdedDelegates());
     const ambiguous = holdedSender(async () => {
       throw new HoldedDeliveryError("unavailable", "unknown", "timeout");
     });
 
-    await expect(deliverPreparedEstimate(document.id, ambiguous)).rejects.toThrow();
+    await expect(deliverPreparedDocument(document.id, ambiguous)).rejects.toThrow();
     await expect(
-      db.estimateDelivery.findUniqueOrThrow({
+      db.documentDelivery.findUniqueOrThrow({
         where: { holdedDocumentId: document.id },
       }),
     ).resolves.toMatchObject({
@@ -193,23 +196,23 @@ describe.skipIf(!runIntegrationTests)("estimate delivery persistence", () => {
     });
 
     const retry = holdedSender();
-    await expect(deliverPreparedEstimate(document.id, retry)).resolves.toBe("unknown");
+    await expect(deliverPreparedDocument(document.id, retry)).resolves.toBe("unknown");
     expect(retry.sendEstimate).not.toHaveBeenCalled();
   });
 
   it("parks an interrupted in-flight attempt instead of resending it", async () => {
     const { document } = await fixture();
-    await prepareEstimateDelivery(document.id, holdedDelegates());
-    await db.estimateDelivery.update({
+    await prepareDocumentDelivery(document.id, holdedDelegates());
+    await db.documentDelivery.update({
       where: { holdedDocumentId: document.id },
       data: { status: "IN_FLIGHT", attemptedAt: new Date() },
     });
     const retry = holdedSender();
 
-    await expect(deliverPreparedEstimate(document.id, retry)).resolves.toBe("unknown");
+    await expect(deliverPreparedDocument(document.id, retry)).resolves.toBe("unknown");
     expect(retry.sendEstimate).not.toHaveBeenCalled();
     await expect(
-      db.estimateDelivery.findUniqueOrThrow({
+      db.documentDelivery.findUniqueOrThrow({
         where: { holdedDocumentId: document.id },
       }),
     ).resolves.toMatchObject({ status: "UNKNOWN" });

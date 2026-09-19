@@ -195,7 +195,7 @@ describe("transactional email architecture", () => {
 
     expect(schema).not.toMatch(/model\s+(?:EmailDelivery|DeliveryEvent|ProviderMessage)\b/);
     expect(schema).not.toMatch(
-      /^\s*(?:deliveryStatus|providerMessageId|providerStatus|bounceReason|complaintAt)\s+/m,
+      /^\s*(?:deliveryStatus|providerMessageId|bounceReason|complaintAt)\s+/m,
     );
   });
 

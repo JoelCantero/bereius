@@ -19,9 +19,26 @@ delegate assumptions in this document without changing booking intake:
   principal-scoped, technically marked people without writing the fiscal contact. Pending
   delegates are not projected.
 - Bereius has no WordPress endpoint, credentials or local delegate directory. It reads the linked
-  principal-scoped Holded people immediately before freezing estimate recipients.
-- Estimate delivery follows that feature's fiscal-primary plus active-delegate-CC policy and its
-  explicit delivery state machine. Invoice and other booking-message recipients are unchanged.
+  principal-scoped Holded people immediately before freezing commercial-document recipients.
+- Estimate and reserve-invoice delivery follow that feature's fiscal-primary plus
+  active-delegate-CC policy and its explicit delivery state machine. Other booking-message
+  recipients are unchanged.
+
+## Amendment — 2026-09-17
+
+Feature [`20260916-holded-bank-movements`](../20260916-holded-bank-movements/spec.md) now owns the
+reserve-invoice trigger and supersedes every statement below that creates it during approval:
+
+- Approval creates, approves, and sends the estimate only; no invoice exists before payment.
+- Automatic proposals remain exact and require the literal estimate reference. The booking detail
+  separately permits explicit selection of unlinked EUR income within an inclusive ±5%; concept
+  text ranks candidates but does not make them eligible.
+- Confirming either bank-backed path stores the actual received amount and atomically queues one
+  reserve invoice. Manual payment entry remains exact and does not issue one.
+- The reserve invoice uses the agreed advance with 10% VAT and a separate non-subject deposit line,
+  both dated at linkage; it is approved and sent to fiscal To plus active delegate CC recipients.
+- Compatible invoices are reused, incompatible ones block processing, and uncertain creation or
+  delivery outcomes are never repeated automatically.
 
 ## Overview
 
@@ -74,6 +91,13 @@ routing and isolation are out of scope for this version.
 
 ## Domain model
 
+> **Superseded banking design (2026-09-16):** The `BankConnection`, `BankTransaction` and
+> Enable Banking passages below are retained as historical context only. The current banking model,
+> requirements and rollout are defined by
+> [`../20260916-holded-bank-movements/spec.md`](../20260916-holded-bank-movements/spec.md): Holded is
+> the sole read-only movement source, represented by treasury accounts, movements, synchronization
+> runs/incidents and explicit reconciliation proposals.
+
 | Entity | Purpose |
 |---|---|
 | `Organisation` | Owning entity of every record. Single row for now. |
@@ -81,10 +105,10 @@ routing and isolation are out of scope for this version.
 | `BookingRequest` | The core aggregate: dates, headcount, board type, lifecycle state, decision metadata. |
 | `Quote` | Holded estimate issued on approval. Stores the Holded identifier, amount and payment deadline. It also serves as the contract: it carries the full booking detail, and the payment instructions live in its footer. |
 | `Payment` | Recorded bank transfer covering the advance and the security deposit. |
-| `BankConnection` | Enable Banking consent session: session identifier, connected accounts and expiry. |
-| `BankTransaction` | Incoming credit read from the bank account, stored once, keyed by its entry reference. |
-| `PaymentMatch` | Proposed link between a `BankTransaction` and a `BookingRequest`, with confidence and confirmation state. |
-| `Invoice` | Holded invoice. Two kinds: the reserve invoice issued at approval and the closing invoice issued after the stay. |
+| `BankConnection` | **Superseded:** historical Enable Banking consent model; not part of the current Holded design. |
+| `BankTransaction` | **Superseded:** historical transaction model, replaced by account-scoped Holded bank movements. |
+| `PaymentMatch` | **Superseded name:** the current design uses explicit Holded movement reconciliation proposals. |
+| `Invoice` | Holded invoice. Two kinds: the reserve invoice issued after a bank movement confirms payment and the closing invoice issued after the stay. |
 | `CalendarEvent` | Block pushed to the WordPress calendar for a confirmed booking. |
 | `AuditEvent` | Append-only record of every transition: actor, timestamp, previous and new state, reason. |
 | `BookingMailSettings` | SMTP configuration for the booking mail channel, with the password encrypted at rest. |
@@ -124,9 +148,10 @@ Board type is an enumeration: full board (*pensio completa*, `pc`) or self-cater
 ```
 
 There is no separate `approved` state. Approving *is* asking for the deposit: the request moves
-straight to `awaiting_payment`, the payment deadline is set, and the estimate and reserve invoice
-are issued in Holded through the outbox. A state whose only exit is automatic would be a state a
-booking could only be observed in by accident.
+straight to `awaiting_payment`, the payment deadline is set, and the estimate is issued in Holded
+through the outbox. The reserve invoice is deferred until an operator links an imported bank
+movement and the booking becomes `confirmed`. A state whose only exit is automatic would be a state
+a booking could only be observed in by accident.
 
 `cancelled` is reachable from `awaiting_payment` and `confirmed`, and always requires a
 reason. Every transition writes an `AuditEvent`.
@@ -174,7 +199,7 @@ Approving or rejecting is a single action from that screen. Rejection requires a
 recorded and sent to the requester. In the n8n flow the rejection branch was never wired up, so a
 rejected request silently disappeared.
 
-### 3. Quote and reserve invoice
+### 3. Quote
 
 On approval the application, in order:
 
@@ -182,23 +207,21 @@ On approval the application, in order:
    contact list as the current workflow does.
 2. Creates the contact when absent, or updates the email when it differs from the submission.
 3. Resolves the rate (see *Pricing*) and issues the Holded estimate, numbered but still a draft.
-4. Issues the reserve invoice covering the advance and the security deposit.
-5. Rewrites the estimate lines so the advance and the deposit appear deducted, leaving the balance
+4. Rewrites the estimate lines so the advance and the deposit appear deducted, leaving the balance
    payable after the stay.
-6. Approves the estimate, which takes it out of draft, and asks Holded to send it using the
+5. Approves the estimate, which takes it out of draft, and asks Holded to send it using the
   configured mail template and the recipient policy defined by the 2026-09-12 amendment.
-7. Stores the returned Holded identifiers on the `BookingRequest`.
+6. Stores the returned Holded identifier on the `BookingRequest`.
 
 The estimate is sent last, once it already shows the deducted balance, so the requester never
 receives a document that is about to be rewritten.
 
 Each step runs through the outbox: if Holded is unavailable the approval is still recorded and the
 call is retried with backoff, rather than losing the decision. Steps are idempotent, keyed by the
-booking request, so a retry never duplicates a contact, an estimate or an invoice.
+booking request, so a retry never duplicates a contact or estimate.
 
-This sequence is where the current workflow is most fragile. It performs four dependent Holded
-calls with no transaction and no compensation: a failure after the invoice is issued leaves it
-standing against an estimate that still shows the full amount, and nobody is notified.
+This sequence is where the current workflow is most fragile. It performs dependent Holded calls
+with no transaction and no compensation; Bereius persists each step before advancing.
 
 ## Email responsibilities
 
@@ -207,7 +230,7 @@ Commercial documents and operational notices travel by different paths, delibera
 | Message | Sent by | When |
 |---|---|---|
 | Acknowledgement of receipt | Gravity Forms notification | On submission, before the application has seen the entry |
-| Estimate and invoices | Holded, using its mail templates | On approval and after the stay; estimate copies follow the 2026-09-12 delegate policy |
+| Estimate and invoices | Holded, using its mail templates | Estimate on approval, reserve invoice after bank linkage, closing invoice after the stay; estimate and reserve-invoice copies follow the 2026-09-12 delegate policy |
 | Booking confirmation | Application, over SMTP as `hola@berea.cat` | When an operator confirms the payment match |
 | Rejection, cancellation, expiry notices | Application, over SMTP as `hola@berea.cat` | On the corresponding transition |
 | Operator notifications | Application, over SMTP as `hola@berea.cat` | New request pending review, proposed payment match, consent about to expire |
@@ -278,18 +301,32 @@ whether the estimate reached the customer. Those messages do not appear in its s
 cannot be diagnosed with its own tooling. When a customer reports not receiving a quote, the answer
 is in Holded.
 
-The application records that delivery was requested, along with the Holded response, so at least the
-handover point is auditable.
+The application freezes recipients and records whether delivery is prepared, in flight, accepted,
+definitively failed, or uncertain. It does not retain an opaque Holded response.
 
 ### 4. Payment and confirmation
 
-The advance and the security deposit are payable within **three days** of approval. The reserve
-invoice carries that same due date; the retired workflow issued it at seven days while the stated
-rule was three, and the application uses a single figure for both.
+The advance and the security deposit are payable within **three days** of approval. The estimate
+states that deadline. The reserve invoice is created only after an operator links a qualifying bank
+movement, with both its issue and due dates set to that linkage timestamp.
 
 While a request waits for payment the application polls the bank account and proposes matches for
 incoming credits. An operator confirms the match, which moves the request to `confirmed`. On
-confirmation the dates are blocked in the calendar and the requester receives a confirmation email.
+confirmation the actual received amount is stored, the dates are blocked in the calendar, the
+requester receives a confirmation email, and reserve-invoice issuance is queued atomically.
+
+Automatic proposals require the literal estimate reference and the exact agreed total. The booking
+detail also exposes unlinked EUR income dated on or after the estimate creation date within an
+inclusive ±5% of that total. Reference text affects candidate order only. Explicit selection is revalidated in the write
+transaction; manual payment entry remains exact and does not trigger a reserve invoice.
+
+The reserve invoice always bills the agreed values, not any tolerated overpayment or underpayment:
+one advance line with 10% VAT and one separate deposit line that is non-subject to VAT. Bereius uses
+series `F`, approves the invoice, freezes the fiscal primary plus active delegate copies, and asks
+Holded to send it. A compatible existing invoice is reused; an incompatible one blocks processing.
+Compatibility uses the exact economic amounts and tax treatment after normalizing Holded's
+document-level tax mode. Creation and delivery have separate persisted states, and an uncertain
+provider outcome is never retried blindly.
 
 A scheduled job expires requests that reach the deadline without a confirmed payment, which releases
 the dates.
@@ -362,7 +399,7 @@ Two distinct concepts, which the original workflow keeps separate and which must
 | Concept | Amount | Nature |
 |---|---|---|
 | Advance (*bestreta*) | 30% of `unit price x units`, VAT included at 10% | Payment on account, deducted from the final balance |
-| Security deposit (*diposit*) | 200 EUR, fixed | Refundable after the stay if the house is left in order |
+| Security deposit (*diposit*) | Price of the configured Holded deposit service | Refundable after the stay if the house is left in order |
 
 The amount required to confirm a booking is the sum of both, payable within three days of approval.
 The estimate is then rewritten with both as negative lines, so it displays the balance still owed.
@@ -372,9 +409,10 @@ The deposit is refunded within seven working days of the stay ending.
 ### Monetary handling
 
 Amounts are held as integer minor units or an exact decimal type, never as floating point. The
-workflow computes `subtotal = amount / 1.10` in JavaScript numbers, which produces values such as
-`1963.6363636363637` and leaves rounding to Holded. The application rounds explicitly at a defined
-precision before sending.
+application creates Holded documents with tax-inclusive prices, so the VAT-bearing advance line
+uses the agreed gross amount without dividing it by `1.10`. When checking a historical
+tax-exclusive invoice, the application converts its taxable line to a gross amount and rounds
+explicitly to integer cents before comparison.
 
 ## Calendar synchronisation
 
@@ -401,6 +439,13 @@ Constraints this imposes:
   it cannot drift away from the database.
 
 ## Bank reconciliation
+
+> **Superseded section (2026-09-16):** This section documents the former Enable Banking proposal and
+> is not an implementation requirement. Holded is now the sole bank-movement source; see
+> [`../20260916-holded-bank-movements/spec.md`](../20260916-holded-bank-movements/spec.md). There is no
+> consent callback or Enable Banking credential in the current architecture. The principles that
+> remain current are read-only access, exact matching proposals, explicit human confirmation and a
+> fresh-evidence check before booking expiry.
 
 The application reads the Berea bank account through Enable Banking, an account information service
 under PSD2, to detect the transfers that confirm bookings. It has read access only: it can never
@@ -440,7 +485,7 @@ A credit is matched on two conditions, both required:
 
 1. **The transfer reference contains the estimate identifier.** The estimate footer instructs the
    customer to quote it, and it is the same identifier that names the contract.
-2. **The amount equals the expected total exactly** — the advance plus the 200 EUR deposit, to the
+2. **The amount equals the expected total exactly** — the advance plus the configured deposit, to the
    cent.
 
 Anything else goes to manual review: a credit whose reference is missing or unreadable, a partial
@@ -481,8 +526,13 @@ a booking is never released while a valid payment sits unread.
 - Bank transactions are stored once, keyed by entry reference, and a transaction can back at most one
   confirmed payment.
 - Payment matches are proposed automatically and confirmed by a person, never applied silently.
-- A match requires both the estimate identifier in the transfer reference and an exact amount;
-  everything else is queued for manual review.
+- An automatic proposal requires both the literal estimate identifier and an exact amount. Explicit
+  booking candidates allow an inclusive ±5% amount range from approval onward; concept text ranks
+  but does not qualify them, and an operator must select one.
+- Bank-backed confirmation stores the actual movement amount and atomically queues one reserve
+  invoice for the agreed advance and non-subject deposit. Manual payments stay exact and invoice-free.
+- Reserve-invoice creation, approval, and delivery are idempotent; incompatible existing documents
+  block, and uncertain provider writes require operator review instead of automatic repetition.
 - Operators can filter requests by state and search by customer, tax identifier and date range.
 
 ### Non-functional
@@ -543,7 +593,7 @@ Five distinct secrets exist, each with a different blast radius:
 | Secret | If leaked | Storage |
 |---|---|---|
 | Booking envelope key | Nothing on its own; it decrypts the stored credentials | Environment only |
-| Enable Banking RSA private key | Read access to the bank account | Database, encrypted |
+| Enable Banking RSA private key | **Superseded and unused:** former read access to the bank account | Not stored by the current application |
 | Holded API key | Read and write on invoicing, including issuing documents | Database, encrypted |
 | Gravity Forms API credentials | Read access to every form submission | Database, encrypted |
 | Booking SMTP password | Ability to send mail as the organisation | Database, encrypted |
@@ -591,13 +641,13 @@ credentials.
 | Automated junk submissions through the public form | Review queue flooded; storage of fabricated personal data | Gravity Forms anti-spam on the WordPress side; rejection is one action and leaves the record auditable |
 | Forged OAuth callback on the bank connection | An attacker binds a consent of their choosing to the application | The `state` parameter is generated by the application and validated before the code is exchanged; the retired workflow skipped this |
 | Stolen operator session | Fraudulent approvals, quotes issued to third parties, bookings confirmed without payment | Passwordless sign-in with single-use challenges; every transition attributed in the audit trail; session management already in the template |
-| Attacker quotes someone else's estimate identifier in a transfer | A booking confirmed by a payment that does not belong to it | Amount must match exactly and a person confirms every match; the audit trail records which transaction backed which booking |
-| Underpayment intended to pass as full payment | Booking confirmed while money is owed | Strict amount matching; anything else goes to manual review |
+| Attacker quotes someone else's estimate identifier in a transfer | A booking confirmed by a payment that does not belong to it | No movement confirms automatically; the operator sees amount, difference and reference evidence, and the audit trail records the selected movement |
+| Underpayment intended to pass as full payment | Booking confirmed while money is owed | Automatic proposals and manual entry remain exact; only an explicit operator choice can accept the visible inclusive ±5% variance, while the invoice retains agreed amounts |
 | Replayed or duplicated form entries | Duplicate bookings and duplicate Holded documents | Idempotency keyed on the Gravity Forms entry identifier; the cursor advances only after commit |
 | Enumeration of the iCalendar feed URL | Occupancy calendar disclosed | Feed carries no personal data; occupancy is already public on the website |
 | Leak of the SMTP password from the database | Mail sent impersonating the organisation | Encrypted at rest with an environment-held key; never rendered back to the browser |
 | Database dump containing every integration credential | Full access to invoicing, form submissions and the bank | Credentials are encrypted with an envelope key held only in the environment, so a dump alone is not enough |
-| Holded call storm from retry loops | API quota exhausted, documents duplicated | Outbox with bounded attempts and backoff; every operation idempotent per booking |
+| Holded call storm from retry loops | API quota exhausted, documents duplicated | Outbox with bounded attempts and backoff; known identifiers permit reconciliation, while uncertain creates or sends are parked and never repeated automatically |
 | Consent expiry unnoticed | Payments silently stop being detected and bookings expire unpaid | Expiry tracked, administrators warned in advance, connection state visible in settings |
 | Personal data retained indefinitely | Regulatory exposure, larger breach impact | Scheduled anonymisation on the retention schedule |
 
@@ -648,7 +698,7 @@ The work ships in four phases, each independently useful and independently verif
 ### Phase 1 — Booking pipeline
 
 Schema and lifecycle, hourly intake from Gravity Forms, operator roles, the review queue with
-approve and reject, the audit trail, the Holded sequence (contact, estimate, reserve invoice) behind
+approve and reject, the audit trail, the Holded sequence (contact and estimate) behind
 the outbox, the booking mail settings screen, and the booking notifications. Payment is recorded by
 hand: an operator marks the transfer as received.
 
@@ -658,11 +708,15 @@ cut-over happens in one step.
 
 **Exit criterion**: n8n is switched off and no booking depends on it.
 
-### Phase 2 — Bank reconciliation
+### Phase 2 — Bank reconciliation (superseded provider design)
 
-The Enable Banking connection, consent expiry monitoring, six-hourly polling, match proposals and
-operator confirmation. Replaces the manual payment recording from phase 1, which remains available
-as the fallback for unmatched credits.
+The former plan called for an Enable Banking connection, consent expiry monitoring, six-hourly
+polling, match proposals and operator confirmation. The provider and consent portions are
+superseded by [`../20260916-holded-bank-movements/spec.md`](../20260916-holded-bank-movements/spec.md),
+which uses the existing Holded integration and explicit human reconciliation. Manual payment
+recording remains available as the exact, invoice-free fallback for unmatched credits. This phase
+also issues, approves, and sends the reserve invoice after an operator confirms a bank-backed
+payment.
 
 **Exit criterion**: a transfer quoting the estimate identifier produces a proposal without anyone
 opening the bank.

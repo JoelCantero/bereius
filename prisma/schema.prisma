@@ -40,10 +40,13 @@ model User {
   sessions         Session[]
   policyAcceptance PolicyAcceptance?
 
-  bookingDecisions    BookingRequest[]      @relation("BookingDecisions")
-  paymentsRecorded    Payment[]             @relation("PaymentsRecorded")
-  bookingAuditEvents  BookingAuditEvent[]   @relation("BookingAuditActor")
-  integrationSettings IntegrationSettings[] @relation("IntegrationSettingsUpdatedBy")
+  bookingDecisions           BookingRequest[]             @relation("BookingDecisions")
+  paymentsRecorded           Payment[]                    @relation("PaymentsRecorded")
+  bookingAuditEvents         BookingAuditEvent[]          @relation("BookingAuditActor")
+  integrationSettings        IntegrationSettings[]        @relation("IntegrationSettingsUpdatedBy")
+  treasuryAccountsConfigured HoldedTreasuryAccount[]      @relation("TreasuryAccountsConfigured")
+  bankSyncRunsRequested      BankSyncRun[]                @relation("BankSyncRunsRequested")
+  bankProposalsDecided       BankReconciliationProposal[] @relation("BankProposalsDecided")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -170,7 +173,7 @@ enum IntegrationProvider {
   BOOKING_MAIL
 }
 
-enum EstimateDeliveryStatus {
+enum DocumentDeliveryStatus {
   PREPARED
   IN_FLIGHT
   ACCEPTED
@@ -178,9 +181,66 @@ enum EstimateDeliveryStatus {
   UNKNOWN
 }
 
+enum DocumentIssuanceStatus {
+  PREPARED
+  IN_FLIGHT
+  ISSUED
+  FAILED
+  BLOCKED
+  UNKNOWN
+}
+
+enum BankMovementDirection {
+  INCOME
+  EXPENSE
+}
+
+enum BankSyncTrigger {
+  SCHEDULED
+  MANUAL
+  EXPIRY
+}
+
+enum BankSyncStatus {
+  QUEUED
+  RUNNING
+  RETRYING
+  SUCCEEDED
+  PARTIAL
+  FAILED
+}
+
+enum BankSyncIncidentCode {
+  PROVIDER_UNAUTHORIZED
+  PROVIDER_NOT_FOUND
+  PROVIDER_RATE_LIMITED
+  PROVIDER_UNAVAILABLE
+  PROVIDER_REQUEST_REJECTED
+  RESPONSE_TOO_LARGE
+  MALFORMED_PAGE
+  MISSING_CURSOR
+  REPEATED_CURSOR
+  INVALID_MOVEMENT_ID
+  ACCOUNT_MISMATCH
+  INVALID_BOOKING_DATE
+  INVALID_VALUE_DATE
+  INVALID_AMOUNT
+  ZERO_AMOUNT
+  INVALID_CURRENCY
+  DESCRIPTION_TOO_LONG
+  CONFIRMED_MATCH_CHANGED
+}
+
+enum BankReconciliationStatus {
+  PENDING
+  CONFIRMED
+  DISMISSED
+  INVALIDATED
+}
+
 model Customer {
-  id                  String                   @id @default(cuid())
-  taxId               String                   @unique
+  id                  String           @id @default(cuid())
+  taxId               String           @unique
   name                String
   email               String
   phone               String?
@@ -194,8 +254,8 @@ model Customer {
   // Replaces the tax identifiers the retired workflow hardcoded in an expression.
   negotiatedServiceId String?
   bookingRequests     BookingRequest[]
-  createdAt           DateTime                 @default(now())
-  updatedAt           DateTime                 @updatedAt
+  createdAt           DateTime         @default(now())
+  updatedAt           DateTime         @updatedAt
 }
 
 model BookingRequest {
@@ -220,13 +280,15 @@ model BookingRequest {
   decidedById    String?
   decisionReason String?
 
-  customer    Customer            @relation(fields: [customerId], references: [id], onDelete: Restrict)
-  decidedBy   User?               @relation("BookingDecisions", fields: [decidedById], references: [id], onDelete: SetNull)
-  documents   HoldedDocument[]
-  payments    Payment[]
-  auditEvents BookingAuditEvent[]
-  createdAt   DateTime            @default(now())
-  updatedAt   DateTime            @updatedAt
+  customer                    Customer                     @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  decidedBy                   User?                        @relation("BookingDecisions", fields: [decidedById], references: [id], onDelete: SetNull)
+  documents                   HoldedDocument[]
+  documentIssuances           DocumentIssuance[]
+  payments                    Payment[]
+  auditEvents                 BookingAuditEvent[]
+  bankReconciliationProposals BankReconciliationProposal[]
+  createdAt                   DateTime                     @default(now())
+  updatedAt                   DateTime                     @updatedAt
 
   @@index([state, createdAt])
   @@index([customerId])
@@ -243,17 +305,18 @@ model HoldedDocument {
   sentAt           DateTime?
   issuedAt         DateTime           @default(now())
 
-  bookingRequest   BookingRequest    @relation(fields: [bookingRequestId], references: [id], onDelete: Cascade)
-  estimateDelivery EstimateDelivery?
+  bookingRequest BookingRequest    @relation(fields: [bookingRequestId], references: [id], onDelete: Cascade)
+  delivery       DocumentDelivery?
+  issuance       DocumentIssuance?
 
   // One document of each kind per booking: the quoting retry cannot duplicate.
   @@unique([bookingRequestId, type])
 }
 
-model EstimateDelivery {
+model DocumentDelivery {
   id               String                 @id @default(cuid())
   holdedDocumentId String                 @unique
-  status           EstimateDeliveryStatus @default(PREPARED)
+  status           DocumentDeliveryStatus @default(PREPARED)
   toEmail          String
   ccEmails         Json
   attemptedAt      DateTime?
@@ -268,6 +331,27 @@ model EstimateDelivery {
   @@index([status, updatedAt])
 }
 
+model DocumentIssuance {
+  id               String                 @id @default(cuid())
+  bookingRequestId String
+  type             HoldedDocumentType
+  holdedDocumentId String?                @unique
+  status           DocumentIssuanceStatus @default(PREPARED)
+  attemptedAt      DateTime?
+  issuedAt         DateTime?
+  blockedAt        DateTime?
+  outcomeUnknownAt DateTime?
+  lastFailureCode  String?
+  createdAt        DateTime               @default(now())
+  updatedAt        DateTime               @updatedAt
+
+  bookingRequest BookingRequest  @relation(fields: [bookingRequestId], references: [id], onDelete: Cascade)
+  holdedDocument HoldedDocument? @relation(fields: [holdedDocumentId], references: [id], onDelete: SetNull)
+
+  @@unique([bookingRequestId, type])
+  @@index([status, updatedAt])
+}
+
 model Payment {
   id               String   @id @default(cuid())
   bookingRequestId String
@@ -275,10 +359,12 @@ model Payment {
   receivedAt       DateTime
   reference        String?
   recordedById     String?
+  bankMovementId   String?  @unique
   createdAt        DateTime @default(now())
 
   bookingRequest BookingRequest @relation(fields: [bookingRequestId], references: [id], onDelete: Cascade)
   recordedBy     User?          @relation("PaymentsRecorded", fields: [recordedById], references: [id], onDelete: SetNull)
+  bankMovement   BankMovement?  @relation(fields: [bankMovementId], references: [id], onDelete: Restrict)
 
   @@index([bookingRequestId])
 }
@@ -333,6 +419,128 @@ model IntegrationSettings {
   updatedAt        DateTime            @updatedAt
 
   updatedBy User? @relation("IntegrationSettingsUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
+}
+
+model HoldedTreasuryAccount {
+  id                 String    @id @default(cuid())
+  holdedAccountId    String    @unique
+  displayName        String
+  currency           String
+  importStartDate    DateTime  @db.Date
+  retentionFloorDate DateTime? @db.Date
+  active             Boolean   @default(false)
+  configuredById     String?
+  nextScheduledAt    DateTime
+  lastAttemptAt      DateTime?
+  lastSuccessfulAt   DateTime?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  configuredBy User?          @relation("TreasuryAccountsConfigured", fields: [configuredById], references: [id], onDelete: SetNull)
+  movements    BankMovement[]
+  syncRuns     BankSyncRun[]
+
+  @@index([active, nextScheduledAt])
+}
+
+model BankMovement {
+  id               String                @id @default(cuid())
+  accountId        String
+  holdedMovementId String
+  bookingDate      DateTime              @db.Date
+  valueDate        DateTime?             @db.Date
+  narrative        String?               @db.Text
+  amountMinor      BigInt
+  currency         String
+  providerStatus   String?
+  direction        BankMovementDirection
+  firstSeenAt      DateTime
+  lastSeenAt       DateTime
+  createdAt        DateTime              @default(now())
+  updatedAt        DateTime              @updatedAt
+
+  account   HoldedTreasuryAccount        @relation(fields: [accountId], references: [id], onDelete: Restrict)
+  proposals BankReconciliationProposal[]
+  payment   Payment?
+
+  @@unique([accountId, holdedMovementId])
+  @@index([bookingDate(sort: Desc), holdedMovementId])
+  @@index([accountId, bookingDate(sort: Desc)])
+  @@index([direction, bookingDate(sort: Desc)])
+  @@index([currency, bookingDate(sort: Desc)])
+}
+
+model BankSyncRun {
+  id                      String                @id @default(cuid())
+  accountId               String
+  trigger                 BankSyncTrigger
+  status                  BankSyncStatus        @default(QUEUED)
+  requestedById           String?
+  resumedFromRunId        String?
+  windowStartDate         DateTime              @db.Date
+  nextCursor              String?               @db.Text
+  lastProcessedMovementId String?
+  pageCount               Int                   @default(0)
+  itemCount               Int                   @default(0)
+  insertedCount           Int                   @default(0)
+  updatedCount            Int                   @default(0)
+  unchangedCount          Int                   @default(0)
+  incidentCount           Int                   @default(0)
+  attemptCount            Int                   @default(0)
+  nextAttemptAt           DateTime              @default(now())
+  leaseToken              String?
+  leaseExpiresAt          DateTime?
+  heartbeatAt             DateTime?
+  failureCode             BankSyncIncidentCode?
+  startedAt               DateTime?
+  exhaustedAt             DateTime?
+  finishedAt              DateTime?
+  createdAt               DateTime              @default(now())
+  updatedAt               DateTime              @updatedAt
+
+  account     HoldedTreasuryAccount @relation(fields: [accountId], references: [id], onDelete: Restrict)
+  requestedBy User?                 @relation("BankSyncRunsRequested", fields: [requestedById], references: [id], onDelete: SetNull)
+  resumedFrom BankSyncRun?          @relation("BankSyncRunResumption", fields: [resumedFromRunId], references: [id], onDelete: SetNull)
+  resumedRuns BankSyncRun[]         @relation("BankSyncRunResumption")
+  incidents   BankSyncIncident[]
+
+  @@index([status, nextAttemptAt])
+  @@index([accountId, createdAt(sort: Desc)])
+}
+
+model BankSyncIncident {
+  id               String               @id @default(cuid())
+  runId            String
+  code             BankSyncIncidentCode
+  pageNumber       Int
+  itemIndex        Int?
+  holdedMovementId String?
+  createdAt        DateTime             @default(now())
+
+  run BankSyncRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+
+  @@index([runId, createdAt])
+}
+
+model BankReconciliationProposal {
+  id               String                   @id @default(cuid())
+  movementId       String
+  bookingRequestId String
+  status           BankReconciliationStatus @default(PENDING)
+  decidedById      String?
+  decidedAt        DateTime?
+  invalidatedAt    DateTime?
+  invalidationCode String?
+  createdAt        DateTime                 @default(now())
+  updatedAt        DateTime                 @updatedAt
+
+  movement       BankMovement   @relation(fields: [movementId], references: [id], onDelete: Restrict)
+  bookingRequest BookingRequest @relation(fields: [bookingRequestId], references: [id], onDelete: Restrict)
+  decidedBy      User?          @relation("BankProposalsDecided", fields: [decidedById], references: [id], onDelete: SetNull)
+
+  @@unique([movementId, bookingRequestId])
+  @@index([status, createdAt(sort: Desc)])
+  @@index([bookingRequestId, status])
 }
 
 model IntakeCursor {

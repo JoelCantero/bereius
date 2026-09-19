@@ -1,4 +1,5 @@
 import { render, screen } from "@testing-library/react";
+import { NextIntlClientProvider } from "next-intl";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import enMessages from "@/messages/en.json";
@@ -7,6 +8,7 @@ vi.mock("server-only", () => ({}));
 
 const mocks = vi.hoisted(() => ({
   getBookingDetail: vi.fn(),
+  listBookingPaymentCandidates: vi.fn(),
   inspectCustomerContact: vi.fn(),
   requireBookingActor: vi.fn(),
   getTranslations: vi.fn(),
@@ -50,6 +52,13 @@ vi.mock("@/modules/booking/services/contact-sync", () => ({
 vi.mock("@/modules/booking/services/queries", () => ({
   getBookingDetail: mocks.getBookingDetail,
 }));
+vi.mock("@/modules/banking/services/queries", () => ({
+  listBookingPaymentCandidates: mocks.listBookingPaymentCandidates,
+}));
+vi.mock("@/modules/banking/actions/reconciliation", () => ({
+  confirmBookingPaymentCandidateAction: vi.fn(),
+  dismissBookingPaymentCandidateAction: vi.fn(),
+}));
 vi.mock("@/modules/booking/actions/contact", () => ({
   createContactAction: vi.fn(),
   linkEstimateAction: vi.fn(),
@@ -91,11 +100,36 @@ function bookingWithDelivery(status: "ACCEPTED" | "UNKNOWN") {
         type: "ESTIMATE",
         holdedId: "estimate-1",
         documentNumber: "P-1",
-        estimateDelivery: { status },
+        delivery: { status },
       },
     ],
+    documentIssuances: [],
     payments: [],
     auditEvents: [],
+  };
+}
+
+function bookingWithReserveInvoice(
+  issuanceStatus: "PREPARED" | "ISSUED" | "BLOCKED" | "UNKNOWN",
+  deliveryStatus?: "ACCEPTED" | "UNKNOWN",
+) {
+  const booking = bookingWithDelivery("ACCEPTED");
+  return {
+    ...booking,
+    documents:
+      issuanceStatus === "ISSUED"
+        ? [
+            ...booking.documents,
+            {
+              id: "document-2",
+              type: "RESERVE_INVOICE",
+              holdedId: "invoice-1",
+              documentNumber: "F-1",
+              delivery: deliveryStatus ? { status: deliveryStatus } : null,
+            },
+          ]
+        : booking.documents,
+    documentIssuances: [{ status: issuanceStatus }],
   };
 }
 
@@ -108,6 +142,7 @@ describe("booking detail estimate delivery warning", () => {
       differences: [],
       estimates: [],
     });
+    mocks.listBookingPaymentCandidates.mockResolvedValue([]);
     mocks.getTranslations.mockResolvedValue(translate);
   });
 
@@ -136,5 +171,150 @@ describe("booking detail estimate delivery warning", () => {
     );
 
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+
+  it.each([
+    ["PREPARED", "reserveInvoiceProcessing"],
+    ["ISSUED", "reserveInvoiceSent"],
+    ["BLOCKED", "reserveInvoiceBlocked"],
+    ["UNKNOWN", "reserveInvoiceUnknown"],
+  ] as const)(
+    "shows the safe reserve invoice status for %s",
+    async (issuanceStatus, messageKey) => {
+      mocks.getBookingDetail.mockResolvedValue(
+        bookingWithReserveInvoice(
+          issuanceStatus,
+          issuanceStatus === "ISSUED" ? "ACCEPTED" : undefined,
+        ),
+      );
+
+      render(
+        await BookingDetailPage({
+          params: Promise.resolve({ locale: "en", id: "booking-1" }),
+        }),
+      );
+
+      expect(screen.getByText(enMessages.Bookings.detail[messageKey])).toBeVisible();
+    },
+  );
+
+  it("shows an unknown invoice delivery without claiming it was sent", async () => {
+    mocks.getBookingDetail.mockResolvedValue(
+      bookingWithReserveInvoice("ISSUED", "UNKNOWN"),
+    );
+
+    render(
+      await BookingDetailPage({
+        params: Promise.resolve({ locale: "en", id: "booking-1" }),
+      }),
+    );
+
+    expect(
+      screen.getByText(enMessages.Bookings.detail.reserveInvoiceDeliveryUnknown),
+    ).toBeVisible();
+    expect(
+      screen.queryByText(enMessages.Bookings.detail.reserveInvoiceSent),
+    ).not.toBeInTheDocument();
+  });
+
+  it("shows the exact amount expected to confirm the booking", async () => {
+    mocks.getBookingDetail.mockResolvedValue(bookingWithDelivery("ACCEPTED"));
+
+    render(
+      await BookingDetailPage({
+        params: Promise.resolve({ locale: "en", id: "booking-1" }),
+      }),
+    );
+
+    const money = new Intl.NumberFormat("en", {
+      style: "currency",
+      currency: "EUR",
+    });
+    expect(screen.getByText(money.format(200))).toBeVisible();
+    expect(screen.getByText(money.format(100))).toBeVisible();
+    expect(screen.getByText(money.format(300))).toBeVisible();
+  });
+
+  it("shows matching bank income while a booking awaits payment", async () => {
+    const money = new Intl.NumberFormat("en", {
+      style: "currency",
+      currency: "EUR",
+    });
+    mocks.getBookingDetail.mockResolvedValue({
+      ...bookingWithDelivery("ACCEPTED"),
+      state: "AWAITING_PAYMENT",
+    });
+    mocks.listBookingPaymentCandidates.mockResolvedValue([
+      {
+        movementId: "movement-1",
+        bookingDate: "2026-09-11",
+        narrative: "Synthetic payment without estimate reference",
+        amountMinor: "31500",
+        expectedAmountMinor: "30000",
+        differenceMinor: "1500",
+        currency: "EUR",
+        estimateReferenceFound: false,
+      },
+    ]);
+
+    const page = await BookingDetailPage({
+      params: Promise.resolve({ locale: "en", id: "booking-1" }),
+    });
+    render(
+      <NextIntlClientProvider locale="en" messages={{ Bookings: enMessages.Bookings }}>
+        {page}
+      </NextIntlClientProvider>,
+    );
+
+    expect(
+      screen.getByRole("heading", { name: "Matching bank income" }),
+    ).toBeVisible();
+    expect(
+      screen.getByText("Synthetic payment without estimate reference"),
+    ).toBeVisible();
+    expect(screen.getByText(money.format(315))).toBeVisible();
+    expect(screen.getAllByText(money.format(300))).toHaveLength(2);
+    expect(screen.getByText(money.format(15))).toBeVisible();
+    expect(screen.getByText("No estimate reference found")).toBeVisible();
+    expect(screen.getByRole("button", { name: "Link payment" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Dismiss" })).toBeEnabled();
+  });
+
+  it("labels an unnumbered estimate without exposing its Holded id", async () => {
+    const holdedId = "6aa65f996fc9e17ce706fe70";
+    mocks.getBookingDetail.mockResolvedValue({
+      ...bookingWithDelivery("ACCEPTED"),
+      state: "IN_REVIEW",
+      documents: [],
+    });
+    mocks.inspectCustomerContact.mockResolvedValue({
+      status: "matches",
+      contactId: "contact-1",
+      differences: [],
+      estimates: [
+        {
+          id: holdedId,
+          number: null,
+          description: "10/05/27 - 12/05/27 - 30 persones PC",
+          date: "2027-05-01",
+          totalCents: 170_001,
+          status: "draft",
+          contactId: "contact-1",
+          contactName: "Example organisation",
+        },
+      ],
+    });
+
+    const page = await BookingDetailPage({
+      params: Promise.resolve({ locale: "en", id: "booking-1" }),
+    });
+    render(
+      <NextIntlClientProvider locale="en" messages={{ Bookings: enMessages.Bookings }}>
+        {page}
+      </NextIntlClientProvider>,
+    );
+
+    expect(screen.getByText("Estimate without number")).toBeVisible();
+    expect(screen.queryByText(holdedId)).not.toBeInTheDocument();
   });
 });

@@ -5,14 +5,14 @@ import { describe, expect, it, vi } from "vitest";
 vi.mock("server-only", () => ({}));
 
 import {
-  EstimateDeliveryError,
-  resolveEstimateRecipients,
-} from "@/modules/booking/services/estimate-delivery";
+  DocumentDeliveryError,
+  resolveDocumentRecipients,
+} from "@/modules/booking/services/document-delivery";
 
 describe("estimate recipients", () => {
   it("normalizes the fiscal recipient and sorts unique delegate copies", () => {
     expect(
-      resolveEstimateRecipients(" Fiscal@Example.test ", [
+      resolveDocumentRecipients(" Fiscal@Example.test ", [
         "Zulu@Example.test",
         " alpha@example.test ",
         "ALPHA@example.test",
@@ -25,12 +25,12 @@ describe("estimate recipients", () => {
 
   it("never repeats the fiscal address in CC", () => {
     expect(
-      resolveEstimateRecipients("fiscal@example.test", [" FISCAL@EXAMPLE.TEST "]),
+      resolveDocumentRecipients("fiscal@example.test", [" FISCAL@EXAMPLE.TEST "]),
     ).toEqual({ emails: ["fiscal@example.test"], cc: [] });
   });
 
   it("falls back to the fiscal address when there are no active delegates", () => {
-    expect(resolveEstimateRecipients("fiscal@example.test", [])).toEqual({
+    expect(resolveDocumentRecipients("fiscal@example.test", [])).toEqual({
       emails: ["fiscal@example.test"],
       cc: [],
     });
@@ -39,8 +39,8 @@ describe("estimate recipients", () => {
   it.each(["", "   ", "not-an-email"])(
     "refuses an unusable fiscal address %o",
     (email) => {
-      expect(() => resolveEstimateRecipients(email, [])).toThrowError(
-        expect.objectContaining<Partial<EstimateDeliveryError>>({
+      expect(() => resolveDocumentRecipients(email, [])).toThrowError(
+        expect.objectContaining<Partial<DocumentDeliveryError>>({
           code: "missing_fiscal_email",
         }),
       );
@@ -49,9 +49,9 @@ describe("estimate recipients", () => {
 
   it("refuses an invalid managed delegate instead of silently omitting it", () => {
     expect(() =>
-      resolveEstimateRecipients("fiscal@example.test", ["not-an-email"]),
+      resolveDocumentRecipients("fiscal@example.test", ["not-an-email"]),
     ).toThrowError(
-      expect.objectContaining<Partial<EstimateDeliveryError>>({
+      expect.objectContaining<Partial<DocumentDeliveryError>>({
         code: "invalid_delegate_email",
       }),
     );

@@ -6,8 +6,9 @@
 
 **Status**: Implemented; WordPress projection live, Bereius deployment pending
 
-**Input**: Allow delegates to act for one principal customer and send every estimate to the
-principal fiscal email and all active delegates, without tracking who requested the booking.
+**Input**: Allow delegates to act for one principal customer and send every estimate and reserve
+invoice to the principal fiscal email and all active delegates, without tracking who requested the
+booking.
 
 ## System Contract
 
@@ -19,10 +20,10 @@ person's own `code` is a reverse pointer; WordPress never mutates the fiscal con
 the relationship. Pending delegates never appear in Holded. Revocation archives the managed person.
 
 Holded is the integration boundary between WordPress and Bereius. Bereius does not call WordPress,
-accept WordPress events or store a delegate directory. Immediately before the first estimate send,
-it reads every page of active Holded contacts and includes only valid `is_person=true` contacts
-whose exact technical marker points back to that principal. It then freezes the fiscal primary
-address and the delegate CC list in `EstimateDelivery`.
+accept WordPress events or store a delegate directory. Immediately before the first delivery of an
+estimate or reserve invoice, it reads every page of active Holded contacts and includes only valid
+`is_person=true` contacts whose exact technical marker points back to that principal. It then
+freezes the fiscal primary address and the delegate CC list in `DocumentDelivery` for that document.
 
 ```mermaid
 flowchart LR
@@ -31,7 +32,7 @@ flowchart LR
     WP -->|create, update, archive marked people| Holded[(Holded contacts)]
     GF[Gravity Forms] -->|hourly pull| Bereius[Bereius]
     Bereius -->|page contacts and select principal markers| Holded
-    Bereius -->|send estimate: fiscal To + delegate CC| Holded
+    Bereius -->|send estimate or reserve invoice: fiscal To + delegate CC| Holded
 ```
 
 ## User Scenarios
@@ -51,20 +52,20 @@ flowchart LR
   then queues archival. A reinvitation increments the generation and creates no new Holded person
   until the new invitation is accepted.
 
-### 2. Estimate delivery
+### 2. Commercial document delivery
 
 1. Bereius imports the booking from Gravity Forms without requester, delegate or author identity.
-2. Approval creates or resolves the principal fiscal contact and creates the estimate and reserve
-   invoice.
-3. Before the estimate's first delivery attempt, Bereius follows the cursor on `/contacts` until it
+2. Approval creates or resolves the principal fiscal contact and creates the estimate. A later
+  operator-confirmed bank linkage creates or safely reuses the reserve invoice.
+3. Before each document's first delivery attempt, Bereius follows the cursor on `/contacts` until it
   reaches the end and locally selects the exact
   `berea-wp-delegate:<principal-holded-id>:` prefix.
 4. Only contacts with a numeric delegate/generation suffix, `is_person=true` and a valid email are
   eligible. A malformed contact under the requested principal's managed prefix fails closed.
 5. The fiscal email is `emails[0]`; normalized, unique delegate addresses are explicit `cc` values.
    A delegate address equal to the fiscal address is removed from CC.
-6. The exact recipients are persisted before `/estimates/:id/send`. They do not change on retries
-   of that delivery attempt.
+6. The exact recipients are persisted before `/estimates/:id/send` or `/invoices/:id/send`. They do
+  not change on retries of that document's delivery attempt.
 
 ## Functional Requirements
 
@@ -88,15 +89,16 @@ flowchart LR
   pagination, exact-filtering the principal-scoped marker locally and validating type and email.
 - **FR-012**: Any failed or malformed Holded delegate lookup MUST defer delivery and MUST NOT be
   interpreted as an empty delegate list.
-- **FR-013**: Every estimate MUST target the principal fiscal email as primary and every unique
-  eligible delegate as explicit CC.
+- **FR-013**: Every estimate and reserve invoice MUST target the principal fiscal email as primary
+  and every unique eligible delegate as explicit CC.
 - **FR-014**: Bereius MUST NOT store who requested a booking or use requester identity to choose
   recipients.
 - **FR-015**: The exact normalized recipient set MUST be persisted before external delivery.
 - **FR-016**: Accepted delivery MUST never be repeated automatically. An ambiguous provider outcome
   MUST enter `UNKNOWN` and require operator resolution.
 - **FR-017**: Holded global/default copy recipients MUST remain disabled. Delegate copies apply to
-  estimates only; invoice and booking-email recipients remain unchanged.
+  estimates and reserve invoices only; closing-invoice and booking-email recipients remain
+  unchanged.
 - **FR-018**: Logs MUST use technical identifiers, counts and error codes, never delegate PII,
   provider payloads or credentials.
 
@@ -109,7 +111,7 @@ flowchart LR
 | Fiscal customer | Holded | Principal contact |
 | Delivery projection | WordPress | Principal-scoped marked Holded person |
 | Booking requester | Not collected | Nowhere |
-| Frozen estimate recipients and send state | Bereius | `EstimateDelivery` |
+| Frozen estimate/reserve-invoice recipients and send state | Bereius | `DocumentDelivery` |
 
 ## Failure and Recovery Rules
 
@@ -120,7 +122,7 @@ flowchart LR
   formats are migrated; it also queues revoked or pending delegates with a stored person to remove.
 - If the queue is full, the operation is logged and the backfill remains incomplete so a later
   request can retry discovery. Sites approaching 100 delegates require an operational review.
-- Bereius persists no `EstimateDelivery` row until the complete contact scan and recipient
+- Bereius persists no `DocumentDelivery` row until the complete contact scan and recipient
   validation succeed. A later retry therefore performs a fresh discovery.
 - Once recipients are frozen, a definitive provider refusal may retry the same set. A timeout or an
   interrupted `IN_FLIGHT` attempt becomes `UNKNOWN` and is never resent automatically.
@@ -156,9 +158,9 @@ flowchart LR
   exact requested principal prefix and valid suffix/type/email shape, but a forged valid marker by a
   privileged Holded writer could still receive future estimate copies; audit and rotate compromised
   Holded credentials immediately.
-- Replayed quote jobs cannot rediscover a more favorable recipient list after preparation. The
-  immutable snapshot and delivery states prevent automatic duplicate sends, and an uncertain send
-  is parked as `UNKNOWN` for human evidence-based resolution.
+- Replayed quote or reserve-invoice jobs cannot rediscover a different recipient list after
+  preparation. Each immutable snapshot and delivery state prevents automatic duplicate sends, and
+  an uncertain send is parked as `UNKNOWN` for human evidence-based resolution.
 - Revocation ends WordPress access synchronously, while removal from Holded is asynchronous. Until
   the queue successfully archives that person, a concurrent new estimate could still discover the
   old address; operators must clear failed revocation items before sending a time-sensitive estimate.
@@ -176,15 +178,15 @@ flowchart LR
   generation marker.
 - Backfill: an existing active delegate is projected without changing access.
 - Holded outage: access remains active and the queued operation remains retryable.
-- Estimate delivery: fiscal To plus all matching principal-scoped people in deterministic CC, with
-  duplicates removed and no requester dependency.
+- Estimate and reserve-invoice delivery: fiscal To plus all matching principal-scoped people in
+  deterministic CC, with duplicates removed and no requester dependency.
 - Malformed matching managed person or incomplete pagination: delivery fails closed before
   recipients are persisted.
 - Accepted and ambiguous sends: no automatic duplicate delivery.
 
 ## Non-Goals
 
-- Sending invoices or general booking notifications to delegates.
+- Sending closing invoices or general booking notifications to delegates.
 - Recording which principal or delegate submitted a booking.
 - Allowing Bereius to create, invite, edit or revoke delegates.
 - Synchronizing delegate lifecycle into Bereius or exposing a WordPress/Bereius bridge.

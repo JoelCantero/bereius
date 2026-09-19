@@ -202,6 +202,10 @@
         "label": "Contractes",
         "description": "Pressupostos de Holded i la sol·licitud a què pertanyen."
       },
+      "bankMovements": {
+        "label": "Moviments bancaris",
+        "description": "Cerca ingressos i despeses importats de Holded."
+      },
       "integrations": {
         "label": "Integracions",
         "description": "Credencials i identificadors de Holded, Gravity Forms i correu."
@@ -744,6 +748,152 @@
       "stay": "{start} – {end} · {headcount} persones"
     }
   },
+  "BankMovements": {
+    "title": "Moviments bancaris",
+    "description": "Cerca moviments importats de Holded i compara els totals exactes dels filtres actuals.",
+    "invalidFilters": "Alguns filtres no són vàlids.",
+    "clearFilters": "Esborra els filtres",
+    "empty": "Cap moviment bancari coincideix amb aquests filtres.",
+    "loading": "Carregant moviments bancaris",
+    "emptyValue": "No disponible",
+    "filters": {
+      "direction": "Direcció",
+      "from": "Des de",
+      "to": "Fins a",
+      "account": "Compte",
+      "currency": "Divisa",
+      "search": "Cerca concepte o referència",
+      "all": "Totes les direccions",
+      "allAccounts": "Tots els comptes",
+      "allCurrencies": "Totes les divises"
+    },
+    "directions": {
+      "income": "Ingrés",
+      "expense": "Despesa"
+    },
+    "statuses": {
+      "pending": "Pendent",
+      "reconciled": "Conciliat"
+    },
+    "table": {
+      "caption": "Moviments bancaris importats",
+      "date": "Data",
+      "valueDate": "Data valor",
+      "concept": "Concepte",
+      "reference": "Referència",
+      "counterparty": "Contrapart",
+      "account": "Compte",
+      "amount": "Import",
+      "currency": "Divisa",
+      "status": "Estat",
+      "direction": "Direcció"
+    },
+    "totals": {
+      "title": "Totals filtrats",
+      "income": "Ingressos",
+      "expense": "Despeses"
+    },
+    "proposals": {
+      "title": "Proposta de conciliació",
+      "estimate": "Pressupost {number}",
+      "pending": "Pendent de revisió",
+      "confirmed": "Confirmada",
+      "dismissed": "Descartada",
+      "invalidated": "Invalidada",
+      "confirm": "Confirma el pagament",
+      "dismiss": "Descarta la proposta",
+      "confirmedAnnouncement": "Pagament confirmat.",
+      "dismissedAnnouncement": "Proposta descartada.",
+      "decidedBy": "Decidida per {name}",
+      "errors": {
+        "unauthenticated": "La sessió ha caducat. Torna a iniciar la sessió.",
+        "forbidden": "No tens permís per decidir aquesta proposta.",
+        "invalid": "La sol·licitud de proposta no és vàlida.",
+        "not_found": "La proposta ja no està disponible.",
+        "state_changed": "L'estat de la reserva ha canviat. Revisa les dades actuals.",
+        "proposal_changed": "Aquesta proposta ja s'ha decidit o ha canviat.",
+        "movement_ineligible": "El moviment ja no compleix les regles de conciliació.",
+        "amount_mismatch": "L'import del moviment ja no coincideix amb el pagament esperat.",
+        "movement_already_used": "Aquest moviment ja està vinculat a un pagament.",
+        "unknown": "No s'ha pogut actualitzar la proposta. Torna-ho a provar."
+      }
+    },
+    "synchronization": {
+      "title": "Sincronització amb Holded",
+      "status": {
+        "queued": "Esperant per sincronitzar",
+        "running": "Sincronització en curs",
+        "retrying": "Esperant per tornar-ho a provar",
+        "succeeded": "Sincronització completada",
+        "partial": "Sincronització completada parcialment",
+        "failed": "La sincronització ha fallat"
+      },
+      "state": {
+        "unconfigured": "Configura un compte de tresoreria per sincronitzar.",
+        "initial_active": "La sincronització inicial està en curs.",
+        "healthy": "Les dades bancàries estan actualitzades.",
+        "stale": "Les dades bancàries poden estar desactualitzades.",
+        "retrying": "Holded no està disponible temporalment; hi ha un reintent programat.",
+        "partial": "Algunes pàgines o moviments requereixen revisió.",
+        "failed": "L'última sincronització no ha importat cap pàgina."
+      },
+      "refresh": "Actualitza els moviments",
+      "retry": "Torna a provar la sincronització",
+      "refreshing": "Sol·licitant l'actualització",
+      "cooldown": "L'actualització estarà disponible a les {date}.",
+      "accepted": "Actualització acceptada.",
+      "alreadyRunning": "Ja hi ha una sincronització activa.",
+      "lastSuccess": "Última sincronització correcta: {date}",
+      "finishedAt": "Últim intent finalitzat: {date}",
+      "nextAttempt": "Pròxim reintent: {date}",
+      "pendingProposals": "{count, plural, one {# proposta pendent} other {# propostes pendents}}",
+      "retainedData": "Els moviments importats anteriorment continuen disponibles per revisar-los.",
+      "expiryDeferred": "Les reserves impagades no caducaran fins que es completi correctament una revisió bancària nova.",
+      "progress": {
+        "pages": "{count, plural, one {# pàgina} other {# pàgines}}",
+        "items": "{count, plural, one {# element} other {# elements}}",
+        "inserted": "{count} inserits",
+        "updated": "{count} actualitzats",
+        "unchanged": "{count} sense canvis",
+        "incidents": "{count, plural, one {# incidència} other {# incidències}}"
+      },
+      "incidentAtPage": "{reason} (pàgina {page})",
+      "incidentAtItem": "{reason} (pàgina {page}, element {item})",
+      "incidents": {
+        "PROVIDER_UNAUTHORIZED": "Holded ha rebutjat les credencials de la integració.",
+        "PROVIDER_NOT_FOUND": "Holded no ha trobat el compte de tresoreria configurat.",
+        "PROVIDER_RATE_LIMITED": "Holded ha limitat temporalment les sol·licituds de sincronització.",
+        "PROVIDER_UNAVAILABLE": "Holded no estava disponible durant la sincronització.",
+        "PROVIDER_REQUEST_REJECTED": "Holded ha rebutjat la sol·licitud de sincronització.",
+        "RESPONSE_TOO_LARGE": "Una resposta de Holded ha superat la mida permesa.",
+        "MALFORMED_PAGE": "Holded ha retornat una pàgina de moviments no vàlida.",
+        "MISSING_CURSOR": "Holded ha omès el cursor de la pàgina següent.",
+        "REPEATED_CURSOR": "Holded ha repetit un cursor de paginació.",
+        "INVALID_MOVEMENT_ID": "Un moviment tenia un identificador no vàlid.",
+        "ACCOUNT_MISMATCH": "Un moviment pertanyia a un altre compte de tresoreria.",
+        "INVALID_BOOKING_DATE": "Un moviment tenia una data comptable no vàlida.",
+        "INVALID_VALUE_DATE": "Un moviment tenia una data valor no vàlida.",
+        "INVALID_AMOUNT": "Un moviment tenia un import no vàlid.",
+        "ZERO_AMOUNT": "S'ha exclòs un moviment d'import zero.",
+        "INVALID_CURRENCY": "Un moviment utilitzava una divisa no admesa.",
+        "DESCRIPTION_TOO_LONG": "La descripció d'un moviment superava la longitud permesa.",
+        "CONFIRMED_MATCH_CHANGED": "Un moviment confirmat ha canviat i requereix revisió."
+      },
+      "errors": {
+        "unauthenticated": "La sessió ha caducat. Torna a iniciar la sessió.",
+        "forbidden": "No tens permís per sol·licitar una actualització bancària.",
+        "not_configured": "Configura un compte de tresoreria abans d'actualitzar.",
+        "rate_limited": "Espera abans de sol·licitar una altra actualització.",
+        "invalid": "La sol·licitud d'actualització no és vàlida.",
+        "unknown": "No s'ha pogut sol·licitar l'actualització. Torna-ho a provar."
+      }
+    },
+    "pagination": {
+      "previous": "Pàgina anterior",
+      "next": "Pàgina següent",
+      "summary": "Pàgina {page} de {pages}"
+    }
+  },
   "Bookings": {
     "queue": {
       "title": "Sol·licituds de reserva",
@@ -783,6 +933,11 @@
       "openEstimate": "Veure el pressupost",
       "openInHolded": "Obre a Holded",
       "deliveryUnknown": "Holded podria haver enviat aquest pressupost, però no n'ha confirmat el resultat. Comprova-ho a Holded abans de fer cap acció; no es tornarà a enviar automàticament.",
+      "reserveInvoiceProcessing": "La factura de reserva està pendent d'emissió o enviament.",
+      "reserveInvoiceSent": "La factura de reserva està aprovada i enviada.",
+      "reserveInvoiceBlocked": "L'emissió de la factura de reserva està bloquejada perquè cal revisar les dades existents a Holded.",
+      "reserveInvoiceUnknown": "Holded podria haver creat la factura de reserva, però no n'ha confirmat el resultat. Comprova-ho a Holded abans de fer cap acció; no es tornarà a crear automàticament.",
+      "reserveInvoiceDeliveryUnknown": "Holded podria haver enviat la factura de reserva, però no n'ha confirmat el resultat. Comprova-ho a Holded abans de fer cap acció; no es tornarà a enviar automàticament.",
       "noPayments": "Encara no s'ha registrat cap pagament.",
       "taxId": "NIF",
       "email": "Correu",
@@ -806,6 +961,38 @@
       "receivedAtLabel": "Rebut el",
       "referenceLabel": "Concepte de la transferència",
       "submit": "Desa"
+    },
+    "bankCandidates": {
+      "title": "Ingressos bancaris coincidents",
+      "range": "Des de la creació del pressupost · marge del 5 %",
+      "empty": "Encara no hi ha cap ingrés sense vincular que coincideixi amb aquesta reserva.",
+      "date": "Data",
+      "concept": "Concepte",
+      "amount": "Rebut",
+      "expected": "Esperat",
+      "difference": "Diferència",
+      "reference": "Referència del pressupost",
+      "actions": "Accions",
+      "noConcept": "Sense concepte",
+      "exact": "Exacte",
+      "referenceFound": "Referència del pressupost trobada",
+      "referenceMissing": "No s'ha trobat la referència del pressupost",
+      "link": "Vincula el pagament",
+      "dismiss": "Descarta",
+      "confirmed": "Pagament vinculat i reserva confirmada.",
+      "dismissed": "Ingrés descartat per a aquesta reserva.",
+      "errors": {
+        "unauthenticated": "La teva sessió ha caducat. Torna a iniciar sessió.",
+        "forbidden": "No tens permís per a aquesta acció.",
+        "invalid": "L'ingrés seleccionat no és vàlid.",
+        "not_found": "Aquest ingrés ja no està disponible.",
+        "state_changed": "La reserva ha canviat. Recarrega la pàgina.",
+        "proposal_changed": "Una altra persona ja ha revisat aquest ingrés.",
+        "movement_ineligible": "L'ingrés ja no compleix les regles de data o moneda.",
+        "amount_mismatch": "L'ingrés ja no està dins del 5 % de l'import esperat.",
+        "movement_already_used": "Aquest ingrés ja està vinculat a un altre pagament.",
+        "unknown": "No s'ha pogut vincular l'ingrés."
+      }
     },
     "states": {
       "IN_REVIEW": "En revisió",
@@ -848,6 +1035,7 @@
     "holdedEstimates": {
       "title": "Pressupostos del contacte a Holded",
       "none": "Aquest contacte no té cap pressupost a Holded amb aquestes dates.",
+      "unnumbered": "Pressupost sense número",
       "hint": "El pressupost és el contracte, així que vincular-ne un aprova la sol·licitud.",
       "link": "Vincula a aquesta sol·licitud"
     },
@@ -901,6 +1089,34 @@
           "no_key": "Desa la clau d'API i les llistes de Holded ompliran els desplegables.",
           "unauthorized": "Holded ha rebutjat la clau o li manquen permisos de lectura, així que els desplegables són buits.",
           "unavailable": "No s'ha pogut contactar amb Holded, així que els desplegables són buits. Torna-ho a provar més tard."
+        }
+      },
+      "treasury": {
+        "title": "Compte bancari",
+        "description": "Tria el compte de Holded els moviments en EUR del qual importarà Bereius per a la conciliació.",
+        "account": "Compte bancari de Holded",
+        "choose": "Tria un compte",
+        "accountUnavailable": "No hi ha comptes en EUR disponibles",
+        "importStartDate": "Importa moviments des de",
+        "importStartDateHint": "La primera importació pot incloure fins als 90 dies anteriors.",
+        "importStartDateLocked": "Aquesta data és fixa perquè ja s'ha iniciat una importació.",
+        "save": "Desa el compte bancari",
+        "saving": "Desant…",
+        "saved": "Compte bancari desat i sincronització en cua.",
+        "availability": {
+          "not_configured": "Desa la clau d'API de Holded abans de triar un compte bancari.",
+          "unauthorized": "Holded ha rebutjat la clau o li manquen permisos de lectura de tresoreria.",
+          "unavailable": "No s'han pogut carregar els comptes bancaris de Holded. Torna-ho a provar d'aquí a poc."
+        },
+        "errors": {
+          "unauthenticated": "Torna a iniciar sessió abans de desar el compte bancari.",
+          "forbidden": "Només els administradors poden canviar el compte bancari.",
+          "invalid": "Tria un compte i una data d'inici vàlids.",
+          "not_configured": "Desa la clau d'API de Holded abans de triar un compte bancari.",
+          "account_unavailable": "El compte està arxivat, no està en EUR o ja no està disponible.",
+          "start_date_locked": "La data d'inici no pot canviar després de començar la sincronització.",
+          "connection": "No s'ha pogut contactar amb Holded. Torna-ho a provar d'aquí a poc.",
+          "unknown": "No s'ha pogut desar el compte bancari. Torna-ho a provar."
         }
       },
       "gravityForms": {

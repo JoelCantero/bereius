@@ -24,6 +24,7 @@ const config: HoldedConfig = {
 
 interface StubOptions {
   failOn?: keyof HoldedClient;
+  depositPriceCents?: number;
 }
 
 function stubClient(options: StubOptions = {}) {
@@ -42,6 +43,16 @@ function stubClient(options: StubOptions = {}) {
       track("ping", () => undefined);
     }),
     listCatalogue: vi.fn(async () => track("listCatalogue", () => [])),
+    listTreasuryAccounts: vi.fn(async () =>
+      track("listTreasuryAccounts", () => []),
+    ),
+    listBankMovements: vi.fn(async () =>
+      track("listBankMovements", () => ({
+        items: [],
+        hasMore: false,
+        cursor: null,
+      })),
+    ),
     findContactByTaxId: vi.fn(async () => track("findContactByTaxId", () => null)),
     getContact: vi.fn(async () => track("getContact", () => null)),
     createContact: vi.fn(async () => track("createContact", () => ({ id: "contact-1" }))),
@@ -54,6 +65,7 @@ function stubClient(options: StubOptions = {}) {
     listEstimatesByContact: vi.fn(async () => track("listEstimatesByContact", () => [])),
     listEstimates: vi.fn(async () => track("listEstimates", () => [])),
     getEstimate: vi.fn(async () => track("getEstimate", () => null)),
+    getInvoice: vi.fn(async () => track("getInvoice", () => null)),
     listNumberingSeries: vi.fn(async (type) =>
       track("listNumberingSeries", () =>
         type === "estimate"
@@ -69,7 +81,10 @@ function stubClient(options: StubOptions = {}) {
     }),
     readService: vi.fn(async (serviceId: string) =>
       track("readService", () => ({
-        priceCents: 1_800,
+        priceCents:
+          serviceId === "svc-deposit"
+            ? (options.depositPriceCents ?? 20_000)
+            : 1_800,
         accountId: `account-for-${serviceId}`,
       })),
     ),
@@ -78,6 +93,9 @@ function stubClient(options: StubOptions = {}) {
     ),
     sendEstimate: vi.fn(async () => {
       track("sendEstimate", () => undefined);
+    }),
+    sendInvoice: vi.fn(async () => {
+      track("sendInvoice", () => undefined);
     }),
     createInvoice: vi.fn(async () =>
       track("createInvoice", () => ({ id: `inv-${calls.length}`, number: "FAC-1" })),
@@ -138,7 +156,7 @@ describe.skipIf(!runIntegrationTests)("booking quoting integration", () => {
     await db.$disconnect();
   });
 
-  it("issues the contact, estimate and reserve invoice, and records both documents", async () => {
+  it("issues and sends the estimate without creating a reserve invoice", async () => {
     const booking = await approvedBooking();
     const { client } = stubClient();
 
@@ -149,22 +167,50 @@ describe.skipIf(!runIntegrationTests)("booking quoting integration", () => {
       orderBy: { type: "asc" },
     });
 
-    expect(documents.map((doc) => doc.type)).toEqual(["ESTIMATE", "RESERVE_INVOICE"]);
+    expect(documents.map((doc) => doc.type)).toEqual(["ESTIMATE"]);
     expect(client.sendEstimate).toHaveBeenCalledTimes(1);
+    expect(client.createInvoice).not.toHaveBeenCalled();
+    expect(client.approveInvoice).not.toHaveBeenCalled();
     expect(client.replaceEstimateLines).toHaveBeenCalledTimes(1);
 
     const updated = await db.bookingRequest.findUniqueOrThrow({ where: { id: booking.id } });
-    // 2 nights x 40 people at 18 EUR, 30% advance plus the 200 EUR deposit.
+    // 2 nights x 40 people at 18 EUR, 30% advance plus the configured deposit.
     expect(updated.billableUnits).toBe(80);
     expect(updated.advanceCents).toBe(43_200);
     expect(updated.depositCents).toBe(20_000);
     expect(updated.paymentDueAt).not.toBeNull();
+    expect(client.replaceEstimateLines).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.arrayContaining([
+        expect.objectContaining({ serviceId: "svc-advance", price: -432 }),
+      ]),
+    );
   });
 
-  it("does not duplicate the estimate when the invoice step fails and the job retries", async () => {
+  it("uses the configured deposit service price in the expected payment", async () => {
+    const booking = await approvedBooking();
+    const { client } = stubClient({ depositPriceCents: 22_500 });
+
+    await runQuoteJob(job(booking.id), { client, config });
+
+    await expect(
+      db.bookingRequest.findUniqueOrThrow({ where: { id: booking.id } }),
+    ).resolves.toMatchObject({
+      advanceCents: 43_200,
+      depositCents: 22_500,
+    });
+    expect(client.replaceEstimateLines).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.arrayContaining([
+        expect.objectContaining({ serviceId: "svc-deposit", price: -225 }),
+      ]),
+    );
+  });
+
+  it("does not duplicate the estimate when a later estimate step fails and retries", async () => {
     const booking = await approvedBooking();
 
-    const failing = stubClient({ failOn: "createInvoice" });
+    const failing = stubClient({ failOn: "replaceEstimateLines" });
     await expect(runQuoteJob(job(booking.id), { client: failing.client, config })).rejects.toThrow();
 
     const afterFailure = await db.holdedDocument.findMany({
@@ -179,7 +225,7 @@ describe.skipIf(!runIntegrationTests)("booking quoting integration", () => {
       where: { bookingRequestId: booking.id },
     });
     expect(documents.filter((doc) => doc.type === "ESTIMATE")).toHaveLength(1);
-    expect(documents.filter((doc) => doc.type === "RESERVE_INVOICE")).toHaveLength(1);
+    expect(documents.filter((doc) => doc.type === "RESERVE_INVOICE")).toHaveLength(0);
     // The retry resumed rather than re-issuing the estimate, and finally mailed
     // it: the first attempt never got that far.
     expect(retry.client.createEstimate).not.toHaveBeenCalled();
@@ -284,7 +330,7 @@ describe.skipIf(!runIntegrationTests)("booking quoting integration", () => {
     expect(client.readService).toHaveBeenCalledWith("svc-dc40");
   });
 
-  it("numbers both documents from a series and takes them out of draft", async () => {
+  it("numbers the estimate from its series and takes it out of draft", async () => {
     const booking = await approvedBooking();
     const { client } = stubClient();
 
@@ -293,11 +339,9 @@ describe.skipIf(!runIntegrationTests)("booking quoting integration", () => {
     expect(client.createEstimate).toHaveBeenCalledWith(
       expect.objectContaining({ numberingSeriesId: "series-e" }),
     );
-    expect(client.createInvoice).toHaveBeenCalledWith(
-      expect.objectContaining({ numberingSeriesId: "series-f" }),
-    );
     expect(client.approveEstimate).toHaveBeenCalledTimes(1);
-    expect(client.approveInvoice).toHaveBeenCalledTimes(1);
+    expect(client.createInvoice).not.toHaveBeenCalled();
+    expect(client.approveInvoice).not.toHaveBeenCalled();
   });
 
   it("approves the estimate before mailing it, so the customer gets the final document", async () => {
@@ -326,23 +370,18 @@ describe.skipIf(!runIntegrationTests)("booking quoting integration", () => {
     expect(retry.client.sendEstimate).not.toHaveBeenCalled();
   });
 
-  it("invoices the advance alone, because the deposit is held and not earned", async () => {
+  it("defers the reserve invoice until a bank movement is linked", async () => {
     const booking = await approvedBooking();
     const { client } = stubClient();
 
     await runQuoteJob(job(booking.id), { client, config });
 
-    expect(client.createInvoice).toHaveBeenCalledWith(
-      expect.objectContaining({
-        items: [expect.objectContaining({ name: "Reserva" })],
+    expect(client.createInvoice).not.toHaveBeenCalled();
+    await expect(
+      db.holdedDocument.count({
+        where: { bookingRequestId: booking.id, type: "RESERVE_INVOICE" },
       }),
-    );
-
-    const invoice = await db.holdedDocument.findFirstOrThrow({
-      where: { bookingRequestId: booking.id, type: "RESERVE_INVOICE" },
-    });
-    // The advance, not the advance plus the deposit.
-    expect(invoice.totalCents).toBe(43_200);
+    ).resolves.toBe(0);
   });
 
   it("describes the stay and names its lines the way the account already does", async () => {
@@ -406,21 +445,24 @@ describe.skipIf(!runIntegrationTests)("booking quoting integration", () => {
     );
   });
 
-  it("posts each line to the account its own service declares", async () => {
+  it("posts each deduction to the account its own service declares", async () => {
     const booking = await approvedBooking();
     const { client } = stubClient();
 
     await runQuoteJob(job(booking.id), { client, config });
 
-    expect(client.createInvoice).toHaveBeenCalledWith(
-      expect.objectContaining({
-        items: [
-          expect.objectContaining({
-            serviceId: "svc-advance",
-            accountId: "account-for-svc-advance",
-          }),
-        ],
-      }),
+    expect(client.replaceEstimateLines).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.arrayContaining([
+        expect.objectContaining({
+          serviceId: "svc-advance",
+          accountId: "account-for-svc-advance",
+        }),
+        expect.objectContaining({
+          serviceId: "svc-deposit",
+          accountId: "account-for-svc-deposit",
+        }),
+      ]),
     );
   });
 
@@ -442,9 +484,10 @@ describe.skipIf(!runIntegrationTests)("booking quoting integration", () => {
         cc: ["alpha@example.test", "zulu@example.test"],
       },
       config.mailTemplateId,
+      "Gestió de reserves Berea",
     );
     await expect(
-      db.estimateDelivery.findFirstOrThrow({
+      db.documentDelivery.findFirstOrThrow({
         where: { holdedDocument: { bookingRequestId: booking.id } },
       }),
     ).resolves.toMatchObject({
@@ -465,7 +508,7 @@ describe.skipIf(!runIntegrationTests)("booking quoting integration", () => {
 
     expect(client.sendEstimate).not.toHaveBeenCalled();
     await expect(
-      db.estimateDelivery.count({
+      db.documentDelivery.count({
         where: { holdedDocument: { bookingRequestId: booking.id } },
       }),
     ).resolves.toBe(0);
@@ -488,7 +531,7 @@ describe.skipIf(!runIntegrationTests)("booking quoting integration", () => {
 
     expect(retry.client.sendEstimate).not.toHaveBeenCalled();
     await expect(
-      db.estimateDelivery.findFirstOrThrow({
+      db.documentDelivery.findFirstOrThrow({
         where: { holdedDocument: { bookingRequestId: booking.id } },
       }),
     ).resolves.toMatchObject({ status: "UNKNOWN" });

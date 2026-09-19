@@ -2,6 +2,7 @@ import {
   CalendarCheck,
   FileSignature,
   FileText,
+  Landmark,
   LayoutGrid,
   type LucideIcon,
   Plug,
@@ -32,6 +33,7 @@ export interface ConsoleUser {
 const ICONS: Record<string, LucideIcon> = {
   "/bookings": CalendarCheck,
   "/contracts": FileSignature,
+  "/bank-movements": Landmark,
   "/bookings/settings": Plug,
   "/account": UserRound,
   "/account/security": ShieldCheck,
