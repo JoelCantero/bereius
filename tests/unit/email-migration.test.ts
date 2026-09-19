@@ -52,6 +52,8 @@ describe("completed HTTP email migration", () => {
       "20260910070000_drop_approved_state",
       "20260912192828_add_customer_delegates",
       "20260912210000_move_delegate_projection_to_wordpress",
+      "20260916000000_holded_bank_movements",
+      "20260917000000_document_issuance_and_delivery",
     ]);
 
     const migrationSource = await combinedContents(

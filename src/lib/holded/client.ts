@@ -9,13 +9,24 @@ import {
   type ProviderHttpOutcome,
 } from "@/lib/email/http";
 import type { ProviderHttpClient } from "@/lib/email/types";
+import {
+  HOLDED_REQUEST_TIMEOUT_MS,
+  HOLDED_RESPONSE_LIMIT_BYTES,
+  HOLDED_TREASURY_PAGE_LIMIT,
+  holdedBankMovementPageSchema,
+  holdedProviderIdSchema,
+  holdedTreasuryAccountPageSchema,
+  nonFutureBankDateSchema,
+  type HoldedBankMovementPayload,
+  type HoldedTreasuryAccount,
+} from "@/modules/banking/schema";
 
 /**
  * v1 rejects keys issued today with `{"status":0,"info":"Invalid key"}`, so the
  * whole client speaks v2. Holded documents v1 as archived for existing work.
  */
 export const HOLDED_BASE_URL = "https://api.holded.com/api/v2";
-export const HOLDED_TIMEOUT_MS = 15_000;
+export const HOLDED_TIMEOUT_MS = HOLDED_REQUEST_TIMEOUT_MS;
 
 /** Every document already in the account carries tax-inclusive line prices. */
 const TAX_INCLUDED = true;
@@ -49,7 +60,8 @@ export class HoldedError extends Error {
       | "rate_limited"
       | "unavailable"
       | "invalid_request"
-      | "malformed_response",
+      | "malformed_response"
+      | "response_too_large",
     message: string,
   ) {
     super(message);
@@ -65,6 +77,17 @@ export class HoldedDeliveryError extends HoldedError {
   ) {
     super(code, message);
     this.name = "HoldedDeliveryError";
+  }
+}
+
+export class HoldedCreationError extends HoldedError {
+  constructor(
+    code: HoldedError["code"],
+    readonly creationOutcome: "definitive_failure" | "unknown",
+    message: string,
+  ) {
+    super(code, message);
+    this.name = "HoldedCreationError";
   }
 }
 
@@ -180,6 +203,32 @@ const estimatePageSchema = z
   })
   .catchall(z.unknown());
 
+const invoiceLineSchema = z
+  .object({
+    name: z.string().nullish(),
+    description: z.string().nullish(),
+    service_id: z.string().min(1).nullish(),
+    units: z.union([z.string(), z.number()]),
+    price: z.union([z.string(), z.number()]),
+    taxes: z.array(z.string()),
+    account: z.string().min(1).nullish(),
+  })
+  .catchall(z.unknown());
+
+const invoiceSchema = z
+  .object({
+    id: z.string().min(1),
+    document_number: z.string().nullish(),
+    date: z.string().nullish(),
+    due_date: z.string().nullish(),
+    total: z.union([z.string(), z.number()]),
+    status: z.string().nullish(),
+    contact_id: z.string().nullish(),
+    tax_included: z.boolean(),
+    lines: z.array(invoiceLineSchema),
+  })
+  .catchall(z.unknown());
+
 function toContact(raw: z.infer<typeof contactSchema>): HoldedContact {
   return {
     id: raw.id,
@@ -275,6 +324,7 @@ export interface HoldedDocumentInput {
 }
 
 export interface HoldedInvoiceInput extends HoldedDocumentInput {
+  date: Date;
   dueDate: Date;
 }
 
@@ -290,9 +340,33 @@ export interface HoldedDocumentResult {
   number: string | null;
 }
 
-export interface HoldedEstimateRecipients {
+export interface HoldedDocumentRecipients {
   emails: string[];
   cc: string[];
+}
+
+export type HoldedEstimateRecipients = HoldedDocumentRecipients;
+
+export interface HoldedInvoiceLineSummary {
+  name: string | null;
+  description: string | null;
+  serviceId: string | null;
+  accountId: string | null;
+  units: number;
+  priceCents: number;
+  taxes: string[];
+}
+
+export interface HoldedInvoiceSummary {
+  id: string;
+  number: string | null;
+  date: string | null;
+  dueDate: string | null;
+  totalCents: number;
+  status: string | null;
+  contactId: string | null;
+  taxIncluded: boolean;
+  items: HoldedInvoiceLineSummary[];
 }
 
 /** What the booking screen compares against; not the whole Holded record. */
@@ -330,6 +404,16 @@ export interface HoldedClient {
    * key from an account that genuinely holds no entries.
    */
   listCatalogue(resource: HoldedCatalogueResource): Promise<HoldedOption[]>;
+  listTreasuryAccounts(): Promise<HoldedTreasuryAccount[]>;
+  listBankMovements(input: {
+    accountId: string;
+    startDate: string;
+    cursor?: string;
+  }): Promise<{
+    items: HoldedBankMovementPayload[];
+    hasMore: boolean;
+    cursor: string | null;
+  }>;
   findContactByTaxId(taxId: string): Promise<HoldedContact | null>;
   getContact(contactId: string): Promise<HoldedContact | null>;
   createContact(input: HoldedContactInput): Promise<{ id: string }>;
@@ -340,6 +424,7 @@ export interface HoldedClient {
   /** Every estimate in the account, so an operator can find one without a booking. */
   listEstimates(): Promise<HoldedEstimateSummary[]>;
   getEstimate(estimateId: string): Promise<HoldedEstimateSummary | null>;
+  getInvoice(invoiceId: string): Promise<HoldedInvoiceSummary | null>;
   listNumberingSeries(type: HoldedNumberingType): Promise<HoldedOption[]>;
   /**
    * Takes the document out of draft and stamps its approval date. The number
@@ -351,8 +436,15 @@ export interface HoldedClient {
   createEstimate(input: HoldedDocumentInput): Promise<HoldedDocumentResult>;
   sendEstimate(
     estimateId: string,
-    recipients: HoldedEstimateRecipients,
+    recipients: HoldedDocumentRecipients,
     mailTemplateId?: string,
+    subject?: string,
+  ): Promise<void>;
+  sendInvoice(
+    invoiceId: string,
+    recipients: HoldedDocumentRecipients,
+    mailTemplateId?: string,
+    subject?: string,
   ): Promise<void>;
   createInvoice(input: HoldedInvoiceInput): Promise<HoldedDocumentResult>;
   replaceEstimateLines(estimateId: string, items: HoldedDocumentLine[]): Promise<void>;
@@ -371,7 +463,10 @@ function classify(outcome: ProviderHttpOutcome): HoldedError | null {
   if (outcome.status === 429) {
     return new HoldedError("rate_limited", "Holded rate limit reached");
   }
-  if (outcome.status === 400 || outcome.status === 422) {
+  if (outcome.status === 408) {
+    return new HoldedError("unavailable", "Holded request outcome is unknown");
+  }
+  if (outcome.status >= 400 && outcome.status < 500) {
     return new HoldedError("invalid_request", "Holded refused the request");
   }
   if (outcome.status < 200 || outcome.status >= 300) {
@@ -528,7 +623,13 @@ export function createHoldedClient(
 
     const failure = classify(outcome);
     if (failure) throw failure;
-    if (outcome.kind !== "response" || outcome.bodyTooLarge || outcome.body === null) {
+    if (outcome.kind === "response" && outcome.bodyTooLarge) {
+      throw new HoldedError(
+        "response_too_large",
+        "Holded response exceeded the permitted size",
+      );
+    }
+    if (outcome.kind !== "response" || outcome.body === null) {
       throw new HoldedError("malformed_response", "Holded response could not be read");
     }
 
@@ -543,6 +644,7 @@ export function createHoldedClient(
     method: string,
     path: string,
     body?: unknown,
+    maxResponseBytes = HOLDED_CATALOGUE_RESPONSE_LIMIT_BYTES,
   ): Promise<unknown> {
     return send(
       `${HOLDED_BASE_URL}${path}`,
@@ -555,8 +657,12 @@ export function createHoldedClient(
         },
         ...(body === undefined ? {} : { body: serializeProviderJson(body) }),
       },
-      HOLDED_CATALOGUE_RESPONSE_LIMIT_BYTES,
+      maxResponseBytes,
     );
+  }
+
+  async function treasuryRequest(path: string): Promise<unknown> {
+    return request("GET", path, undefined, HOLDED_RESPONSE_LIMIT_BYTES);
   }
 
   function toLine(line: HoldedDocumentLine): Record<string, unknown> {
@@ -585,18 +691,91 @@ export function createHoldedClient(
     collection: string,
     body: Record<string, unknown>,
   ): Promise<HoldedDocumentResult> {
-    const parsed = createdSchema.safeParse(await request("POST", `/${collection}`, body));
+    let payload: unknown;
+    try {
+      payload = await request("POST", `/${collection}`, body);
+    } catch (error) {
+      const failure = error instanceof HoldedError ? error : null;
+      const definitive =
+        failure !== null &&
+        ["unauthorized", "not_found", "rate_limited", "invalid_request"].includes(
+          failure.code,
+        );
+      throw new HoldedCreationError(
+        failure?.code ?? "unavailable",
+        definitive ? "definitive_failure" : "unknown",
+        `Holded ${collection} creation failed`,
+      );
+    }
+
+    const parsed = createdSchema.safeParse(payload);
     if (!parsed.success) {
-      throw new HoldedError(
+      throw new HoldedCreationError(
         "malformed_response",
+        "unknown",
         `Holded did not return an identifier for the ${collection} document`,
       );
     }
 
+    let number: string | null = null;
+    try {
+      number = await readDocumentNumber(collection, parsed.data.id);
+    } catch {
+      // The POST returned an id, so the document is safely identifiable even
+      // when the optional number read-back is temporarily unavailable.
+    }
     return {
       id: parsed.data.id,
-      number: await readDocumentNumber(collection, parsed.data.id),
+      number,
     };
+  }
+
+  async function sendDocument(
+    collection: "estimates" | "invoices",
+    documentId: string,
+    recipients: HoldedDocumentRecipients,
+    mailTemplateId?: string,
+    subject?: string,
+  ): Promise<void> {
+    const outcome = await executeProviderRequest({
+      client: httpClient,
+      logicalUrl: `${HOLDED_BASE_URL}/${collection}/${documentId}/send`,
+      init: {
+        method: "POST",
+        headers: {
+          accept: "application/json",
+          authorization: `Bearer ${apiKey}`,
+          "content-type": "application/json",
+        },
+        body: serializeProviderJson({
+          emails: recipients.emails,
+          cc: recipients.cc,
+          subject,
+          mail_template_id: mailTemplateId,
+        }),
+      },
+      timeoutMs: HOLDED_TIMEOUT_MS,
+      maxResponseBytes: HOLDED_CATALOGUE_RESPONSE_LIMIT_BYTES,
+    });
+
+    if (outcome.kind === "network_error") {
+      throw new HoldedDeliveryError(
+        "unavailable",
+        "unknown",
+        "Holded delivery outcome is unknown",
+      );
+    }
+
+    const failure = classify(outcome);
+    if (failure) {
+      throw new HoldedDeliveryError(
+        failure.code,
+        failure.code === "unavailable" ? "unknown" : "definitive_failure",
+        failure.code === "unavailable"
+          ? "Holded delivery outcome is unknown"
+          : "Holded refused document delivery",
+      );
+    }
   }
 
   async function readContactForWrite(contactId: string) {
@@ -647,6 +826,85 @@ export function createHoldedClient(
       }
 
       return collected;
+    },
+
+    async listTreasuryAccounts() {
+      const accounts: HoldedTreasuryAccount[] = [];
+      const seenCursors = new Set<string>();
+      let cursor: string | null = null;
+
+      for (let page = 0; page < HOLDED_MAX_CATALOGUE_PAGES; page += 1) {
+        const query = new URLSearchParams({
+          limit: String(HOLDED_TREASURY_PAGE_LIMIT),
+        });
+        if (cursor) query.set("cursor", cursor);
+
+        const parsed = holdedTreasuryAccountPageSchema.safeParse(
+          await treasuryRequest(`/treasury/accounts?${query.toString()}`),
+        );
+        if (!parsed.success) {
+          throw new HoldedError(
+            "malformed_response",
+            "Holded treasury accounts did not match the expected shape",
+          );
+        }
+
+        accounts.push(...parsed.data.items);
+        if (!parsed.data.has_more) return accounts;
+
+        const nextCursor = parsed.data.cursor;
+        if (!nextCursor || seenCursors.has(nextCursor)) {
+          throw new HoldedError(
+            "malformed_response",
+            "Holded treasury account pagination returned an unusable cursor",
+          );
+        }
+        seenCursors.add(nextCursor);
+        cursor = nextCursor;
+      }
+
+      throw new HoldedError(
+        "malformed_response",
+        "Holded treasury account pagination exceeded the safety limit",
+      );
+    },
+
+    async listBankMovements(input) {
+      const parsedInput = z
+        .object({
+          accountId: holdedProviderIdSchema,
+          startDate: nonFutureBankDateSchema,
+          cursor: z.string().min(1).optional(),
+        })
+        .strict()
+        .safeParse(input);
+      if (!parsedInput.success) {
+        throw new HoldedError("invalid_request", "Invalid Holded movement request");
+      }
+
+      const query = new URLSearchParams({
+        start_date: parsedInput.data.startDate,
+        limit: String(HOLDED_TREASURY_PAGE_LIMIT),
+      });
+      if (parsedInput.data.cursor) query.set("cursor", parsedInput.data.cursor);
+
+      const parsedPage = holdedBankMovementPageSchema.safeParse(
+        await treasuryRequest(
+          `/treasury/accounts/${parsedInput.data.accountId}/bank-movements?${query.toString()}`,
+        ),
+      );
+      if (!parsedPage.success) {
+        throw new HoldedError(
+          "malformed_response",
+          "Holded bank movements did not match the expected page shape",
+        );
+      }
+
+      return {
+        items: parsedPage.data.items,
+        hasMore: parsedPage.data.has_more,
+        cursor: parsedPage.data.cursor,
+      };
     },
 
     /** The tax id is an exact-match filter, so no scan is needed. */
@@ -733,6 +991,63 @@ export function createHoldedClient(
           await request("GET", `/estimates/${estimateId}`),
         );
         return parsed.success ? toEstimate(parsed.data) : null;
+      } catch (error) {
+        if (error instanceof HoldedError && error.code === "not_found") return null;
+        throw error;
+      }
+    },
+
+    async getInvoice(invoiceId) {
+      try {
+        const parsed = invoiceSchema.safeParse(
+          await request("GET", `/invoices/${invoiceId}`),
+        );
+        if (!parsed.success) {
+          throw new HoldedError(
+            "malformed_response",
+            "Holded invoice did not match the expected shape",
+          );
+        }
+
+        const total = parseDecimal(parsed.data.total);
+        const items = parsed.data.lines.map((item) => ({
+          name: item.name?.trim() || null,
+          description: item.description?.trim() || null,
+          serviceId: item.service_id ?? null,
+          accountId: item.account ?? null,
+          units: parseDecimal(item.units),
+          price: parseDecimal(item.price),
+          taxes: item.taxes,
+        }));
+        if (
+          total === null ||
+          items.some((item) => item.units === null || item.price === null)
+        ) {
+          throw new HoldedError(
+            "malformed_response",
+            "Holded invoice amounts could not be read",
+          );
+        }
+
+        return {
+          id: parsed.data.id,
+          number: parsed.data.document_number?.trim() || null,
+          date: parsed.data.date ?? null,
+          dueDate: parsed.data.due_date ?? null,
+          totalCents: toCents(total),
+          status: parsed.data.status ?? null,
+          contactId: parsed.data.contact_id ?? null,
+          taxIncluded: parsed.data.tax_included,
+          items: items.map((item) => ({
+            name: item.name,
+            description: item.description,
+            serviceId: item.serviceId,
+            accountId: item.accountId,
+            units: item.units!,
+            priceCents: toCents(item.price!),
+            taxes: item.taxes,
+          })),
+        };
       } catch (error) {
         if (error instanceof HoldedError && error.code === "not_found") return null;
         throw error;
@@ -894,49 +1209,24 @@ export function createHoldedClient(
       await request("POST", `/invoices/${invoiceId}/approve`);
     },
 
-    async sendEstimate(estimateId, recipients, mailTemplateId) {
-      const outcome = await executeProviderRequest({
-        client: httpClient,
-        logicalUrl: `${HOLDED_BASE_URL}/estimates/${estimateId}/send`,
-        init: {
-          method: "POST",
-          headers: {
-            accept: "application/json",
-            authorization: `Bearer ${apiKey}`,
-            "content-type": "application/json",
-          },
-          body: serializeProviderJson({
-            emails: recipients.emails,
-            cc: recipients.cc,
-            mail_template_id: mailTemplateId,
-          }),
-        },
-        timeoutMs: HOLDED_TIMEOUT_MS,
-        maxResponseBytes: HOLDED_CATALOGUE_RESPONSE_LIMIT_BYTES,
-      });
+    async sendEstimate(estimateId, recipients, mailTemplateId, subject) {
+      await sendDocument(
+        "estimates",
+        estimateId,
+        recipients,
+        mailTemplateId,
+        subject,
+      );
+    },
 
-      if (outcome.kind === "network_error") {
-        throw new HoldedDeliveryError(
-          "unavailable",
-          "unknown",
-          "Holded delivery outcome is unknown",
-        );
-      }
-
-      const failure = classify(outcome);
-      if (failure) {
-        throw new HoldedDeliveryError(
-          failure.code,
-          "definitive_failure",
-          "Holded refused estimate delivery",
-        );
-      }
+    async sendInvoice(invoiceId, recipients, mailTemplateId, subject) {
+      await sendDocument("invoices", invoiceId, recipients, mailTemplateId, subject);
     },
 
     async createInvoice(input) {
       return createDocument("invoices", {
         contact_id: input.contactId,
-        date: today(),
+        date: isoDate(input.date),
         due_date: isoDate(input.dueDate),
         description: input.description,
         notes: input.notes,

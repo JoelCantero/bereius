@@ -5,6 +5,7 @@ vi.mock("server-only", () => ({}));
 
 import {
   createHoldedClient,
+  HoldedCreationError,
   HoldedDeliveryError,
   HOLDED_BASE_URL,
 } from "@/lib/holded/client";
@@ -194,6 +195,101 @@ describe("Holded contacts", () => {
     await expect(
       codeOf(client.createContact({ name: "X", code: "G1", email: "x@example.test" })),
     ).resolves.toBe("malformed_response");
+  });
+
+  it("marks an explicit create refusal as definitive", async () => {
+    const { client } = holded([status(422)]);
+
+    try {
+      await client.createInvoice({
+        contactId: "c1",
+        description: "Advance",
+        notes: "",
+        language: "ca",
+        date: new Date("2026-07-15T00:00:00.000Z"),
+        dueDate: new Date("2026-07-15T00:00:00.000Z"),
+        items: [],
+      });
+      expect.unreachable("expected Holded to refuse the create");
+    } catch (error) {
+      expect(error).toBeInstanceOf(HoldedCreationError);
+      expect(error).toMatchObject({
+        code: "invalid_request",
+        creationOutcome: "definitive_failure",
+      });
+    }
+  });
+
+  it("marks a network create failure as an unknown outcome", async () => {
+    const { client } = holded([{ error: new Error("socket closed") }]);
+
+    try {
+      await client.createInvoice({
+        contactId: "c1",
+        description: "Advance",
+        notes: "",
+        language: "ca",
+        date: new Date("2026-07-15T00:00:00.000Z"),
+        dueDate: new Date("2026-07-15T00:00:00.000Z"),
+        items: [],
+      });
+      expect.unreachable("expected Holded creation to fail");
+    } catch (error) {
+      expect(error).toBeInstanceOf(HoldedCreationError);
+      expect(error).toMatchObject({
+        code: "unavailable",
+        creationOutcome: "unknown",
+      });
+    }
+  });
+
+  it.each([408, 500])(
+    "marks an ambiguous HTTP %i create failure as an unknown outcome",
+    async (httpStatus) => {
+      const { client } = holded([status(httpStatus)]);
+
+      try {
+        await client.createInvoice({
+          contactId: "c1",
+          description: "Advance",
+          notes: "",
+          language: "ca",
+          date: new Date("2026-07-15T00:00:00.000Z"),
+          dueDate: new Date("2026-07-15T00:00:00.000Z"),
+          items: [],
+        });
+        expect.unreachable("expected Holded creation to fail");
+      } catch (error) {
+        expect(error).toBeInstanceOf(HoldedCreationError);
+        expect(error).toMatchObject({
+          code: "unavailable",
+          creationOutcome: "unknown",
+        });
+      }
+    },
+  );
+
+  it("marks an explicit create conflict as definitive", async () => {
+    const { client } = holded([status(409)]);
+
+    try {
+      await client.createInvoice({
+        contactId: "c1",
+        description: "Advance",
+        notes: "",
+        language: "ca",
+        date: new Date("2026-07-15T00:00:00.000Z"),
+        dueDate: new Date("2026-07-15T00:00:00.000Z"),
+        items: [],
+      });
+      expect.unreachable("expected Holded to refuse the create");
+    } catch (error) {
+      expect(error).toBeInstanceOf(HoldedCreationError);
+      expect(error).toMatchObject({
+        code: "invalid_request",
+        creationOutcome: "definitive_failure",
+      });
+    }
   });
 
   // A partial write blanks every field it omits, the tax identifier and the
@@ -486,6 +582,139 @@ describe("Holded estimate reads", () => {
   });
 });
 
+describe("Holded invoice reads", () => {
+  it("reads the accounting fields needed to verify an existing invoice", async () => {
+    const { http, client } = holded([
+      page({
+        id: "i1",
+        document_number: "F-2026-3",
+        date: "2026-09-17",
+        due_date: "2026-09-17",
+        total: "632,00",
+        status: "approved",
+        contact_id: "c1",
+        tax_included: true,
+        lines: [
+          {
+            name: "Reserva",
+            description: "Bestreta",
+            service_id: "svc-advance",
+            units: 1,
+            price: "432,00",
+            taxes: ["s_iva_10"],
+            account: "account-advance",
+          },
+          {
+            name: "Dipòsit",
+            description: "Fiança retornable",
+            service_id: "svc-deposit",
+            units: 1,
+            price: 200,
+            taxes: ["s_iva_nosujeto"],
+            account: "account-deposit",
+          },
+        ],
+      }),
+    ]);
+
+    await expect(client.getInvoice("i1")).resolves.toEqual({
+      id: "i1",
+      number: "F-2026-3",
+      date: "2026-09-17",
+      dueDate: "2026-09-17",
+      totalCents: 63_200,
+      status: "approved",
+      contactId: "c1",
+      taxIncluded: true,
+      items: [
+        {
+          name: "Reserva",
+          description: "Bestreta",
+          serviceId: "svc-advance",
+          accountId: "account-advance",
+          units: 1,
+          priceCents: 43_200,
+          taxes: ["s_iva_10"],
+        },
+        {
+          name: "Dipòsit",
+          description: "Fiança retornable",
+          serviceId: "svc-deposit",
+          accountId: "account-deposit",
+          units: 1,
+          priceCents: 20_000,
+          taxes: ["s_iva_nosujeto"],
+        },
+      ],
+    });
+    expect(http.requests[0].logicalUrl).toBe(`${HOLDED_BASE_URL}/invoices/i1`);
+  });
+
+  it("preserves the tax-exclusive mode returned by production invoices", async () => {
+    const { client } = holded([
+      page({
+        id: "i1",
+        date: "2026-01-19",
+        due_date: null,
+        total: 464,
+        status: "completed",
+        contact_id: "c1",
+        tax_included: false,
+        lines: [
+          {
+            name: "Reserva",
+            units: 1,
+            price: 240,
+            taxes: ["s_iva_10"],
+            account: "account-advance",
+          },
+          {
+            name: "Dipòsit",
+            units: 1,
+            price: 200,
+            taxes: [],
+            account: "account-deposit",
+          },
+        ],
+      }),
+    ]);
+
+    await expect(client.getInvoice("i1")).resolves.toMatchObject({
+      totalCents: 46_400,
+      status: "completed",
+      taxIncluded: false,
+      items: [
+        {
+          serviceId: null,
+          accountId: "account-advance",
+          priceCents: 24_000,
+          taxes: ["s_iva_10"],
+        },
+        {
+          serviceId: null,
+          accountId: "account-deposit",
+          priceCents: 20_000,
+          taxes: [],
+        },
+      ],
+    });
+  });
+
+  it("reports an absent invoice as null", async () => {
+    const { client } = holded([status(404)]);
+
+    await expect(client.getInvoice("gone")).resolves.toBeNull();
+  });
+
+  it("refuses an invoice whose lines cannot be verified", async () => {
+    const { client } = holded([page({ id: "i1", lines: [{ units: "many" }] })]);
+
+    await expect(codeOf(client.getInvoice("i1"))).resolves.toBe(
+      "malformed_response",
+    );
+  });
+});
+
 describe("Holded service prices", () => {
   // Catalogue prices arrive as "30.9091" but document amounts as "461,82", so
   // whichever separator comes last is the decimal one.
@@ -640,7 +869,7 @@ describe("Holded document writes", () => {
     ).resolves.toBe("malformed_response");
   });
 
-  it("creates an invoice with the date the advance falls due", async () => {
+  it("creates an invoice with explicit issue and due dates", async () => {
     const { http, client } = holded([
       page({ id: "i1" }),
       page({ id: "i1", document_number: "FAC-3" }),
@@ -652,13 +881,17 @@ describe("Holded document writes", () => {
         description: "Advance",
         notes: "",
         language: "ca",
+        date: new Date("2026-07-14T22:00:00.000Z"),
         dueDate: new Date("2026-07-15T22:00:00.000Z"),
         items: [{ description: "Advance", units: 1, price: 100 }],
       }),
     ).resolves.toEqual({ id: "i1", number: "FAC-3" });
 
     expect(http.requests[0].logicalUrl).toBe(`${HOLDED_BASE_URL}/invoices`);
-    expect(sentBody(http.requests[0].body)).toMatchObject({ due_date: "2026-07-15" });
+    expect(sentBody(http.requests[0].body)).toMatchObject({
+      date: "2026-07-14",
+      due_date: "2026-07-15",
+    });
   });
 
   it.each([
@@ -689,6 +922,28 @@ describe("Holded document writes", () => {
     expect(sentBody(http.requests[0].body)).toEqual({
       emails: ["fiscal@example.test"],
       cc: ["delegate@example.test", "other@example.test"],
+      mail_template_id: "tpl-1",
+    });
+  });
+
+  it("sends an invoice through the configured template", async () => {
+    const { http, client } = holded([page({})]);
+
+    await client.sendInvoice(
+      "i1",
+      {
+        emails: ["fiscal@example.test"],
+        cc: ["delegate@example.test"],
+      },
+      "tpl-1",
+      "Gestión de reservas Berea",
+    );
+
+    expect(http.requests[0].logicalUrl).toBe(`${HOLDED_BASE_URL}/invoices/i1/send`);
+    expect(sentBody(http.requests[0].body)).toEqual({
+      emails: ["fiscal@example.test"],
+      cc: ["delegate@example.test"],
+      subject: "Gestión de reservas Berea",
       mail_template_id: "tpl-1",
     });
   });
@@ -728,6 +983,27 @@ describe("Holded document writes", () => {
       });
     }
   });
+
+  it.each([408, 500])(
+    "marks an ambiguous HTTP %i failure as an unknown delivery outcome",
+    async (httpStatus) => {
+      const { client } = holded([status(httpStatus)]);
+
+      try {
+        await client.sendEstimate(
+          "e1",
+          { emails: ["fiscal@example.test"], cc: [] },
+        );
+        expect.unreachable("expected Holded delivery to fail");
+      } catch (error) {
+        expect(error).toBeInstanceOf(HoldedDeliveryError);
+        expect(error).toMatchObject({
+          code: "unavailable",
+          deliveryOutcome: "unknown",
+        });
+      }
+    },
+  );
 
   // There is no line patch: sending `items` replaces the whole collection.
   it("replaces every estimate line in one write", async () => {

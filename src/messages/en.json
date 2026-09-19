@@ -202,6 +202,10 @@
         "label": "Contracts",
         "description": "Holded estimates and the request each one belongs to."
       },
+      "bankMovements": {
+        "label": "Bank movements",
+        "description": "Search imported Holded income and expenses."
+      },
       "integrations": {
         "label": "Integrations",
         "description": "Credentials and identifiers for Holded, Gravity Forms and mail."
@@ -744,6 +748,152 @@
       "stay": "{start} – {end} · {headcount} people"
     }
   },
+  "BankMovements": {
+    "title": "Bank movements",
+    "description": "Search imported Holded movements and compare exact totals for the current filters.",
+    "invalidFilters": "Some filters are invalid.",
+    "clearFilters": "Clear filters",
+    "empty": "No bank movements match these filters.",
+    "loading": "Loading bank movements",
+    "emptyValue": "Not available",
+    "filters": {
+      "direction": "Direction",
+      "from": "From",
+      "to": "To",
+      "account": "Account",
+      "currency": "Currency",
+      "search": "Search concept or reference",
+      "all": "All directions",
+      "allAccounts": "All accounts",
+      "allCurrencies": "All currencies"
+    },
+    "directions": {
+      "income": "Income",
+      "expense": "Expense"
+    },
+    "statuses": {
+      "pending": "Pending",
+      "reconciled": "Reconciled"
+    },
+    "table": {
+      "caption": "Imported bank movements",
+      "date": "Date",
+      "valueDate": "Value date",
+      "concept": "Concept",
+      "reference": "Reference",
+      "counterparty": "Counterparty",
+      "account": "Account",
+      "amount": "Amount",
+      "currency": "Currency",
+      "status": "Status",
+      "direction": "Direction"
+    },
+    "totals": {
+      "title": "Filtered totals",
+      "income": "Income",
+      "expense": "Expense"
+    },
+    "proposals": {
+      "title": "Reconciliation proposal",
+      "estimate": "Estimate {number}",
+      "pending": "Pending review",
+      "confirmed": "Confirmed",
+      "dismissed": "Dismissed",
+      "invalidated": "Invalidated",
+      "confirm": "Confirm payment",
+      "dismiss": "Dismiss proposal",
+      "confirmedAnnouncement": "Payment confirmed.",
+      "dismissedAnnouncement": "Proposal dismissed.",
+      "decidedBy": "Decided by {name}",
+      "errors": {
+        "unauthenticated": "Your session has expired. Sign in again.",
+        "forbidden": "You are not allowed to decide this proposal.",
+        "invalid": "The proposal request is invalid.",
+        "not_found": "The proposal is no longer available.",
+        "state_changed": "The booking state changed. Review the current data.",
+        "proposal_changed": "This proposal was already decided or changed.",
+        "movement_ineligible": "The movement no longer meets the reconciliation rules.",
+        "amount_mismatch": "The movement amount no longer matches the expected payment.",
+        "movement_already_used": "This movement is already linked to a payment.",
+        "unknown": "The proposal could not be updated. Try again."
+      }
+    },
+    "synchronization": {
+      "title": "Holded synchronization",
+      "status": {
+        "queued": "Waiting to synchronize",
+        "running": "Synchronization in progress",
+        "retrying": "Waiting to retry",
+        "succeeded": "Synchronization complete",
+        "partial": "Synchronization partially complete",
+        "failed": "Synchronization failed"
+      },
+      "state": {
+        "unconfigured": "Configure a treasury account to synchronize.",
+        "initial_active": "Initial synchronization is in progress.",
+        "healthy": "Bank data is current.",
+        "stale": "Bank data may be out of date.",
+        "retrying": "Holded is temporarily unavailable; a retry is scheduled.",
+        "partial": "Some pages or movements need review.",
+        "failed": "The latest synchronization did not import a page."
+      },
+      "refresh": "Refresh movements",
+      "retry": "Retry synchronization",
+      "refreshing": "Requesting refresh",
+      "cooldown": "Refresh will be available at {date}.",
+      "accepted": "Refresh accepted.",
+      "alreadyRunning": "A synchronization is already active.",
+      "lastSuccess": "Last successful synchronization: {date}",
+      "finishedAt": "Latest attempt finished: {date}",
+      "nextAttempt": "Next retry: {date}",
+      "pendingProposals": "{count, plural, one {# pending proposal} other {# pending proposals}}",
+      "retainedData": "Previously imported movements remain available for review.",
+      "expiryDeferred": "Unpaid bookings will not expire until a fresh, complete bank scan succeeds.",
+      "progress": {
+        "pages": "{count, plural, one {# page} other {# pages}}",
+        "items": "{count, plural, one {# item} other {# items}}",
+        "inserted": "{count} inserted",
+        "updated": "{count} updated",
+        "unchanged": "{count} unchanged",
+        "incidents": "{count, plural, one {# incident} other {# incidents}}"
+      },
+      "incidentAtPage": "{reason} (page {page})",
+      "incidentAtItem": "{reason} (page {page}, item {item})",
+      "incidents": {
+        "PROVIDER_UNAUTHORIZED": "Holded rejected the integration credentials.",
+        "PROVIDER_NOT_FOUND": "Holded could not find the configured treasury account.",
+        "PROVIDER_RATE_LIMITED": "Holded temporarily limited synchronization requests.",
+        "PROVIDER_UNAVAILABLE": "Holded was unavailable during synchronization.",
+        "PROVIDER_REQUEST_REJECTED": "Holded rejected the synchronization request.",
+        "RESPONSE_TOO_LARGE": "A Holded response exceeded the accepted size.",
+        "MALFORMED_PAGE": "Holded returned a malformed movement page.",
+        "MISSING_CURSOR": "Holded omitted the cursor for the next page.",
+        "REPEATED_CURSOR": "Holded repeated a pagination cursor.",
+        "INVALID_MOVEMENT_ID": "A movement had an invalid identifier.",
+        "ACCOUNT_MISMATCH": "A movement belonged to a different treasury account.",
+        "INVALID_BOOKING_DATE": "A movement had an invalid booking date.",
+        "INVALID_VALUE_DATE": "A movement had an invalid value date.",
+        "INVALID_AMOUNT": "A movement had an invalid amount.",
+        "ZERO_AMOUNT": "A zero-value movement was excluded.",
+        "INVALID_CURRENCY": "A movement used an unsupported currency.",
+        "DESCRIPTION_TOO_LONG": "A movement description exceeded the accepted length.",
+        "CONFIRMED_MATCH_CHANGED": "A confirmed movement changed and needs review."
+      },
+      "errors": {
+        "unauthenticated": "Your session has expired. Sign in again.",
+        "forbidden": "You are not allowed to request a bank refresh.",
+        "not_configured": "Configure a treasury account before refreshing.",
+        "rate_limited": "Wait before requesting another refresh.",
+        "invalid": "The refresh request is invalid.",
+        "unknown": "The refresh could not be requested. Try again."
+      }
+    },
+    "pagination": {
+      "previous": "Previous page",
+      "next": "Next page",
+      "summary": "Page {page} of {pages}"
+    }
+  },
   "Bookings": {
     "queue": {
       "title": "Booking requests",
@@ -783,6 +933,11 @@
       "openEstimate": "Open the estimate",
       "openInHolded": "Open in Holded",
       "deliveryUnknown": "Holded may have sent this estimate but did not confirm the outcome. Check it in Holded before taking action; it will not be sent again automatically.",
+      "reserveInvoiceProcessing": "The reserve invoice is pending issuance or delivery.",
+      "reserveInvoiceSent": "The reserve invoice has been approved and sent.",
+      "reserveInvoiceBlocked": "Reserve invoice issuance is blocked because existing Holded data needs review.",
+      "reserveInvoiceUnknown": "Holded may have created the reserve invoice but did not confirm the outcome. Check it in Holded before taking action; it will not be created again automatically.",
+      "reserveInvoiceDeliveryUnknown": "Holded may have sent the reserve invoice but did not confirm the outcome. Check it in Holded before taking action; it will not be sent again automatically.",
       "noPayments": "No payment has been recorded yet.",
       "taxId": "Tax identifier",
       "email": "Email",
@@ -806,6 +961,38 @@
       "receivedAtLabel": "Received on",
       "referenceLabel": "Transfer reference",
       "submit": "Save"
+    },
+    "bankCandidates": {
+      "title": "Matching bank income",
+      "range": "From estimate creation · within 5%",
+      "empty": "No unlinked income matches this booking yet.",
+      "date": "Date",
+      "concept": "Concept",
+      "amount": "Received",
+      "expected": "Expected",
+      "difference": "Difference",
+      "reference": "Estimate reference",
+      "actions": "Actions",
+      "noConcept": "No concept supplied",
+      "exact": "Exact",
+      "referenceFound": "Estimate reference found",
+      "referenceMissing": "No estimate reference found",
+      "link": "Link payment",
+      "dismiss": "Dismiss",
+      "confirmed": "Payment linked and booking confirmed.",
+      "dismissed": "Income dismissed for this booking.",
+      "errors": {
+        "unauthenticated": "Your session has expired. Sign in again.",
+        "forbidden": "You do not have permission for this action.",
+        "invalid": "The selected income is invalid.",
+        "not_found": "This income is no longer available.",
+        "state_changed": "The booking changed. Reload the page.",
+        "proposal_changed": "Another operator already reviewed this income.",
+        "movement_ineligible": "The income no longer meets the date or currency rules.",
+        "amount_mismatch": "The income is no longer within 5% of the expected amount.",
+        "movement_already_used": "This income is already linked to another payment.",
+        "unknown": "The income could not be linked."
+      }
     },
     "states": {
       "IN_REVIEW": "In review",
@@ -848,6 +1035,7 @@
     "holdedEstimates": {
       "title": "Holded estimates for this contact",
       "none": "This contact has no estimate in Holded for these dates.",
+      "unnumbered": "Estimate without number",
       "hint": "The estimate is the contract, so linking one approves the request.",
       "link": "Link to this request"
     },
@@ -901,6 +1089,34 @@
           "no_key": "Save the API key and the Holded lists will fill these dropdowns.",
           "unauthorized": "Holded refused the key or it lacks read permission, so the dropdowns are empty.",
           "unavailable": "Holded could not be reached, so the dropdowns are empty. Try again shortly."
+        }
+      },
+      "treasury": {
+        "title": "Bank account",
+        "description": "Choose the Holded account whose EUR movements Bereius will import for reconciliation.",
+        "account": "Holded bank account",
+        "choose": "Choose an account",
+        "accountUnavailable": "No eligible EUR accounts available",
+        "importStartDate": "Import movements from",
+        "importStartDateHint": "The first import can include up to the previous 90 days.",
+        "importStartDateLocked": "This date is fixed because an import has already started.",
+        "save": "Save bank account",
+        "saving": "Saving…",
+        "saved": "Bank account saved and synchronization queued.",
+        "availability": {
+          "not_configured": "Save the Holded API key before choosing a bank account.",
+          "unauthorized": "Holded refused the key or it lacks treasury read permission.",
+          "unavailable": "Holded bank accounts could not be loaded. Try again shortly."
+        },
+        "errors": {
+          "unauthenticated": "Sign in again before saving the bank account.",
+          "forbidden": "Only administrators can change the bank account.",
+          "invalid": "Choose an account and a valid import date.",
+          "not_configured": "Save the Holded API key before choosing a bank account.",
+          "account_unavailable": "That account is archived, is not in EUR, or is no longer available.",
+          "start_date_locked": "The import start date cannot change after synchronization has begun.",
+          "connection": "Holded could not be reached. Try again shortly.",
+          "unknown": "The bank account could not be saved. Try again."
         }
       },
       "gravityForms": {

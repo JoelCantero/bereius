@@ -28,9 +28,11 @@ const legacyProjectNames = [
 
 describe("project branding", () => {
   it("keeps legacy project names out of tracked files", async () => {
-    const { stdout } = await execFileAsync("git", ["ls-files", "-z"], {
-      encoding: "utf8",
-    });
+    const { stdout } = await execFileAsync(
+      "git",
+      ["ls-files", "-z", "--cached", "--others", "--exclude-standard"],
+      { encoding: "utf8" },
+    );
     const files = stdout
       .split("\0")
       .filter(Boolean)
@@ -40,7 +42,13 @@ describe("project branding", () => {
     const violations = (
       await Promise.all(
         files.map(async (file) => {
-          const source = await readFile(file, "utf8");
+          let source: string;
+          try {
+            source = await readFile(file, "utf8");
+          } catch (error) {
+            if ((error as NodeJS.ErrnoException).code === "ENOENT") return null;
+            throw error;
+          }
           return legacyProjectNames.some((name) =>
             source.toLocaleLowerCase("en-US").includes(name),
           )

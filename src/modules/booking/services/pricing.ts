@@ -3,9 +3,6 @@ import type { BoardType } from "@/generated/prisma/enums";
 /** The house never bills fewer places than this, whatever the group size. */
 export const BILLABLE_HEADCOUNT_FLOOR = 30;
 
-/** Refundable security deposit, fixed at 200 EUR. */
-export const SECURITY_DEPOSIT_CENTS = 20_000;
-
 /** Share of the stay total payable up front to confirm a booking. */
 export const ADVANCE_NUMERATOR = 3;
 export const ADVANCE_DENOMINATOR = 10;
@@ -22,7 +19,12 @@ const BOARD_TYPE_PREFIX: Readonly<Record<BoardType, string>> = {
 
 export class BookingPricingError extends Error {
   constructor(
-    readonly code: "invalid_stay" | "invalid_headcount" | "invalid_unit_price",
+    readonly code:
+      | "invalid_stay"
+      | "invalid_headcount"
+      | "invalid_unit_price"
+      | "invalid_total"
+      | "invalid_deposit",
     message: string,
   ) {
     super(message);
@@ -95,6 +97,8 @@ export interface StayQuoteInput {
   endDate: Date;
   /** Gross price per person and night, read from the Holded service. */
   unitPriceCents: number;
+  /** Refundable deposit price, read from its configured Holded service. */
+  depositCents: number;
 }
 
 export interface StayQuote {
@@ -106,11 +110,43 @@ export interface StayQuote {
   unitPriceCents: number;
   stayTotalCents: number;
   advanceCents: number;
-  /** Advance excluding VAT, which is what an invoice line carries. */
-  advanceNetCents: number;
   depositCents: number;
   /** What the customer must transfer to confirm: advance plus deposit. */
   amountToConfirmCents: number;
+}
+
+export interface ConfirmationAmounts {
+  advanceCents: number;
+  depositCents: number;
+  amountToConfirmCents: number;
+}
+
+export function calculateConfirmationAmounts(
+  totalCents: number,
+  depositCents: number,
+): ConfirmationAmounts {
+  if (!Number.isSafeInteger(totalCents) || totalCents < 0) {
+    throw new BookingPricingError(
+      "invalid_total",
+      "The estimate total must be a non-negative whole number of cents",
+    );
+  }
+  if (!Number.isSafeInteger(depositCents) || depositCents < 0) {
+    throw new BookingPricingError(
+      "invalid_deposit",
+      "The deposit must be a non-negative whole number of cents",
+    );
+  }
+
+  const advanceCents = Math.round(
+    (totalCents * ADVANCE_NUMERATOR) / ADVANCE_DENOMINATOR,
+  );
+
+  return {
+    advanceCents,
+    depositCents,
+    amountToConfirmCents: advanceCents + depositCents,
+  };
 }
 
 /**
@@ -129,8 +165,9 @@ export function quoteStay(input: StayQuoteInput): StayQuote {
   const billable = billableHeadcount(input.headcount);
   const units = nights * billable;
   const stayTotalCents = input.unitPriceCents * units;
-  const advanceCents = Math.round(
-    (stayTotalCents * ADVANCE_NUMERATOR) / ADVANCE_DENOMINATOR,
+  const confirmation = calculateConfirmationAmounts(
+    stayTotalCents,
+    input.depositCents,
   );
 
   return {
@@ -140,9 +177,6 @@ export function quoteStay(input: StayQuoteInput): StayQuote {
     serviceSku: resolveServiceSku(input.boardType, input.headcount),
     unitPriceCents: input.unitPriceCents,
     stayTotalCents,
-    advanceCents,
-    advanceNetCents: Math.round((advanceCents * 100) / (100 + VAT_PERCENT)),
-    depositCents: SECURITY_DEPOSIT_CENTS,
-    amountToConfirmCents: advanceCents + SECURITY_DEPOSIT_CENTS,
+    ...confirmation,
   };
 }

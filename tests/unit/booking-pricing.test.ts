@@ -10,7 +10,6 @@ import {
   quoteStay,
   resolveHeadcountBand,
   resolveServiceSku,
-  SECURITY_DEPOSIT_CENTS,
 } from "@/modules/booking/services/pricing";
 
 function utcDate(iso: string): Date {
@@ -107,6 +106,7 @@ describe("booking pricing", () => {
         startDate: utcDate("2027-06-01"),
         endDate: utcDate("2027-06-03"),
         unitPriceCents: 1_800,
+        depositCents: 20_000,
       });
 
       // 2 nights x 30 places, not 2 x 22.
@@ -114,7 +114,7 @@ describe("booking pricing", () => {
       expect(quote.billableHeadcount).toBe(BILLABLE_HEADCOUNT_FLOOR);
       expect(quote.stayTotalCents).toBe(108_000);
       expect(quote.advanceCents).toBe(32_400);
-      expect(quote.depositCents).toBe(SECURITY_DEPOSIT_CENTS);
+      expect(quote.depositCents).toBe(20_000);
       expect(quote.amountToConfirmCents).toBe(52_400);
     });
 
@@ -125,6 +125,7 @@ describe("booking pricing", () => {
         startDate: utcDate("2027-11-19"),
         endDate: utcDate("2027-11-21"),
         unitPriceCents: 3_200,
+        depositCents: 20_000,
       });
 
       expect(quote).toMatchObject({
@@ -156,12 +157,12 @@ describe("booking pricing", () => {
           startDate: utcDate("2027-06-01"),
           endDate: utcDate("2027-06-03"),
           unitPriceCents,
+          depositCents: 20_000,
         });
 
         for (const amount of [
           quote.stayTotalCents,
           quote.advanceCents,
-          quote.advanceNetCents,
           quote.depositCents,
           quote.amountToConfirmCents,
         ]) {
@@ -169,22 +170,6 @@ describe("booking pricing", () => {
         }
       },
     );
-
-    it("derives the net advance without leaving a repeating decimal", () => {
-      // The retired workflow computed 21 600 / 1.10 in floating point and sent
-      // 19636.363636363636 to Holded.
-      const quote = quoteStay({
-        boardType: "SELF_CATERING",
-        headcount: 30,
-        startDate: utcDate("2027-06-01"),
-        endDate: utcDate("2027-06-02"),
-        unitPriceCents: 2_400,
-      });
-
-      expect(quote.advanceCents).toBe(21_600);
-      expect(quote.advanceNetCents).toBe(19_636);
-      expect(String(quote.advanceNetCents)).not.toContain(".");
-    });
 
     it("refuses a unit price that is not whole cents", () => {
       expect(() =>
@@ -194,8 +179,24 @@ describe("booking pricing", () => {
           startDate: utcDate("2027-06-01"),
           endDate: utcDate("2027-06-03"),
           unitPriceCents: 18.5,
+          depositCents: 20_000,
         }),
       ).toThrow(BookingPricingError);
+    });
+
+    it("uses the exact deposit service price in the confirmation total", () => {
+      const quote = quoteStay({
+        boardType: "SELF_CATERING",
+        headcount: 30,
+        startDate: utcDate("2027-06-01"),
+        endDate: utcDate("2027-06-02"),
+        unitPriceCents: 2_000,
+        depositCents: 22_500,
+      });
+
+      expect(quote.advanceCents).toBe(18_000);
+      expect(quote.depositCents).toBe(22_500);
+      expect(quote.amountToConfirmCents).toBe(40_500);
     });
   });
 });

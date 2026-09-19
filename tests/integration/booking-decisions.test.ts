@@ -14,13 +14,23 @@ import {
   recordPayment,
   rejectBooking,
 } from "@/modules/booking/services/decisions";
+import {
+  confirmBookingPaymentCandidate,
+  confirmReconciliationProposal,
+} from "@/modules/banking/services/reconciliation";
 import { BOOKING_MAIL_JOB_KIND } from "@/modules/booking/services/mail";
 import { QUOTE_JOB_KIND } from "@/modules/booking/services/quoting";
+import {
+  RESERVE_INVOICE_JOB_KIND,
+  reserveInvoiceJobKey,
+} from "@/modules/booking/services/reserve-invoice";
+import { createBankingFixtureScope } from "../helpers/banking";
 
 describe.skipIf(!runIntegrationTests)("booking decisions integration", () => {
   const customerIds: string[] = [];
   const userIds: string[] = [];
   const bookingIds: string[] = [];
+  const bankingScopes = new Set<ReturnType<typeof createBankingFixtureScope>>();
 
   async function operator() {
     const email = `operator-${Date.now()}-${Math.random().toString(36).slice(2, 8)}@example.test`;
@@ -53,7 +63,12 @@ describe.skipIf(!runIntegrationTests)("booking decisions integration", () => {
         headcount: 40,
         submittedAt: new Date(),
         ...(state === "AWAITING_PAYMENT"
-          ? { advanceCents: 43_200, depositCents: 20_000, paymentDueAt: new Date() }
+          ? {
+              advanceCents: 43_200,
+              depositCents: 20_000,
+              paymentDueAt: new Date(),
+              decidedAt: new Date("2026-09-10T15:00:00.000Z"),
+            }
           : {}),
       },
     });
@@ -61,11 +76,45 @@ describe.skipIf(!runIntegrationTests)("booking decisions integration", () => {
     return created;
   }
 
+  async function pendingProposal(request: Awaited<ReturnType<typeof booking>>) {
+    const scope = createBankingFixtureScope("booking-decision-proposal");
+    bankingScopes.add(scope);
+    const accountData = scope.treasuryAccount({ active: false });
+    await db.holdedTreasuryAccount.create({ data: accountData });
+    const movementData = scope.movement(accountData, {
+      bookingDate: new Date("2026-09-12T00:00:00.000Z"),
+      narrative: "Synthetic transfer EST-63200 received",
+      amountMinor: BigInt(63_200),
+    });
+    const movement = await db.bankMovement.create({ data: movementData });
+    await db.holdedDocument.create({
+      data: {
+        bookingRequestId: request.id,
+        type: "ESTIMATE",
+        holdedId: `${scope.scopeId}-estimate`,
+        documentNumber: "EST-63200",
+        totalCents: 63_200,
+        issuedAt: request.decidedAt!,
+      },
+    });
+    const proposal = await db.bankReconciliationProposal.create({
+      data: { movementId: movement.id, bookingRequestId: request.id },
+    });
+    return { movement, proposal };
+  }
+
   afterEach(async () => {
+    await Promise.all(
+      [...bankingScopes].map(async (scope) => {
+        await scope.cleanup();
+        bankingScopes.delete(scope);
+      }),
+    );
     await db.integrationJob.deleteMany({
       where: {
         OR: bookingIds.flatMap((id) => [
           { idempotencyKey: `${QUOTE_JOB_KIND}:${id}` },
+          { idempotencyKey: reserveInvoiceJobKey(id) },
           { idempotencyKey: { startsWith: `${BOOKING_MAIL_JOB_KIND}:` } },
         ]),
       },
@@ -171,6 +220,272 @@ describe.skipIf(!runIntegrationTests)("booking decisions integration", () => {
     await expect(
       db.payment.count({ where: { bookingRequestId: request.id } }),
     ).resolves.toBe(1);
+  });
+
+  it("rolls back a manual payment when the booking state is stale", async () => {
+    const actor = await operator();
+    const request = await booking("AWAITING_PAYMENT");
+    await db.bookingRequest.update({
+      where: { id: request.id },
+      data: { state: "CONFIRMED" },
+    });
+
+    await expect(
+      recordPayment({
+        bookingRequestId: request.id,
+        actorUserId: actor.id,
+        amountCents: 63_200,
+        receivedAt: new Date("2026-09-12T00:00:00.000Z"),
+      }),
+    ).rejects.toThrow();
+
+    await expect(
+      db.payment.count({ where: { bookingRequestId: request.id } }),
+    ).resolves.toBe(0);
+    await expect(
+      db.bookingAuditEvent.count({ where: { bookingRequestId: request.id } }),
+    ).resolves.toBe(0);
+    await expect(
+      db.integrationJob.count({
+        where: {
+          idempotencyKey: `${BOOKING_MAIL_JOB_KIND}:confirmed:${request.id}`,
+        },
+      }),
+    ).resolves.toBe(0);
+  });
+
+  it("records one manual payment, transition, audit event, and post-commit mail", async () => {
+    const actor = await operator();
+    const request = await booking("AWAITING_PAYMENT");
+    const receivedAt = new Date("2026-09-12T00:00:00.000Z");
+
+    await recordPayment({
+      bookingRequestId: request.id,
+      actorUserId: actor.id,
+      amountCents: 63_200,
+      receivedAt,
+      reference: "Synthetic manual reference",
+    });
+
+    await expect(
+      db.payment.findMany({ where: { bookingRequestId: request.id } }),
+    ).resolves.toMatchObject([
+      {
+        amountCents: 63_200,
+        receivedAt,
+        reference: "Synthetic manual reference",
+        recordedById: actor.id,
+        bankMovementId: null,
+      },
+    ]);
+    await expect(
+      db.bookingAuditEvent.findMany({
+        where: { bookingRequestId: request.id },
+      }),
+    ).resolves.toMatchObject([
+      {
+        actorUserId: actor.id,
+        fromState: "AWAITING_PAYMENT",
+        toState: "CONFIRMED",
+      },
+    ]);
+    await expect(
+      db.integrationJob.count({
+        where: {
+          idempotencyKey: `${BOOKING_MAIL_JOB_KIND}:confirmed:${request.id}`,
+        },
+      }),
+    ).resolves.toBe(1);
+    await expect(
+      db.documentIssuance.count({ where: { bookingRequestId: request.id } }),
+    ).resolves.toBe(0);
+    await expect(
+      db.integrationJob.count({
+        where: { idempotencyKey: reserveInvoiceJobKey(request.id) },
+      }),
+    ).resolves.toBe(0);
+  });
+
+  it("rolls back a movement-backed decision when the booking state is stale", async () => {
+    const actor = await operator();
+    const request = await booking("AWAITING_PAYMENT");
+    const { movement, proposal } = await pendingProposal(request);
+    await db.bookingRequest.update({
+      where: { id: request.id },
+      data: { state: "CONFIRMED" },
+    });
+
+    await expect(
+      confirmReconciliationProposal({
+        proposalId: proposal.id,
+        actorUserId: actor.id,
+      }),
+    ).rejects.toThrow();
+
+    await expect(
+      db.payment.count({ where: { bankMovementId: movement.id } }),
+    ).resolves.toBe(0);
+    await expect(
+      db.bankReconciliationProposal.findUniqueOrThrow({
+        where: { id: proposal.id },
+      }),
+    ).resolves.toMatchObject({ status: "PENDING", decidedAt: null });
+    await expect(
+      db.bookingAuditEvent.count({ where: { bookingRequestId: request.id } }),
+    ).resolves.toBe(0);
+  });
+
+  it("maps one movement into one payment, decision, transition, and mail", async () => {
+    const actor = await operator();
+    const request = await booking("AWAITING_PAYMENT");
+    const { movement, proposal } = await pendingProposal(request);
+    const decidedAt = new Date("2026-09-16T15:00:00.000Z");
+
+    await expect(
+      confirmReconciliationProposal({
+        proposalId: proposal.id,
+        actorUserId: actor.id,
+        now: decidedAt,
+      }),
+    ).resolves.toEqual({ bookingRequestId: request.id });
+
+    await expect(
+      db.payment.findMany({ where: { bankMovementId: movement.id } }),
+    ).resolves.toMatchObject([
+      {
+        bookingRequestId: request.id,
+        amountCents: 63_200,
+        receivedAt: new Date("2026-09-12T00:00:00.000Z"),
+        reference: movement.narrative,
+        recordedById: actor.id,
+      },
+    ]);
+    await expect(
+      db.bankReconciliationProposal.findUniqueOrThrow({
+        where: { id: proposal.id },
+      }),
+    ).resolves.toMatchObject({
+      status: "CONFIRMED",
+      decidedById: actor.id,
+      decidedAt,
+    });
+    await expect(
+      db.bookingRequest.findUniqueOrThrow({ where: { id: request.id } }),
+    ).resolves.toMatchObject({ state: "CONFIRMED" });
+    await expect(
+      db.bookingAuditEvent.findMany({
+        where: { bookingRequestId: request.id },
+      }),
+    ).resolves.toMatchObject([
+      {
+        actorUserId: actor.id,
+        fromState: "AWAITING_PAYMENT",
+        toState: "CONFIRMED",
+      },
+    ]);
+    await expect(
+      db.integrationJob.count({
+        where: {
+          idempotencyKey: `${BOOKING_MAIL_JOB_KIND}:confirmed:${request.id}`,
+        },
+      }),
+    ).resolves.toBe(1);
+    const payment = await db.payment.findUniqueOrThrow({
+      where: { bankMovementId: movement.id },
+    });
+    await expect(
+      db.documentIssuance.findUniqueOrThrow({
+        where: {
+          bookingRequestId_type: {
+            bookingRequestId: request.id,
+            type: "RESERVE_INVOICE",
+          },
+        },
+      }),
+    ).resolves.toMatchObject({
+      status: "PREPARED",
+      holdedDocumentId: null,
+    });
+    await expect(
+      db.integrationJob.findUniqueOrThrow({
+        where: { idempotencyKey: reserveInvoiceJobKey(request.id) },
+      }),
+    ).resolves.toMatchObject({
+      kind: RESERVE_INVOICE_JOB_KIND,
+      payload: { bookingRequestId: request.id, paymentId: payment.id },
+    });
+
+    await expect(
+      confirmReconciliationProposal({
+        proposalId: proposal.id,
+        actorUserId: actor.id,
+      }),
+    ).rejects.toMatchObject({ code: "proposal_changed" });
+    await expect(
+      db.payment.count({ where: { bankMovementId: movement.id } }),
+    ).resolves.toBe(1);
+    await expect(
+      db.bookingAuditEvent.count({ where: { bookingRequestId: request.id } }),
+    ).resolves.toBe(1);
+  });
+
+  it("confirms an explicitly selected bank income within 5% and stores its real amount", async () => {
+    const actor = await operator();
+    const request = await booking("AWAITING_PAYMENT");
+    const scope = createBankingFixtureScope("booking-decision-candidate");
+    bankingScopes.add(scope);
+    const accountData = scope.treasuryAccount({ active: false });
+    await db.holdedTreasuryAccount.create({ data: accountData });
+    const movement = await db.bankMovement.create({
+      data: scope.movement(accountData, {
+        bookingDate: new Date("2026-09-11T00:00:00.000Z"),
+        narrative: "Synthetic payment without an estimate reference",
+        amountMinor: BigInt(66_000),
+      }),
+    });
+
+    await expect(
+      confirmBookingPaymentCandidate({
+        bookingRequestId: request.id,
+        movementId: movement.id,
+        actorUserId: actor.id,
+        now: new Date("2026-09-16T15:00:00.000Z"),
+      }),
+    ).resolves.toEqual({ bookingRequestId: request.id });
+
+    await expect(
+      db.payment.findUniqueOrThrow({ where: { bankMovementId: movement.id } }),
+    ).resolves.toMatchObject({
+      bookingRequestId: request.id,
+      amountCents: 66_000,
+      receivedAt: new Date("2026-09-11T00:00:00.000Z"),
+      reference: movement.narrative,
+      recordedById: actor.id,
+    });
+    await expect(
+      db.bankReconciliationProposal.findUniqueOrThrow({
+        where: {
+          movementId_bookingRequestId: {
+            movementId: movement.id,
+            bookingRequestId: request.id,
+          },
+        },
+      }),
+    ).resolves.toMatchObject({ status: "CONFIRMED", decidedById: actor.id });
+    await expect(
+      db.bookingRequest.findUniqueOrThrow({ where: { id: request.id } }),
+    ).resolves.toMatchObject({ state: "CONFIRMED" });
+    const payment = await db.payment.findUniqueOrThrow({
+      where: { bankMovementId: movement.id },
+    });
+    await expect(
+      db.integrationJob.findUniqueOrThrow({
+        where: { idempotencyKey: reserveInvoiceJobKey(request.id) },
+      }),
+    ).resolves.toMatchObject({
+      kind: RESERVE_INVOICE_JOB_KIND,
+      payload: { bookingRequestId: request.id, paymentId: payment.id },
+    });
   });
 
   it.each([63_199, 63_201, 20_000])(

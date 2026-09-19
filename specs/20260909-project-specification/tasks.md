@@ -61,7 +61,7 @@ intake remains pull-only and Bereius accepts no inbound WordPress delegate calls
 
 **Purpose**: The billing rules recovered from the retired workflow, with its two defects fixed.
 
-- [X] T009 Implement `src/modules/booking/services/pricing.ts`: calendar night count, the 30-place billable floor, headcount band selection (up to 39, 40-59, 60-79, 80+), board-type SKU resolution, the 30% advance and the fixed 200 EUR deposit, all in integer cents
+- [X] T009 Implement `src/modules/booking/services/pricing.ts`: calendar night count, the 30-place billable floor, headcount band selection (up to 39, 40-59, 60-79, 80+), board-type SKU resolution, the 30% advance and the configured Holded deposit service price, all in integer cents
 - [X] T010 Write table-driven unit tests in `tests/unit/booking-pricing.test.ts` covering: a stay spanning a daylight saving change yields an integer night count; a group of 22 bills 30 places; each band boundary (39/40, 59/60, 79/80); and that no computed amount is a floating point value
 
 ---

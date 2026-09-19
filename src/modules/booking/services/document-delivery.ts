@@ -6,24 +6,24 @@ import { db } from "@/lib/db";
 import {
   HoldedDeliveryError,
   type HoldedClient,
-  type HoldedEstimateRecipients,
+  type HoldedDocumentRecipients,
 } from "@/lib/holded/client";
 import { logger } from "@/lib/logger";
 
 const recipientSchema = z.email().max(320);
 
-export class EstimateDeliveryError extends Error {
+export class DocumentDeliveryError extends Error {
   constructor(
     readonly code:
       | "missing_fiscal_email"
       | "invalid_delegate_email"
       | "unlinked_customer"
-      | "unknown_estimate"
+      | "unknown_document"
       | "invalid_delivery",
     message: string,
   ) {
     super(message);
-    this.name = "EstimateDeliveryError";
+    this.name = "DocumentDeliveryError";
   }
 }
 
@@ -32,13 +32,13 @@ function normalizeEmail(value: string): string | null {
   return recipientSchema.safeParse(normalized).success ? normalized : null;
 }
 
-export function resolveEstimateRecipients(
+export function resolveDocumentRecipients(
   fiscalEmail: string,
   delegateEmails: readonly string[],
-): HoldedEstimateRecipients {
+): HoldedDocumentRecipients {
   const primary = normalizeEmail(fiscalEmail);
   if (!primary) {
-    throw new EstimateDeliveryError(
+    throw new DocumentDeliveryError(
       "missing_fiscal_email",
       "The customer has no usable fiscal email",
     );
@@ -48,7 +48,7 @@ export function resolveEstimateRecipients(
   for (const delegateEmail of delegateEmails) {
     const email = normalizeEmail(delegateEmail);
     if (!email) {
-      throw new EstimateDeliveryError(
+      throw new DocumentDeliveryError(
         "invalid_delegate_email",
         "An active representative has no usable email",
       );
@@ -62,57 +62,58 @@ export function resolveEstimateRecipients(
   };
 }
 
-export async function prepareEstimateDelivery(
+function supportsDelivery(type: string): type is "ESTIMATE" | "RESERVE_INVOICE" {
+  return type === "ESTIMATE" || type === "RESERVE_INVOICE";
+}
+
+export async function prepareDocumentDelivery(
   holdedDocumentId: string,
   client: Pick<HoldedClient, "listDelegateEmails">,
 ) {
   const document = await db.holdedDocument.findUnique({
     where: { id: holdedDocumentId },
     include: {
-      estimateDelivery: true,
+      delivery: true,
       bookingRequest: { include: { customer: true } },
     },
   });
-  if (!document || document.type !== "ESTIMATE") {
-    throw new EstimateDeliveryError(
-      "unknown_estimate",
-      "Estimate document does not exist",
+  if (!document || !supportsDelivery(document.type)) {
+    throw new DocumentDeliveryError(
+      "unknown_document",
+      "Deliverable Holded document does not exist",
     );
   }
   if (document.sentAt) return null;
-  if (document.estimateDelivery) return document.estimateDelivery;
+  if (document.delivery) return document.delivery;
   const principalHoldedContactId = document.bookingRequest.customer.holdedContactId;
   if (!principalHoldedContactId) {
-    throw new EstimateDeliveryError(
+    throw new DocumentDeliveryError(
       "unlinked_customer",
       "The customer has no Holded contact",
     );
   }
 
   const delegateEmails = await client.listDelegateEmails(principalHoldedContactId);
-  const recipients = resolveEstimateRecipients(
+  const recipients = resolveDocumentRecipients(
     document.bookingRequest.customer.email,
     delegateEmails,
   );
 
-  const delivery = await db.$transaction(async (tx) => {
-    const fresh = await tx.holdedDocument.findUnique({
+  const delivery = await db.$transaction(async (transaction) => {
+    const fresh = await transaction.holdedDocument.findUnique({
       where: { id: holdedDocumentId },
-      include: {
-        estimateDelivery: true,
-        bookingRequest: { include: { customer: true } },
-      },
+      include: { delivery: true },
     });
-    if (!fresh || fresh.type !== "ESTIMATE") {
-      throw new EstimateDeliveryError(
-        "unknown_estimate",
-        "Estimate document does not exist",
+    if (!fresh || !supportsDelivery(fresh.type)) {
+      throw new DocumentDeliveryError(
+        "unknown_document",
+        "Deliverable Holded document does not exist",
       );
     }
     if (fresh.sentAt) return null;
-    if (fresh.estimateDelivery) return fresh.estimateDelivery;
+    if (fresh.delivery) return fresh.delivery;
 
-    return tx.estimateDelivery.upsert({
+    return transaction.documentDelivery.upsert({
       where: { holdedDocumentId },
       update: {},
       create: {
@@ -125,68 +126,70 @@ export async function prepareEstimateDelivery(
 
   logger.info(
     {
-      event: "booking_estimate_delivery_prepared",
+      event: "booking_document_delivery_prepared",
       holdedDocumentId,
+      documentType: document.type,
       ccCount:
         delivery && Array.isArray(delivery.ccEmails)
           ? delivery.ccEmails.length
           : 0,
     },
-    "estimate delivery recipients prepared",
+    "document delivery recipients prepared",
   );
   return delivery;
 }
 
 function readCcEmails(value: unknown): string[] {
   if (!Array.isArray(value) || value.some((item) => typeof item !== "string")) {
-    throw new EstimateDeliveryError(
+    throw new DocumentDeliveryError(
       "invalid_delivery",
-      "Stored estimate recipients are invalid",
+      "Stored document recipients are invalid",
     );
   }
   return value;
 }
 
-export async function deliverPreparedEstimate(
+export async function deliverPreparedDocument(
   holdedDocumentId: string,
-  client: Pick<HoldedClient, "sendEstimate">,
+  client: Pick<HoldedClient, "sendEstimate" | "sendInvoice">,
   mailTemplateId?: string,
+  subject?: string,
 ): Promise<"accepted" | "unknown"> {
   const document = await db.holdedDocument.findUnique({
     where: { id: holdedDocumentId },
-    include: { estimateDelivery: true },
+    include: { delivery: true },
   });
-  if (!document || document.type !== "ESTIMATE") {
-    throw new EstimateDeliveryError(
-      "unknown_estimate",
-      "Estimate document does not exist",
+  if (!document || !supportsDelivery(document.type)) {
+    throw new DocumentDeliveryError(
+      "unknown_document",
+      "Deliverable Holded document does not exist",
     );
   }
-  if (document.sentAt || document.estimateDelivery?.status === "ACCEPTED") {
+  if (document.sentAt || document.delivery?.status === "ACCEPTED") {
     return "accepted";
   }
 
-  const delivery = document.estimateDelivery;
+  const delivery = document.delivery;
   if (!delivery) {
-    throw new EstimateDeliveryError(
+    throw new DocumentDeliveryError(
       "invalid_delivery",
-      "Estimate recipients have not been prepared",
+      "Document recipients have not been prepared",
     );
   }
   if (delivery.status === "UNKNOWN") return "unknown";
   if (delivery.status === "IN_FLIGHT") {
-    await db.estimateDelivery.updateMany({
+    await db.documentDelivery.updateMany({
       where: { id: delivery.id, status: "IN_FLIGHT" },
       data: { status: "UNKNOWN", outcomeUnknownAt: new Date() },
     });
     logger.warn(
-      { event: "booking_estimate_delivery_unknown", holdedDocumentId },
-      "interrupted estimate delivery parked",
+      { event: "booking_document_delivery_unknown", holdedDocumentId },
+      "interrupted document delivery parked",
     );
     return "unknown";
   }
 
-  const claimed = await db.estimateDelivery.updateMany({
+  const claimed = await db.documentDelivery.updateMany({
     where: { id: delivery.id, status: delivery.status },
     data: {
       status: "IN_FLIGHT",
@@ -196,18 +199,35 @@ export async function deliverPreparedEstimate(
     },
   });
   if (claimed.count !== 1) {
-    return deliverPreparedEstimate(holdedDocumentId, client, mailTemplateId);
+    return deliverPreparedDocument(
+      holdedDocumentId,
+      client,
+      mailTemplateId,
+      subject,
+    );
   }
 
+  const recipients = {
+    emails: [delivery.toEmail],
+    cc: readCcEmails(delivery.ccEmails),
+  };
+
   try {
-    await client.sendEstimate(
-      document.holdedId,
-      {
-        emails: [delivery.toEmail],
-        cc: readCcEmails(delivery.ccEmails),
-      },
-      mailTemplateId,
-    );
+    if (document.type === "ESTIMATE") {
+      await client.sendEstimate(
+        document.holdedId,
+        recipients,
+        mailTemplateId,
+        subject,
+      );
+    } else {
+      await client.sendInvoice(
+        document.holdedId,
+        recipients,
+        mailTemplateId,
+        subject,
+      );
+    }
   } catch (error) {
     const definitive =
       error instanceof HoldedDeliveryError &&
@@ -216,7 +236,7 @@ export async function deliverPreparedEstimate(
     const failureCode =
       error instanceof HoldedDeliveryError ? error.code : "unexpected";
 
-    await db.estimateDelivery.updateMany({
+    await db.documentDelivery.updateMany({
       where: { id: delivery.id, status: "IN_FLIGHT" },
       data: {
         status,
@@ -226,19 +246,20 @@ export async function deliverPreparedEstimate(
     });
     logger.warn(
       {
-        event: "booking_estimate_delivery_failed",
+        event: "booking_document_delivery_failed",
         holdedDocumentId,
+        documentType: document.type,
         status,
         code: failureCode,
       },
-      "estimate delivery failed",
+      "document delivery failed",
     );
     throw error;
   }
 
   const acceptedAt = new Date();
   await db.$transaction([
-    db.estimateDelivery.update({
+    db.documentDelivery.update({
       where: { id: delivery.id },
       data: {
         status: "ACCEPTED",
@@ -253,8 +274,12 @@ export async function deliverPreparedEstimate(
     }),
   ]);
   logger.info(
-    { event: "booking_estimate_delivery_accepted", holdedDocumentId },
-    "estimate delivery accepted",
+    {
+      event: "booking_document_delivery_accepted",
+      holdedDocumentId,
+      documentType: document.type,
+    },
+    "document delivery accepted",
   );
   return "accepted";
 }

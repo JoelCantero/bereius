@@ -86,6 +86,18 @@ describe("localized SEO metadata", () => {
     );
   });
 
+  it("excludes every localized bank-movements URL from sitemap locations and alternates", () => {
+    const serializedEntries = JSON.stringify(sitemap());
+
+    for (const privatePath of [
+      "/bank-movements",
+      "/es/bank-movements",
+      "/ca/bank-movements",
+    ]) {
+      expect(serializedEntries).not.toContain(privatePath);
+    }
+  });
+
   it("allows HTML pages to expose noindex and blocks API crawling", () => {
     expect(robots()).toEqual({
       rules: {
@@ -96,5 +108,6 @@ describe("localized SEO metadata", () => {
       sitemap: "https://app.example.test/sitemap.xml",
       host: "https://app.example.test",
     });
+    expect(robots().rules).toMatchObject({ allow: "/", disallow: "/api" });
   });
 });

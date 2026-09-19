@@ -3,7 +3,10 @@ import "server-only";
 import { db } from "@/lib/db";
 import { logger } from "@/lib/logger";
 import { paymentDeadlineFrom } from "@/modules/booking/services/expiry";
-import { transitionBooking } from "@/modules/booking/services/lifecycle";
+import {
+  transitionBooking,
+  type BookingTransactionClient,
+} from "@/modules/booking/services/lifecycle";
 import { queueBookingMail } from "@/modules/booking/services/mail";
 import { enqueueQuote } from "@/modules/booking/services/quoting";
 
@@ -108,6 +111,7 @@ export interface RecordPaymentCommand {
   amountCents: number;
   receivedAt: Date;
   reference?: string | null;
+  bankMovementId?: string | null;
 }
 
 export class PaymentError extends Error {
@@ -127,8 +131,12 @@ export class PaymentError extends Error {
  * cent. Anything else is left for manual review rather than quietly confirming
  * a booking that is still owed money.
  */
-export async function recordPayment(command: RecordPaymentCommand): Promise<void> {
-  const booking = await db.bookingRequest.findUnique({
+export async function recordTrustedPayment(
+  command: RecordPaymentCommand,
+  transaction: BookingTransactionClient,
+  options: { amountTolerancePercent?: number } = {},
+) {
+  const booking = await transaction.bookingRequest.findUnique({
     where: { id: command.bookingRequestId },
     select: { id: true, advanceCents: true, depositCents: true },
   });
@@ -138,21 +146,33 @@ export async function recordPayment(command: RecordPaymentCommand): Promise<void
   }
 
   const expected = (booking.advanceCents ?? 0) + (booking.depositCents ?? 0);
-  if (expected === 0 || command.amountCents !== expected) {
+  const tolerancePercent = options.amountTolerancePercent ?? 0;
+  const difference = Math.abs(command.amountCents - expected);
+  const amountAccepted =
+    Number.isSafeInteger(command.amountCents) &&
+    command.amountCents > 0 &&
+    expected > 0 &&
+    Number.isInteger(tolerancePercent) &&
+    tolerancePercent >= 0 &&
+    BigInt(difference) * BigInt(100) <=
+      BigInt(expected) * BigInt(tolerancePercent);
+  if (!amountAccepted) {
     throw new PaymentError(
       "amount_mismatch",
       "The transfer does not match the amount required to confirm this booking",
     );
   }
 
-  await db.payment.create({
+  const payment = await transaction.payment.create({
     data: {
       bookingRequestId: booking.id,
       amountCents: command.amountCents,
       receivedAt: command.receivedAt,
       reference: command.reference ?? null,
       recordedById: command.actorUserId,
+      bankMovementId: command.bankMovementId ?? null,
     },
+    select: { id: true, createdAt: true },
   });
 
   await transitionBooking({
@@ -160,17 +180,28 @@ export async function recordPayment(command: RecordPaymentCommand): Promise<void
     to: "CONFIRMED",
     actorUserId: command.actorUserId,
     expectedFrom: "AWAITING_PAYMENT",
-  });
+  }, transaction);
 
+  return payment;
+}
+
+export async function queueBookingConfirmation(
+  bookingRequestId: string,
+): Promise<void> {
   await notify(
-    booking.id,
+    bookingRequestId,
     "confirmed",
     "Your booking is confirmed",
     "We have received your payment and your booking is confirmed.",
   );
+}
+
+export async function recordPayment(command: RecordPaymentCommand): Promise<void> {
+  await db.$transaction((transaction) => recordTrustedPayment(command, transaction));
+  await queueBookingConfirmation(command.bookingRequestId);
 
   logger.info(
-    { event: "booking_confirmed", bookingRequestId: booking.id },
+    { event: "booking_confirmed", bookingRequestId: command.bookingRequestId },
     "booking confirmed after payment",
   );
 }

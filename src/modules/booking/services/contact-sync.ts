@@ -11,6 +11,7 @@ import {
 } from "@/lib/holded/client";
 import { logger } from "@/lib/logger";
 import { transitionBooking } from "@/modules/booking/services/lifecycle";
+import { calculateConfirmationAmounts } from "@/modules/booking/services/pricing";
 import { resolveIntegration } from "@/modules/booking/services/settings";
 
 export const CONTACT_FIELDS = [
@@ -43,7 +44,13 @@ export type ContactInspection =
     };
 
 export class ContactSyncError extends Error {
-  constructor(readonly code: "unknown_booking" | "not_in_holded") {
+  constructor(
+    readonly code:
+      | "unknown_booking"
+      | "not_in_holded"
+      | "incomplete_configuration"
+      | "missing_estimate_total",
+  ) {
     super(code);
     this.name = "ContactSyncError";
   }
@@ -83,9 +90,18 @@ function toInput(customer: {
   };
 }
 
+function normalized(value: string | null): string {
+  return (value ?? "").trim().toLocaleLowerCase();
+}
+
 /** Trailing spaces and casing are not differences an operator should be shown. */
 function same(ours: string | null, theirs: string | null): boolean {
-  return (ours ?? "").trim().toLocaleLowerCase() === (theirs ?? "").trim().toLocaleLowerCase();
+  return normalized(ours) === normalized(theirs);
+}
+
+function normalizedCountry(value: string | null): string {
+  const country = normalized(value);
+  return country === "espanya" || country === "españa" ? "spain" : country;
 }
 
 function compare(
@@ -93,7 +109,10 @@ function compare(
   contact: HoldedContact,
 ): ContactDifference[] {
   return CONTACT_FIELDS.filter(
-    (field) => !same(customer[field], contact[field]),
+    (field) =>
+      field === "country"
+        ? normalizedCountry(customer[field]) !== normalizedCountry(contact[field])
+        : !same(customer[field], contact[field]),
   ).map((field) => ({ field, ours: customer[field], theirs: contact[field] }));
 }
 
@@ -197,8 +216,12 @@ export async function linkExistingEstimate(
   actorUserId: string | null = null,
 ): Promise<void> {
   const { customer, state } = await loadCustomer(bookingRequestId);
-  const { secret } = await resolveIntegration("HOLDED");
+  const { config, secret } = await resolveIntegration("HOLDED");
   const client = createHoldedClient(secret);
+
+  if (!config.depositServiceId) {
+    throw new ContactSyncError("incomplete_configuration");
+  }
 
   const contact = await client.findContactByTaxId(customer.taxId);
   if (!contact) throw new ContactSyncError("not_in_holded");
@@ -207,6 +230,25 @@ export async function linkExistingEstimate(
   const estimates = await client.listEstimatesByContact(contact.id);
   const estimate = estimates.find((candidate) => candidate.id === holdedId);
   if (!estimate) throw new ContactSyncError("not_in_holded");
+  if (estimate.totalCents === null) {
+    throw new ContactSyncError("missing_estimate_total");
+  }
+
+  const depositService = await client.readService(config.depositServiceId);
+  const amounts = calculateConfirmationAmounts(
+    estimate.totalCents,
+    depositService.priceCents,
+  );
+  const linkedAt = new Date();
+  const estimateDate = estimate.date?.match(/^\d{4}-\d{2}-\d{2}$/u)
+    ? new Date(`${estimate.date}T00:00:00.000Z`)
+    : null;
+  const approvedAt =
+    estimateDate &&
+    !Number.isNaN(estimateDate.getTime()) &&
+    estimateDate.toISOString().slice(0, 10) === estimate.date
+      ? estimateDate
+      : linkedAt;
 
   // The document and the approval move together: a request must never end up
   // holding a contract while still sitting in review.
@@ -218,9 +260,23 @@ export async function linkExistingEstimate(
         type: "ESTIMATE",
         holdedId: estimate.id,
         documentNumber: estimate.number,
-        totalCents: null,
+        totalCents: estimate.totalCents,
+        issuedAt: approvedAt,
       },
-      update: { holdedId: estimate.id, documentNumber: estimate.number },
+      update: {
+        holdedId: estimate.id,
+        documentNumber: estimate.number,
+        totalCents: estimate.totalCents,
+        issuedAt: approvedAt,
+      },
+    });
+
+    await tx.bookingRequest.update({
+      where: { id: bookingRequestId },
+      data: {
+        advanceCents: amounts.advanceCents,
+        depositCents: amounts.depositCents,
+      },
     });
 
     // The estimate is the contract, so a request that has one has been agreed
@@ -232,6 +288,7 @@ export async function linkExistingEstimate(
           bookingRequestId,
           to: "AWAITING_PAYMENT",
           actorUserId,
+          decidedAt: approvedAt,
           expectedFrom: "IN_REVIEW",
         },
         tx,

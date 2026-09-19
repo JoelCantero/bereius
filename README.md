@@ -195,6 +195,38 @@ reserve invoice on approval.
 The lifecycle, the pricing rules and the delivery phases are specified in
 [`specs/20260909-project-specification/spec.md`](specs/20260909-project-specification/spec.md).
 
+## Bank movements and reconciliation
+
+Holded is the sole bank-movement source. Bereius does not connect to Enable Banking or run a second
+bank feed. An administrator selects an active, non-archived EUR treasury account under
+`/[locale]/bookings/settings`; the selector reuses the existing encrypted Holded credential and
+locks that account's import start date after synchronization begins. The current ingestion contract
+accepts EUR only. No banking-specific environment variable, secret, container, port, or service is
+introduced.
+
+- **Read-only synchronization.** PostgreSQL schedules one run every six hours. Operators and
+  administrators may request a bounded manual refresh; account-scoped provider identifiers and exact
+  signed minor units make repeated pages idempotent.
+- **Human reconciliation.** Exact estimate-number and amount matches create proposals only. A person
+  must confirm or dismiss every proposal; synchronization never records a payment automatically.
+- **Bounded retention.** Unmatched, unprotected bank movements age out after 90 days once a complete
+  exhausted scan has advanced the account's retention floor. Payment-linked movements and pending or
+  confirmed reconciliation evidence remain protected, while old operational runs and incidents are
+  pruned separately.
+- **Outage recovery.** Existing movements remain visible when Holded is unavailable. Runs use leases,
+  bounded exponential retries and durable progress; booking expiry requires fresh clean bank evidence
+  and is deferred during degradation. Holded degradation does not make `/api/health` unhealthy.
+- **Private observability.** Logs contain local run/account IDs, fixed codes, enums, counters and
+  durations only. Credentials, provider IDs and cursors, dates, amounts, narratives, references,
+  counterparties, response bodies and provider messages are redacted or excluded. The localized
+  `/bank-movements` pages are authenticated, absent from the sitemap and marked `noindex`.
+
+Deploy banking changes migration-first through the existing one-shot migrator, then start the new
+application image. The additive schema remains compatible with the previous image. On an application
+failure, redeploy compatible code without reversing the migration; correct schema defects with a new
+forward migration. Restore a verified logical backup only for actual database recovery, following the
+existing empty-target restore procedure.
+
 ## Database, backups & health
 
 - **Migrations**: versioned in `prisma/migrations/`; applied by the `migrate` service on deploy.

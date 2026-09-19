@@ -90,6 +90,11 @@ export async function buildConsoleNavigation(
             label: t("links.contracts.label"),
             description: t("links.contracts.description"),
           },
+          {
+            href: "/bank-movements",
+            label: t("links.bankMovements.label"),
+            description: t("links.bankMovements.description"),
+          },
         ],
       },
     ],

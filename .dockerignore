@@ -1,6 +1,9 @@
 .git
 .github
 .next
+out
+build
+dist
 .vscode
 .agents
 .specify
@@ -17,6 +20,12 @@ docker-compose*.yml
 !.env.example
 backups
 coverage
+test-results
+playwright-report
+.DS_Store
+Thumbs.db
+*.tmp
+*.swp
 README.md
 **/*.test.ts
 **/*.test.tsx

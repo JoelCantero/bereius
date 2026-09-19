@@ -10,15 +10,14 @@ import {
 } from "@/lib/holded/client";
 import { logger } from "@/lib/logger";
 import {
-  deliverPreparedEstimate,
-  prepareEstimateDelivery,
-} from "@/modules/booking/services/estimate-delivery";
+  deliverPreparedDocument,
+  prepareDocumentDelivery,
+} from "@/modules/booking/services/document-delivery";
 import { enqueueJob, type OutboxJob } from "@/modules/booking/services/outbox";
 import { paymentDeadlineFrom } from "@/modules/booking/services/expiry";
 import {
   quoteStay,
   resolveHeadcountBand,
-  SECURITY_DEPOSIT_CENTS,
   VAT_PERCENT,
 } from "@/modules/booking/services/pricing";
 import {
@@ -28,6 +27,7 @@ import {
 } from "@/modules/booking/services/settings";
 import {
   ADVANCE_LINE,
+  bookingManagementSubject,
   DEPOSIT_LINE,
   quoteNotes,
   stayDescription,
@@ -112,8 +112,7 @@ async function resolveSeriesId(
 }
 
 /**
- * Turns an approved booking into a Holded contact, estimate and reserve
- * invoice.
+ * Turns an approved booking into a Holded contact and estimate.
  *
  * Every step is guarded by persisted state, so a retry after a partial failure
  * resumes instead of duplicating. The retired workflow chained four dependent
@@ -230,6 +229,7 @@ export async function runQuoteJob(
     startDate: booking.startDate,
     endDate: booking.endDate,
     unitPriceCents: stayService.priceCents,
+    depositCents: depositService.priceCents,
   });
 
   const description = stayDescription(
@@ -293,49 +293,10 @@ export async function runQuoteJob(
     estimateDocumentId = document.id;
   }
 
-  // Step 4 — reserve invoice for the advance and the deposit.
   const paymentDueAt = booking.paymentDueAt ?? paymentDeadlineFrom(new Date());
 
-  if (!booking.documents.some((doc) => doc.type === "RESERVE_INVOICE")) {
-    // v2 offers no way to reference the source estimate when the lines differ
-    // from it, so the link between the two lives in our own tables.
-    const invoice = await client.createInvoice({
-      contactId: holdedContactId,
-      description,
-      notes,
-      language: config.language,
-      paymentMethodId: config.paymentMethodId,
-      numberingSeriesId: await resolveSeriesId(client, "invoice"),
-      dueDate: paymentDueAt,
-      // The advance alone: the deposit is money held and returned, not income,
-      // so it is asked for but never invoiced.
-      items: [
-        {
-          name: ADVANCE_LINE.name,
-          serviceId: advanceServiceId,
-          accountId: advanceAccountId,
-          units: 1,
-          price: centsToAmount(quote.advanceNetCents),
-          taxes: [VAT_TAX_KEY],
-          description: ADVANCE_LINE.description,
-        },
-      ],
-    });
-
-    await db.holdedDocument.create({
-      data: {
-        bookingRequestId: booking.id,
-        type: "RESERVE_INVOICE",
-        holdedId: invoice.id,
-        documentNumber: invoice.number,
-        totalCents: quote.advanceCents,
-      },
-    });
-
-    await client.approveInvoice(invoice.id);
-  }
-
-  // Step 5 — deduct what was invoiced, so the estimate shows the balance owed.
+  // Step 4 — show the advance and deposit deductions on the estimate. The
+  // reserve invoice is issued only after a real bank movement is linked.
   await client.replaceEstimateLines(estimateId, [
     stayLine,
     {
@@ -343,7 +304,7 @@ export async function runQuoteJob(
       serviceId: depositServiceId,
       accountId: depositAccountId,
       units: 1,
-      price: -centsToAmount(SECURITY_DEPOSIT_CENTS),
+      price: -centsToAmount(quote.depositCents),
       taxes: [UNTAXED_KEY],
       description: DEPOSIT_LINE.description,
     },
@@ -352,22 +313,27 @@ export async function runQuoteJob(
       serviceId: advanceServiceId,
       accountId: advanceAccountId,
       units: 1,
-      price: -centsToAmount(quote.advanceNetCents),
+      price: -centsToAmount(quote.advanceCents),
       taxes: [VAT_TAX_KEY],
       description: ADVANCE_LINE.description,
     },
   ]);
 
-  // Step 6 — approve, which takes the estimate out of draft, then send. The
+  // Step 5 — approve, which takes the estimate out of draft, then send. The
   // customer must receive the final document, not the working copy.
   await client.approveEstimate(estimateId);
 
   if (!estimateDocumentId) {
     throw new QuotingError("unknown_booking", "Estimate document was not persisted");
   }
-  const delivery = await prepareEstimateDelivery(estimateDocumentId, client);
+  const delivery = await prepareDocumentDelivery(estimateDocumentId, client);
   if (delivery) {
-    await deliverPreparedEstimate(estimateDocumentId, client, config.mailTemplateId);
+    await deliverPreparedDocument(
+      estimateDocumentId,
+      client,
+      config.mailTemplateId,
+      bookingManagementSubject(config.language),
+    );
   }
 
   await db.bookingRequest.update({

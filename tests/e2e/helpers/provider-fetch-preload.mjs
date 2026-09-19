@@ -19,9 +19,27 @@ const fixturePathByLogicalUrl = new Map([
 ]);
 const nativeFetch = globalThis.fetch.bind(globalThis);
 
+function holdedFixturePath(logicalUrl) {
+  const url = new URL(logicalUrl);
+  if (url.origin !== "https://api.holded.com") return undefined;
+  const treasuryAccountsPath = "/api/v2/treasury/accounts";
+  const bankMovementsPath = new RegExp(
+    `^${treasuryAccountsPath}/[0-9a-f]{24}/bank-movements$`,
+    "iu",
+  );
+  if (
+    url.pathname !== treasuryAccountsPath &&
+    !bankMovementsPath.test(url.pathname)
+  ) {
+    return undefined;
+  }
+  return `/provider/holded${url.pathname}${url.search}`;
+}
+
 globalThis.fetch = async (input, init) => {
   const request = new Request(input, init);
-  const fixturePath = fixturePathByLogicalUrl.get(request.url);
+  const fixturePath =
+    fixturePathByLogicalUrl.get(request.url) ?? holdedFixturePath(request.url);
   if (!fixturePath) return nativeFetch(input, init);
 
   const headers = new Headers(request.headers);

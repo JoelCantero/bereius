@@ -55,6 +55,8 @@ export interface TransitionCommand {
   to: BookingState;
   /** Null for scheduled jobs; a user id when a person decided. */
   actorUserId: string | null;
+  /** An authoritative historical decision time, when importing prior state. */
+  decidedAt?: Date;
   reason?: string;
   /** Guards against two operators deciding the same request concurrently. */
   expectedFrom?: BookingState;
@@ -125,9 +127,9 @@ export async function transitionBooking(
       where: { id: booking.id, state: booking.state },
       data: {
         state: command.to,
-        ...(command.actorUserId !== null || reason
+        ...(command.actorUserId !== null || reason || command.decidedAt
           ? {
-              decidedAt: new Date(),
+              decidedAt: command.decidedAt ?? new Date(),
               decidedById: command.actorUserId,
               decisionReason: reason ?? null,
             }

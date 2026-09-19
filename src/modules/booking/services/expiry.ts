@@ -2,6 +2,7 @@ import "server-only";
 
 import { db } from "@/lib/db";
 import { logger } from "@/lib/logger";
+import { ensureFreshBankEvidenceForExpiry } from "@/modules/banking/services/expiry";
 import { transitionBooking } from "@/modules/booking/services/lifecycle";
 
 export const PAYMENT_WINDOW_DAYS = 3;
@@ -17,16 +18,11 @@ export interface ExpirySummary {
   expired: number;
 }
 
-/**
- * Expires bookings whose payment window has closed, releasing their dates.
- *
- * Phase 2 adds a final bank poll before this runs, so a transfer that arrived
- * shortly before the deadline is never missed. Until then the window is
- * evaluated against payments an operator has already recorded.
- */
+/** Expires due bookings only after a fresh, complete bank scan. */
 export async function expireUnpaidBookings(
   now: Date = new Date(),
 ): Promise<ExpirySummary> {
+  const expiryAttemptStartedAt = now;
   const due = await db.bookingRequest.findMany({
     where: {
       state: "AWAITING_PAYMENT",
@@ -36,29 +32,63 @@ export async function expireUnpaidBookings(
   });
 
   const summary: ExpirySummary = { examined: due.length, expired: 0 };
+  if (due.length === 0) return summary;
 
-  for (const booking of due) {
-    try {
-      await transitionBooking({
-        bookingRequestId: booking.id,
-        to: "EXPIRED",
-        actorUserId: null,
-        expectedFrom: "AWAITING_PAYMENT",
-      });
-      summary.expired += 1;
-    } catch (error) {
-      // A booking confirmed between the query and the transition is not a
-      // failure: it simply no longer qualifies.
-      logger.warn(
-        {
-          event: "booking_expiry_skipped",
-          bookingRequestId: booking.id,
-          reason: error instanceof Error ? error.message : "unknown",
-        },
-        "booking expiry skipped a request that changed state",
-      );
-    }
+  const evidence = await ensureFreshBankEvidenceForExpiry(
+    expiryAttemptStartedAt,
+    { clock: () => now },
+  );
+  if (!evidence.ready) {
+    logger.warn(
+      {
+        event: "booking_expiry_deferred",
+        examined: summary.examined,
+        reason: evidence.reason,
+      },
+      "booking expiry deferred without fresh bank evidence",
+    );
+    return summary;
   }
+
+  await db.$transaction(async (transaction) => {
+    const verifiedEvidence = await transaction.bankSyncRun.findFirst({
+      where: {
+        id: evidence.runId,
+        status: "SUCCEEDED",
+        startedAt: { gte: expiryAttemptStartedAt },
+        exhaustedAt: { not: null },
+        account: { active: true },
+      },
+      select: { id: true },
+    });
+    if (!verifiedEvidence) return;
+
+    for (const candidate of due) {
+      const booking = await transaction.bookingRequest.findFirst({
+        where: {
+          id: candidate.id,
+          state: "AWAITING_PAYMENT",
+          paymentDueAt: { lte: now },
+          bankReconciliationProposals: {
+            none: { status: "PENDING" },
+          },
+        },
+        select: { id: true },
+      });
+      if (!booking) continue;
+
+      await transitionBooking(
+        {
+          bookingRequestId: booking.id,
+          to: "EXPIRED",
+          actorUserId: null,
+          expectedFrom: "AWAITING_PAYMENT",
+        },
+        transaction,
+      );
+      summary.expired += 1;
+    }
+  });
 
   logger.info({ event: "booking_expiry_run", ...summary }, "booking expiry completed");
 

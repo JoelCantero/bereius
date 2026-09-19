@@ -7,6 +7,12 @@ import { Link } from "@/i18n/navigation";
 import { noIndexMetadata } from "@/lib/seo";
 import { holdedEstimateUrl } from "@/lib/holded/links";
 import {
+  confirmBookingPaymentCandidateAction,
+  dismissBookingPaymentCandidateAction,
+} from "@/modules/banking/actions/reconciliation";
+import { BookingPaymentCandidates } from "@/modules/banking/components/booking-payment-candidates";
+import { listBookingPaymentCandidates } from "@/modules/banking/services/queries";
+import {
   createContactAction,
   linkEstimateAction,
   updateContactAction,
@@ -69,13 +75,39 @@ export default async function BookingDetailPage({ params }: BookingDetailPagePro
       ? booking.advanceCents + booking.depositCents
       : null;
 
-  const contact = await inspectCustomerContact(booking.id);
+  const [contact, paymentCandidates] = await Promise.all([
+    inspectCustomerContact(booking.id),
+    booking.state === "AWAITING_PAYMENT"
+      ? listBookingPaymentCandidates(booking.id)
+      : Promise.resolve([]),
+  ]);
   const linkedEstimateId =
     booking.documents.find((document) => document.type === "ESTIMATE")?.holdedId ?? null;
   const hasUnknownEstimateDelivery = booking.documents.some(
     (document) =>
-      document.type === "ESTIMATE" && document.estimateDelivery?.status === "UNKNOWN",
+      document.type === "ESTIMATE" && document.delivery?.status === "UNKNOWN",
   );
+  const reserveInvoiceIssuance = booking.documentIssuances[0];
+  const reserveInvoiceDelivery = booking.documents.find(
+    (document) => document.type === "RESERVE_INVOICE",
+  )?.delivery;
+  const reserveInvoiceStatus = !reserveInvoiceIssuance
+    ? null
+    : reserveInvoiceIssuance.status === "BLOCKED"
+      ? "reserveInvoiceBlocked"
+      : reserveInvoiceIssuance.status === "UNKNOWN"
+        ? "reserveInvoiceUnknown"
+        : reserveInvoiceIssuance.status === "ISSUED" &&
+            reserveInvoiceDelivery?.status === "UNKNOWN"
+          ? "reserveInvoiceDeliveryUnknown"
+          : reserveInvoiceIssuance.status === "ISSUED" &&
+              reserveInvoiceDelivery?.status === "ACCEPTED"
+            ? "reserveInvoiceSent"
+            : "reserveInvoiceProcessing";
+  const reserveInvoiceNeedsAttention =
+    reserveInvoiceStatus === "reserveInvoiceBlocked" ||
+    reserveInvoiceStatus === "reserveInvoiceUnknown" ||
+    reserveInvoiceStatus === "reserveInvoiceDeliveryUnknown";
 
   // Linking an estimate approves the request, so the picker is only offered
   // while the request is under review and nothing is linked yet, and only for
@@ -217,7 +249,9 @@ export default async function BookingDetailPage({ params }: BookingDetailPagePro
                   className="flex flex-wrap items-center justify-between gap-2 rounded-md border p-2"
                 >
                   <span>
-                    <span className="font-medium">{estimate.number ?? estimate.id}</span>
+                    <span className="font-medium">
+                      {estimate.number ?? t("holdedEstimates.unnumbered")}
+                    </span>
                     {estimate.description ? ` · ${estimate.description}` : ""}
                     <span className="mt-1 block text-xs text-muted-foreground">
                       {[estimate.date, cents(estimate.totalCents)]
@@ -263,6 +297,15 @@ export default async function BookingDetailPage({ params }: BookingDetailPagePro
         )}
       </section>
 
+      {booking.state === "AWAITING_PAYMENT" ? (
+        <BookingPaymentCandidates
+          bookingRequestId={booking.id}
+          candidates={paymentCandidates}
+          confirmAction={confirmBookingPaymentCandidateAction}
+          dismissAction={dismissBookingPaymentCandidateAction}
+        />
+      ) : null}
+
       <section aria-labelledby="documents-heading" className="flex flex-col gap-1">
         <h2 id="documents-heading" className="text-lg font-medium">
           {t("detail.documents")}
@@ -274,6 +317,21 @@ export default async function BookingDetailPage({ params }: BookingDetailPagePro
           >
             <TriangleAlert className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
             {t("detail.deliveryUnknown")}
+          </p>
+        ) : null}
+        {reserveInvoiceStatus ? (
+          <p
+            role={reserveInvoiceNeedsAttention ? "alert" : "status"}
+            className={
+              reserveInvoiceNeedsAttention
+                ? "flex items-start gap-2 rounded-md border border-amber-500/50 bg-amber-50 p-3 text-sm text-amber-950 dark:bg-amber-950/30 dark:text-amber-100"
+                : "text-sm text-muted-foreground"
+            }
+          >
+            {reserveInvoiceNeedsAttention ? (
+              <TriangleAlert className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
+            ) : null}
+            {t(`detail.${reserveInvoiceStatus}`)}
           </p>
         ) : null}
         {booking.documents.length === 0 ? (

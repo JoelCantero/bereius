@@ -1,10 +1,23 @@
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const mocks = vi.hoisted(() => ({ pathname: "/bookings", signOut: vi.fn() }));
+const mocks = vi.hoisted(() => ({
+  pathname: "/bookings",
+  signOut: vi.fn(),
+  getServerSession: vi.fn(),
+  requireBookingActor: vi.fn(),
+}));
 
+vi.mock("server-only", () => ({}));
+vi.mock("next-auth", () => ({ getServerSession: mocks.getServerSession }));
 vi.mock("next-auth/react", () => ({ signOut: mocks.signOut }));
+vi.mock("next-intl/server", () => ({
+  getTranslations: () => (key: string) => key,
+}));
+vi.mock("@/modules/booking/authorization", () => ({
+  requireBookingActor: mocks.requireBookingActor,
+}));
 vi.mock("@/i18n/navigation", () => ({
   Link: ({
     href,
@@ -16,11 +29,14 @@ vi.mock("@/i18n/navigation", () => ({
     </a>
   ),
   usePathname: () => mocks.pathname,
+  getPathname: ({ href, locale }: { href: string; locale: string }) =>
+    `${locale === "en" ? "" : `/${locale}`}${href}`,
 }));
 
 import { AppSidebar } from "@/components/app-sidebar";
 import type { ConsoleLink, ConsoleSection } from "@/components/console-sections";
 import { SidebarProvider } from "@/components/ui/sidebar";
+import { buildConsoleNavigation } from "@/modules/console/navigation";
 
 const sections: ConsoleSection[] = [
   {
@@ -120,5 +136,60 @@ describe("console sidebar", () => {
     await userEvent.click(screen.getByRole("menuitem", { name: "Cerrar sesión" }));
 
     expect(mocks.signOut).toHaveBeenCalledWith({ callbackUrl: "/es" });
+  });
+});
+
+describe("role-filtered console navigation", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mocks.getServerSession.mockResolvedValue({
+      user: {
+        name: "Synthetic Operator",
+        email: "operator@example.test",
+        image: null,
+      },
+    });
+  });
+
+  it.each(["OPERATOR", "ADMINISTRATOR"] as const)(
+    "shows bank movements to an %s",
+    async (role) => {
+      mocks.requireBookingActor.mockResolvedValue({ userId: "actor-id", role });
+
+      const navigation = await buildConsoleNavigation("en");
+      const holded = navigation?.sections.find((section) => section.key === "holded");
+
+      expect(holded?.links).toContainEqual({
+        href: "/bank-movements",
+        label: "links.bankMovements.label",
+        description: "links.bankMovements.description",
+      });
+    },
+  );
+
+  it("keeps integration settings out of operator navigation", async () => {
+    mocks.requireBookingActor.mockResolvedValue({
+      userId: "operator-id",
+      role: "OPERATOR",
+    });
+
+    const navigation = await buildConsoleNavigation("en");
+
+    expect(navigation?.userLinks.map((link) => link.href)).not.toContain(
+      "/bookings/settings",
+    );
+  });
+
+  it("keeps integration settings available to administrators", async () => {
+    mocks.requireBookingActor.mockResolvedValue({
+      userId: "administrator-id",
+      role: "ADMINISTRATOR",
+    });
+
+    const navigation = await buildConsoleNavigation("en");
+
+    expect(navigation?.userLinks.map((link) => link.href)).toContain(
+      "/bookings/settings",
+    );
   });
 });

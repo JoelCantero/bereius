@@ -11,11 +11,15 @@ const mocks = vi.hoisted(() => ({
   estimates: [] as Record<string, unknown>[],
   updateContact: vi.fn(async () => undefined),
   createContact: vi.fn(async () => ({ id: "new-contact" })),
+  readService: vi.fn(async () => ({ priceCents: 22_500, accountId: null })),
 }));
 
 vi.mock("@/modules/booking/services/settings", async (importOriginal) => ({
   ...(await importOriginal<Record<string, unknown>>()),
-  resolveIntegration: vi.fn(async () => ({ config: {}, secret: "key" })),
+  resolveIntegration: vi.fn(async () => ({
+    config: { depositServiceId: "service-deposit" },
+    secret: "key",
+  })),
 }));
 
 vi.mock("@/lib/holded/client", async (importOriginal) => ({
@@ -25,6 +29,7 @@ vi.mock("@/lib/holded/client", async (importOriginal) => ({
     listEstimatesByContact: async () => mocks.estimates,
     updateContact: mocks.updateContact,
     createContact: mocks.createContact,
+    readService: mocks.readService,
   }),
 }));
 
@@ -63,10 +68,14 @@ const HOLDED_CONTACT = {
 describe.skipIf(!runIntegrationTests)("holded contact synchronisation", () => {
   const customerIds: string[] = [];
 
-  async function booking() {
+  async function booking(customerOverrides: Partial<typeof CUSTOMER> = {}) {
     const suffix = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
     const customer = await db.customer.create({
-      data: { ...CUSTOMER, taxId: `C${suffix}`.slice(0, 20) },
+      data: {
+        ...CUSTOMER,
+        ...customerOverrides,
+        taxId: `C${suffix}`.slice(0, 20),
+      },
     });
     customerIds.push(customer.id);
 
@@ -106,6 +115,17 @@ describe.skipIf(!runIntegrationTests)("holded contact synchronisation", () => {
   it("treats a contact whose details agree as a match", async () => {
     mocks.contact = HOLDED_CONTACT;
     const request = await booking();
+
+    await expect(inspectCustomerContact(request.id)).resolves.toMatchObject({
+      status: "matches",
+      contactId: "contact-1",
+      differences: [],
+    });
+  });
+
+  it("treats Catalan and Spanish names for Spain as the same country", async () => {
+    mocks.contact = { ...HOLDED_CONTACT, country: "España" };
+    const request = await booking({ country: "Espanya" });
 
     await expect(inspectCustomerContact(request.id)).resolves.toMatchObject({
       status: "matches",
@@ -172,7 +192,7 @@ describe.skipIf(!runIntegrationTests)("holded contact synchronisation", () => {
 
   it("records an estimate the contact really owns", async () => {
     mocks.contact = HOLDED_CONTACT;
-    mocks.estimates = [{ id: "estimate-1", number: "E1" }];
+    mocks.estimates = [{ id: "estimate-1", number: "E1", totalCents: 100_000 }];
     const request = await booking();
 
     await linkExistingEstimate(request.id, "estimate-1");
@@ -183,12 +203,49 @@ describe.skipIf(!runIntegrationTests)("holded contact synchronisation", () => {
       type: "ESTIMATE",
       holdedId: "estimate-1",
       documentNumber: "E1",
+      totalCents: 100_000,
+    });
+
+    await expect(
+      db.bookingRequest.findUniqueOrThrow({ where: { id: request.id } }),
+    ).resolves.toMatchObject({
+      advanceCents: 30_000,
+      depositCents: 22_500,
+    });
+    expect(mocks.readService).toHaveBeenCalledWith("service-deposit");
+  });
+
+  it("preserves the Holded estimate date as the approval date", async () => {
+    mocks.contact = HOLDED_CONTACT;
+    mocks.estimates = [
+      {
+        id: "estimate-1",
+        number: "E1",
+        date: "2026-09-13",
+        totalCents: 100_000,
+      },
+    ];
+    const request = await booking();
+
+    await linkExistingEstimate(request.id, "estimate-1");
+
+    const approvalDate = new Date("2026-09-13T00:00:00.000Z");
+    await expect(
+      db.holdedDocument.findFirstOrThrow({
+        where: { bookingRequestId: request.id, type: "ESTIMATE" },
+      }),
+    ).resolves.toMatchObject({ issuedAt: approvalDate });
+    await expect(
+      db.bookingRequest.findUniqueOrThrow({ where: { id: request.id } }),
+    ).resolves.toMatchObject({
+      state: "AWAITING_PAYMENT",
+      decidedAt: approvalDate,
     });
   });
 
   it("asks for the deposit, because the estimate is the contract", async () => {
     mocks.contact = HOLDED_CONTACT;
-    mocks.estimates = [{ id: "estimate-1", number: "E1" }];
+    mocks.estimates = [{ id: "estimate-1", number: "E1", totalCents: 100_000 }];
     const request = await booking();
 
     await linkExistingEstimate(request.id, "estimate-1");
@@ -207,7 +264,7 @@ describe.skipIf(!runIntegrationTests)("holded contact synchronisation", () => {
 
   it("leaves a request that has already moved on where it is", async () => {
     mocks.contact = HOLDED_CONTACT;
-    mocks.estimates = [{ id: "estimate-1", number: "E1" }];
+    mocks.estimates = [{ id: "estimate-1", number: "E1", totalCents: 100_000 }];
     const request = await booking();
     await db.bookingRequest.update({
       where: { id: request.id },
@@ -223,7 +280,7 @@ describe.skipIf(!runIntegrationTests)("holded contact synchronisation", () => {
 
   it("attaches nothing when the approval cannot be recorded", async () => {
     mocks.contact = HOLDED_CONTACT;
-    mocks.estimates = [{ id: "estimate-1", number: "E1" }];
+    mocks.estimates = [{ id: "estimate-1", number: "E1", totalCents: 100_000 }];
     const request = await booking();
 
     // An actor that does not exist fails the audit row's foreign key, standing

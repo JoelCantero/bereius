@@ -66,6 +66,22 @@ function isPublicModuleTypes(relativePath: string) {
   return /^src\/modules\/.+\/types\.ts$/u.test(relativePath);
 }
 
+function isBankingClientPath(relativePath: string) {
+  return /^src\/modules\/banking\/components\/.+\.tsx?$/u.test(relativePath);
+}
+
+function isBankingPrivateServerModule(specifier: string) {
+  return (
+    specifier === "@/lib/env" ||
+    specifier.startsWith("@/lib/booking/secrets") ||
+    specifier.startsWith("@/lib/holded/") ||
+    (/^@\/modules\/banking\//u.test(specifier) &&
+      !specifier.startsWith("@/modules/banking/components/") &&
+      specifier !== "@/modules/banking/schema" &&
+      specifier !== "@/modules/banking/types")
+  );
+}
+
 // A client module is identified by its directive prologue, not by a filename convention.
 function isClientModule(source: string) {
   let rest = source.replace(/^\uFEFF/u, "");
@@ -88,6 +104,10 @@ function isClientModule(source: string) {
     if (directive[2] === "use client") return true;
     rest = trimmed.slice(directive[0].length);
   }
+}
+
+function hasEnableBankingReference(source: string) {
+  return /enable(?:[\s_-]*banking|banking)/iu.test(source);
 }
 
 function transportConstructions(source: string) {
@@ -139,7 +159,8 @@ function findViolations(file: SourceFile): BoundaryViolation[] {
       if (
         isPersistenceModule(specifier) ||
         isDomainServiceModule(specifier) ||
-        specifier === "server-only"
+        specifier === "server-only" ||
+        (isBankingClientPath(file.path) && isBankingPrivateServerModule(specifier))
       ) {
         violations.push({
           rule: "D",
@@ -278,6 +299,46 @@ const fixtures: readonly {
     expected: [],
   },
   {
+    name: "rejects a banking client that imports runtime credentials",
+    file: {
+      path: "src/modules/banking/components/private-panel.tsx",
+      source: `"use client";\n\nimport { getEnv } from "@/lib/env";\nexport const secret = getEnv;\n`,
+    },
+    expected: ["D"],
+  },
+  {
+    name: "rejects a banking client that imports secret storage",
+    file: {
+      path: "src/modules/banking/components/private-panel.tsx",
+      source: `"use client";\n\nimport { openSecret } from "@/lib/booking/secrets";\nexport const secret = openSecret;\n`,
+    },
+    expected: ["D"],
+  },
+  {
+    name: "rejects a banking client that imports the provider client",
+    file: {
+      path: "src/modules/banking/components/private-panel.tsx",
+      source: `"use client";\n\nimport { createHoldedClient } from "@/lib/holded/client";\nexport const provider = createHoldedClient;\n`,
+    },
+    expected: ["D"],
+  },
+  {
+    name: "rejects a banking client that imports a server action module",
+    file: {
+      path: "src/modules/banking/components/private-panel.tsx",
+      source: `"use client";\n\nimport type { BankSyncActionState } from "@/modules/banking/actions/synchronization";\nexport type State = BankSyncActionState;\n`,
+    },
+    expected: ["D"],
+  },
+  {
+    name: "allows a banking client to import its public contracts",
+    file: {
+      path: "src/modules/banking/components/public-panel.tsx",
+      source: `"use client";\n\nimport type { BankSyncActionState } from "@/modules/banking/types";\nexport type State = BankSyncActionState;\n`,
+    },
+    expected: [],
+  },
+  {
     name: "allows a Server Component to call a domain service",
     file: {
       path: "src/app/[locale]/account/data/page.tsx",
@@ -322,5 +383,40 @@ describe("application boundary rules", () => {
     const violations = sources.flatMap((file) => findViolations(file));
 
     expect(formatViolations(violations)).toEqual([]);
+  });
+
+  it("recognizes legacy banking source and configuration identifiers", () => {
+    expect(
+      ["Enable Banking", "enable-banking", "enable_banking", "ENABLEBANKING"].map(
+        hasEnableBankingReference,
+      ),
+    ).toEqual([true, true, true, true]);
+    expect(hasEnableBankingReference("Holded bank movements")).toBe(false);
+  });
+
+  it("keeps Enable Banking out of runtime and deployable configuration", async () => {
+    const applicationSources = await readApplicationSources();
+    const deployableFiles = [
+      "package.json",
+      "pnpm-lock.yaml",
+      "next.config.ts",
+      "prisma.config.ts",
+      "prisma/schema.prisma",
+      "docker-compose.yml",
+      "docker-compose.e2e.yml",
+      "docker-compose.prod.yml",
+      "docker/Dockerfile",
+    ];
+    const deployableSources = await Promise.all(
+      deployableFiles.map(async (relativePath) => ({
+        path: relativePath,
+        source: await readFile(path.join(root, relativePath), "utf8"),
+      })),
+    );
+    const references = [...applicationSources, ...deployableSources]
+      .filter((file) => hasEnableBankingReference(file.source))
+      .map((file) => file.path);
+
+    expect(references).toEqual([]);
   });
 });
