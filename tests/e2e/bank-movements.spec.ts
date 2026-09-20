@@ -216,7 +216,7 @@ async function seedProposal(
     await pool.query(
       `INSERT INTO "HoldedDocument"
          ("id","bookingRequestId","type","holdedId","documentNumber","totalCents","issuedAt")
-       VALUES ($1,$2,'ESTIMATE',$3,$4,30000,NOW())`,
+       VALUES ($1,$2,'ESTIMATE',$3,$4,30000,'2025-01-31')`,
       [localId(), booking.id, providerId(), estimateNumber],
     );
     await pool.query(
