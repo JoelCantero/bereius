@@ -133,6 +133,7 @@ describe.skipIf(!runIntegrationTests)("estimate delivery persistence", () => {
       document.holdedId,
       { emails: ["fiscal@example.test"], cc: [] },
       "template-1",
+      undefined,
     );
     await expect(
       db.documentDelivery.findUniqueOrThrow({
@@ -174,6 +175,7 @@ describe.skipIf(!runIntegrationTests)("estimate delivery persistence", () => {
         emails: ["fiscal@example.test"],
         cc: ["delegate@example.test"],
       },
+      undefined,
       undefined,
     );
   });

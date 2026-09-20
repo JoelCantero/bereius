@@ -765,6 +765,7 @@ describe.skipIf(!runIntegrationTests || !databaseUrl)(
           holdedId: `${scope.scopeId}-estimate`,
           documentNumber: "EST-PAGE-1001",
           totalCents: 30_000,
+          issuedAt: new Date("2026-09-15T00:00:00.000Z"),
         },
       });
       const accountData = scope.treasuryAccount();
