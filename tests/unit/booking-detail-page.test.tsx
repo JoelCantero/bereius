@@ -233,6 +233,46 @@ describe("booking detail estimate delivery warning", () => {
     expect(screen.getByText(money.format(200))).toBeVisible();
     expect(screen.getByText(money.format(100))).toBeVisible();
     expect(screen.getByText(money.format(300))).toBeVisible();
+    expect(
+      screen.queryByRole("button", { name: "Refresh linked estimate" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("offers to repair a linked estimate whose payment amounts are missing", async () => {
+    mocks.getBookingDetail.mockResolvedValue({
+      ...bookingWithDelivery("ACCEPTED"),
+      state: "AWAITING_PAYMENT",
+      advanceCents: null,
+      depositCents: null,
+      documents: [
+        {
+          id: "document-1",
+          type: "ESTIMATE",
+          holdedId: "6aa65f996fc9e17ce706fe70",
+          documentNumber: null,
+          totalCents: null,
+          delivery: null,
+        },
+      ],
+    });
+
+    const page = await BookingDetailPage({
+      params: Promise.resolve({ locale: "en", id: "booking-1" }),
+    });
+    render(
+      <NextIntlClientProvider locale="en" messages={{ Bookings: enMessages.Bookings }}>
+        {page}
+      </NextIntlClientProvider>,
+    );
+
+    expect(
+      screen.getByText(
+        "The linked estimate is missing information needed to match payments.",
+      ),
+    ).toBeVisible();
+    expect(
+      screen.getByRole("button", { name: "Refresh linked estimate" }),
+    ).toBeEnabled();
   });
 
   it("shows matching bank income while a booking awaits payment", async () => {

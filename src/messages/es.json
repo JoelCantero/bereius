@@ -948,6 +948,8 @@
       "toConfirm": "Total para confirmar",
       "paymentDue": "Vencimiento del pago",
       "pendingQuote": "Los importes aparecen cuando se emite el presupuesto.",
+      "incompleteLinkedEstimate": "Al presupuesto vinculado le faltan datos necesarios para relacionar pagos.",
+      "refreshLinkedEstimate": "Actualizar presupuesto vinculado",
       "systemActor": "Trabajo programado"
     },
     "actions": {

@@ -215,6 +215,59 @@ describe.skipIf(!runIntegrationTests)("holded contact synchronisation", () => {
     expect(mocks.readService).toHaveBeenCalledWith("service-deposit");
   });
 
+  it("repairs a historical linked estimate without duplicating it or changing state", async () => {
+    mocks.contact = HOLDED_CONTACT;
+    mocks.estimates = [
+      {
+        id: "estimate-1",
+        number: "E260386",
+        date: "2026-09-13",
+        totalCents: 170_000,
+      },
+    ];
+    mocks.readService.mockResolvedValueOnce({ priceCents: 20_000, accountId: null });
+    const request = await booking();
+    const linkedAt = new Date("2026-09-16T00:00:00.000Z");
+    const document = await db.holdedDocument.create({
+      data: {
+        bookingRequestId: request.id,
+        type: "ESTIMATE",
+        holdedId: "estimate-1",
+        documentNumber: null,
+        totalCents: null,
+        issuedAt: linkedAt,
+      },
+    });
+    await db.bookingRequest.update({
+      where: { id: request.id },
+      data: { state: "AWAITING_PAYMENT", decidedAt: linkedAt },
+    });
+
+    await linkExistingEstimate(request.id, "estimate-1");
+
+    await expect(
+      db.holdedDocument.findMany({ where: { bookingRequestId: request.id } }),
+    ).resolves.toEqual([
+      expect.objectContaining({
+        id: document.id,
+        documentNumber: "E260386",
+        totalCents: 170_000,
+        issuedAt: new Date("2026-09-13T00:00:00.000Z"),
+      }),
+    ]);
+    await expect(
+      db.bookingRequest.findUniqueOrThrow({ where: { id: request.id } }),
+    ).resolves.toMatchObject({
+      state: "AWAITING_PAYMENT",
+      decidedAt: linkedAt,
+      advanceCents: 51_000,
+      depositCents: 20_000,
+    });
+    await expect(
+      db.bookingAuditEvent.count({ where: { bookingRequestId: request.id } }),
+    ).resolves.toBe(0);
+  });
+
   it("preserves the Holded estimate date as the approval date", async () => {
     mocks.contact = HOLDED_CONTACT;
     mocks.estimates = [

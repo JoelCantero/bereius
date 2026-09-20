@@ -81,8 +81,14 @@ export default async function BookingDetailPage({ params }: BookingDetailPagePro
       ? listBookingPaymentCandidates(booking.id)
       : Promise.resolve([]),
   ]);
-  const linkedEstimateId =
-    booking.documents.find((document) => document.type === "ESTIMATE")?.holdedId ?? null;
+  const linkedEstimate = booking.documents.find(
+    (document) => document.type === "ESTIMATE",
+  );
+  const linkedEstimateId = linkedEstimate?.holdedId ?? null;
+  const linkedEstimateNeedsRefresh =
+    booking.state === "AWAITING_PAYMENT" &&
+    linkedEstimate !== undefined &&
+    amountToConfirm === null;
   const hasUnknownEstimateDelivery = booking.documents.some(
     (document) =>
       document.type === "ESTIMATE" && document.delivery?.status === "UNKNOWN",
@@ -277,7 +283,20 @@ export default async function BookingDetailPage({ params }: BookingDetailPagePro
         <h2 id="amounts-heading" className="text-lg font-medium">
           {t("detail.amounts")}
         </h2>
-        {amountToConfirm === null ? (
+        {linkedEstimateNeedsRefresh ? (
+          <div className="flex flex-col items-start gap-2">
+            <p className="text-sm text-muted-foreground">
+              {t("detail.incompleteLinkedEstimate")}
+            </p>
+            <ContactSyncButton
+              action={linkEstimateAction}
+              bookingRequestId={booking.id}
+              holdedId={linkedEstimate.holdedId}
+              label={t("detail.refreshLinkedEstimate")}
+              variant="secondary"
+            />
+          </div>
+        ) : amountToConfirm === null ? (
           <p className="text-sm text-muted-foreground">{t("detail.pendingQuote")}</p>
         ) : (
           <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-sm">
