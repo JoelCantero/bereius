@@ -948,6 +948,8 @@
       "toConfirm": "Total per confirmar",
       "paymentDue": "Venciment del pagament",
       "pendingQuote": "Els imports apareixen quan s'emet el pressupost.",
+      "incompleteLinkedEstimate": "Al pressupost vinculat li falten dades necessàries per relacionar pagaments.",
+      "refreshLinkedEstimate": "Actualitza el pressupost vinculat",
       "systemActor": "Tasca programada"
     },
     "actions": {

@@ -948,6 +948,8 @@
       "toConfirm": "Total to confirm",
       "paymentDue": "Payment due",
       "pendingQuote": "Amounts appear once the estimate has been issued.",
+      "incompleteLinkedEstimate": "The linked estimate is missing information needed to match payments.",
+      "refreshLinkedEstimate": "Refresh linked estimate",
       "systemActor": "Scheduled job"
     },
     "actions": {

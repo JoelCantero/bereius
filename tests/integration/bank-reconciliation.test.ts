@@ -126,6 +126,42 @@ describe.skipIf(!runIntegrationTests)("bank movement reconciliation", () => {
     );
   });
 
+  it("finds the 712 EUR income for a 710 EUR payment after estimate creation", async () => {
+    const { scope, booking, accountData } = await matchingContext(
+      "bank-reconciliation-historical-booking",
+    );
+    await db.bookingRequest.update({
+      where: { id: booking.id },
+      data: { advanceCents: 51_000, depositCents: 20_000 },
+    });
+    await db.holdedDocument.update({
+      where: {
+        bookingRequestId_type: {
+          bookingRequestId: booking.id,
+          type: "ESTIMATE",
+        },
+      },
+      data: { issuedAt: new Date("2026-09-13T00:00:00.000Z") },
+    });
+    const movement = await db.bankMovement.create({
+      data: scope.movement(accountData, {
+        bookingDate: new Date("2026-09-17T00:00:00.000Z"),
+        narrative: "Synthetic transfer without estimate reference",
+        amountMinor: BigInt(71_200),
+      }),
+    });
+
+    const candidates = await listBookingPaymentCandidates(booking.id);
+
+    expect(candidates).toContainEqual(
+      expect.objectContaining({
+        movementId: movement.id,
+        amountMinor: "71200",
+        expectedAmountMinor: "71000",
+      }),
+    );
+  });
+
   it("proposes only a literal-reference exact-EUR income", async () => {
     const { scope, booking, accountData } = await matchingContext(
       "bank-reconciliation-rules",
