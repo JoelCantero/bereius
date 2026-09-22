@@ -74,6 +74,90 @@ describe("Holded catalogue reads", () => {
     expect(http.requests[1].logicalUrl).toContain("cursor=next-page");
   });
 
+  it("reuses a catalogue read across client instances", async () => {
+    const http = createHttpMailProvider([
+      page({ items: [{ id: "cached", name: "Cached" }], has_more: false }),
+      page({ items: [{ id: "duplicate", name: "Duplicate" }], has_more: false }),
+    ]);
+
+    const first = createHoldedClient("cache-key", http.client);
+    const second = createHoldedClient("cache-key", http.client);
+
+    await expect(first.listCatalogue("services")).resolves.toEqual([
+      { id: "cached", name: "Cached" },
+    ]);
+    await expect(second.listCatalogue("services")).resolves.toEqual([
+      { id: "cached", name: "Cached" },
+    ]);
+    expect(http.requests).toHaveLength(1);
+  });
+
+  it("isolates cached reads by credential", async () => {
+    const http = createHttpMailProvider([
+      page({ items: [{ id: "first", name: "First" }], has_more: false }),
+      page({ items: [{ id: "second", name: "Second" }], has_more: false }),
+    ]);
+
+    await expect(
+      createHoldedClient("first-cache-credential", http.client).listCatalogue(
+        "services",
+      ),
+    ).resolves.toMatchObject([{ id: "first" }]);
+    await expect(
+      createHoldedClient("second-cache-credential", http.client).listCatalogue(
+        "services",
+      ),
+    ).resolves.toMatchObject([{ id: "second" }]);
+    expect(http.requests).toHaveLength(2);
+  });
+
+  it("isolates cached reads by HTTP transport", async () => {
+    const firstHttp = createHttpMailProvider([
+      page({ items: [{ id: "first", name: "First" }], has_more: false }),
+    ]);
+    const secondHttp = createHttpMailProvider([
+      page({ items: [{ id: "second", name: "Second" }], has_more: false }),
+    ]);
+
+    await expect(
+      createHoldedClient("shared-cache-credential", firstHttp.client).listCatalogue(
+        "services",
+      ),
+    ).resolves.toMatchObject([{ id: "first" }]);
+    await expect(
+      createHoldedClient("shared-cache-credential", secondHttp.client).listCatalogue(
+        "services",
+      ),
+    ).resolves.toMatchObject([{ id: "second" }]);
+    expect(firstHttp.requests).toHaveLength(1);
+    expect(secondHttp.requests).toHaveLength(1);
+  });
+
+  it("evicts the least recently used read at the cache bound", async () => {
+    const http = createHttpMailProvider(
+      Array.from({ length: 130 }, (_, index) =>
+        page({
+          items: [{ id: `response-${index}`, name: `Response ${index}` }],
+          has_more: false,
+        }),
+      ),
+    );
+    const first = createHoldedClient("bounded-cache-credential-0", http.client);
+
+    await first.listCatalogue("services");
+    for (let index = 1; index <= 128; index += 1) {
+      await createHoldedClient(
+        `bounded-cache-credential-${index}`,
+        http.client,
+      ).listCatalogue("services");
+    }
+
+    await expect(first.listCatalogue("services")).resolves.toMatchObject([
+      { id: "response-129" },
+    ]);
+    expect(http.requests).toHaveLength(130);
+  });
+
   it("stops paginating so a runaway cursor cannot spin forever", async () => {
     const http = createHttpMailProvider(
       Array.from({ length: HOLDED_MAX_CATALOGUE_PAGES + 5 }, () =>

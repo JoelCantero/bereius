@@ -167,6 +167,7 @@ describe("treasury account settings", () => {
         configuredById: "administrator-1",
       }),
     ).rejects.toMatchObject({ code: "account_unavailable" });
+    expect(mocks.listTreasuryAccounts).toHaveBeenCalledWith({ fresh: true });
     expect(mocks.runTransaction).not.toHaveBeenCalled();
   });
 

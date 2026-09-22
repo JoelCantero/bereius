@@ -12,6 +12,7 @@ const mocks = vi.hoisted(() => ({
   updateContact: vi.fn(async () => undefined),
   createContact: vi.fn(async () => ({ id: "new-contact" })),
   readService: vi.fn(async () => ({ priceCents: 22_500, accountId: null })),
+  listEstimatesByContact: vi.fn(async () => mocks.estimates),
 }));
 
 vi.mock("@/modules/booking/services/settings", async (importOriginal) => ({
@@ -26,7 +27,7 @@ vi.mock("@/lib/holded/client", async (importOriginal) => ({
   ...(await importOriginal<Record<string, unknown>>()),
   createHoldedClient: () => ({
     findContactByTaxId: async () => mocks.contact,
-    listEstimatesByContact: async () => mocks.estimates,
+    listEstimatesByContact: mocks.listEstimatesByContact,
     updateContact: mocks.updateContact,
     createContact: mocks.createContact,
     readService: mocks.readService,
@@ -212,7 +213,12 @@ describe.skipIf(!runIntegrationTests)("holded contact synchronisation", () => {
       advanceCents: 30_000,
       depositCents: 22_500,
     });
-    expect(mocks.readService).toHaveBeenCalledWith("service-deposit");
+    expect(mocks.listEstimatesByContact).toHaveBeenCalledWith("contact-1", {
+      fresh: true,
+    });
+    expect(mocks.readService).toHaveBeenCalledWith("service-deposit", {
+      fresh: true,
+    });
   });
 
   it("repairs a historical linked estimate without duplicating it or changing state", async () => {

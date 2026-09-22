@@ -241,13 +241,16 @@ next attempt begins at the stored next cursor. Re-reading a page is harmless bec
 unique key and upsert are idempotent. Cursor repetition is detected in memory without logging cursor
 values.
 
-The first run starts from the account's configured first-import date. Later six-hour or manual runs
-start from the greater of that date and the account's monotonic retention floor. Holded exposes no
-movement `updated_at`; rescanning the retained window is therefore the only verified way to observe
-corrections or status changes. The floor advances only after clean exhaustion, so it cannot skip an
-unprocessed page, and it prevents pruned unmatched movements from being re-imported. The observed
-default 90-day window is two pages at `limit=100` (125 items), while the complete available history
-was 56 default-size pages.
+The first run starts from the account's configured first-import date. Manual, retry, expiry, and
+daily full runs start from the greater of that date and the account's monotonic retention floor.
+Routine six-hour runs use a 14-day UTC-date overlap only when a terminal full-window run exhausted
+less than 24 hours earlier; both clean success and incident-bearing partial exhaustion prove that
+all pages were visited, while an interrupted partial run does not. Holded exposes no movement
+`updated_at`, so the daily retained-window scan remains the safety net for older corrections or
+status changes. The floor advances only after clean exhaustion, so it cannot skip an unprocessed
+page, and it prevents pruned unmatched movements from being re-imported. The observed default
+90-day window is two pages at `limit=100` (125 items), while the complete available history was 56
+default-size pages.
 
 **Rationale**: Page transactions make the cursor an exact safe boundary and satisfy interruption,
 idempotency, correction, and partial-failure requirements without one long database transaction.

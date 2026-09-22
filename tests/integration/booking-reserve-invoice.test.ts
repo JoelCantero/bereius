@@ -277,6 +277,9 @@ describe.skipIf(!runIntegrationTests)("reserve invoice issuance", () => {
 
     await runReserveInvoiceJob(job, { client, config });
 
+    expect(client.readService).toHaveBeenCalledWith("svc-advance", { fresh: true });
+    expect(client.readService).toHaveBeenCalledWith("svc-deposit", { fresh: true });
+
     expect(client.createInvoice).toHaveBeenCalledWith(
       expect.objectContaining({
         contactId: expect.stringContaining("contact-reserve-invoice-create"),

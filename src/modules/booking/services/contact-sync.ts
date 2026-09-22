@@ -227,14 +227,16 @@ export async function linkExistingEstimate(
   if (!contact) throw new ContactSyncError("not_in_holded");
 
   // Only an estimate that belongs to this customer may be attached.
-  const estimates = await client.listEstimatesByContact(contact.id);
+  const estimates = await client.listEstimatesByContact(contact.id, { fresh: true });
   const estimate = estimates.find((candidate) => candidate.id === holdedId);
   if (!estimate) throw new ContactSyncError("not_in_holded");
   if (estimate.totalCents === null) {
     throw new ContactSyncError("missing_estimate_total");
   }
 
-  const depositService = await client.readService(config.depositServiceId);
+  const depositService = await client.readService(config.depositServiceId, {
+    fresh: true,
+  });
   const amounts = calculateConfirmationAmounts(
     estimate.totalCents,
     depositService.priceCents,

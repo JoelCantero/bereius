@@ -57,9 +57,9 @@ export function defaultBankImportStartDate(now = new Date()): string {
   return bankDate(date);
 }
 
-async function fetchTreasuryAccounts() {
+async function fetchTreasuryAccounts(options: { fresh?: boolean } = {}) {
   const { secret } = await resolveIntegration("HOLDED");
-  return createHoldedClient(secret).listTreasuryAccounts();
+  return createHoldedClient(secret).listTreasuryAccounts(options);
 }
 
 function eligibleAccounts(accounts: Awaited<ReturnType<typeof fetchTreasuryAccounts>>) {
@@ -122,7 +122,9 @@ export async function saveTreasuryAccount(command: {
   configuredById: string;
   now?: Date;
 }): Promise<{ accountId: string; runId: string | null }> {
-  const selected = eligibleAccounts(await fetchTreasuryAccounts()).find(
+  const selected = eligibleAccounts(
+    await fetchTreasuryAccounts({ fresh: true }),
+  ).find(
     (account) => account.id === command.holdedAccountId,
   );
   if (!selected) throw new TreasuryAccountError("account_unavailable");

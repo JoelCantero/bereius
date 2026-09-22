@@ -295,7 +295,9 @@ describe.skipIf(!runIntegrationTests)("booking quoting integration", () => {
 
     await runQuoteJob(job(booking.id), { client, config });
 
-    expect(client.readService).toHaveBeenCalledWith("svc-negotiated");
+    expect(client.readService).toHaveBeenCalledWith("svc-negotiated", {
+      fresh: true,
+    });
   });
 
   it("bills the negotiated service to a tax identifier on the settings list", async () => {
@@ -315,7 +317,7 @@ describe.skipIf(!runIntegrationTests)("booking quoting integration", () => {
       },
     });
 
-    expect(client.readService).toHaveBeenCalledWith("svc-special");
+    expect(client.readService).toHaveBeenCalledWith("svc-special", { fresh: true });
   });
 
   it("leaves a customer off the list on the band rate", async () => {
@@ -327,7 +329,7 @@ describe.skipIf(!runIntegrationTests)("booking quoting integration", () => {
       config: { ...config, negotiatedServiceId: "svc-special", negotiatedTaxIds: ["X0000000X"] },
     });
 
-    expect(client.readService).toHaveBeenCalledWith("svc-dc40");
+    expect(client.readService).toHaveBeenCalledWith("svc-dc40", { fresh: true });
   });
 
   it("numbers the estimate from its series and takes it out of draft", async () => {

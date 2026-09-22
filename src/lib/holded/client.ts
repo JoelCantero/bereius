@@ -1,5 +1,6 @@
 import "server-only";
 
+import { createHash } from "node:crypto";
 import { z } from "zod";
 
 import {
@@ -34,6 +35,85 @@ export const HOLDED_MAX_CATALOGUE_PAGES = 20;
 export const HOLDED_CATALOGUE_PAGE_SIZE = 100;
 /** A catalogue listing runs past 100 kB, well beyond the email default. */
 export const HOLDED_CATALOGUE_RESPONSE_LIMIT_BYTES = 4_194_304;
+const HOLDED_CATALOGUE_CACHE_MS = 60 * 60 * 1_000;
+const HOLDED_DOCUMENT_READ_CACHE_MS = 15 * 60 * 1_000;
+const HOLDED_REFERENCE_CACHE_MS = 60 * 60 * 1_000;
+const HOLDED_READ_CACHE_MAX_ENTRIES = 128;
+
+interface HoldedReadCacheEntry {
+  expiresAt: number;
+  promise: Promise<unknown>;
+  pending: boolean;
+}
+
+export interface HoldedReadOptions {
+  fresh?: boolean;
+}
+
+const holdedCacheGlobal = globalThis as typeof globalThis & {
+  __bereiusHoldedReadCache?: Map<string, HoldedReadCacheEntry>;
+  __bereiusHoldedTransportIds?: WeakMap<ProviderHttpClient, number>;
+  __bereiusHoldedNextTransportId?: number;
+};
+const holdedReadCache =
+  holdedCacheGlobal.__bereiusHoldedReadCache ?? new Map<string, HoldedReadCacheEntry>();
+holdedCacheGlobal.__bereiusHoldedReadCache = holdedReadCache;
+const holdedTransportIds =
+  holdedCacheGlobal.__bereiusHoldedTransportIds ?? new WeakMap<ProviderHttpClient, number>();
+holdedCacheGlobal.__bereiusHoldedTransportIds = holdedTransportIds;
+
+function cacheTransportScope(httpClient: ProviderHttpClient): string {
+  if (httpClient === nativeProviderHttpClient) return "native";
+
+  const existing = holdedTransportIds.get(httpClient);
+  if (existing !== undefined) return String(existing);
+
+  const next = (holdedCacheGlobal.__bereiusHoldedNextTransportId ?? 0) + 1;
+  holdedCacheGlobal.__bereiusHoldedNextTransportId = next;
+  holdedTransportIds.set(httpClient, next);
+  return String(next);
+}
+
+function cachedHoldedRead<T>(
+  key: string,
+  ttlMs: number,
+  load: () => Promise<T>,
+  options: HoldedReadOptions = {},
+): Promise<T> {
+  const now = Date.now();
+  const cached = holdedReadCache.get(key);
+  if (cached?.pending || (!options.fresh && cached && cached.expiresAt > now)) {
+    holdedReadCache.delete(key);
+    holdedReadCache.set(key, cached);
+    return cached.promise as Promise<T>;
+  }
+  if (cached) holdedReadCache.delete(key);
+
+  while (holdedReadCache.size >= HOLDED_READ_CACHE_MAX_ENTRIES) {
+    const oldestKey = holdedReadCache.keys().next().value;
+    if (oldestKey === undefined) break;
+    holdedReadCache.delete(oldestKey);
+  }
+
+  const promise = load();
+  const entry = { expiresAt: now + ttlMs, promise, pending: true };
+  holdedReadCache.set(key, entry);
+  void promise.then(
+    () => {
+      entry.pending = false;
+    },
+    () => {
+      if (holdedReadCache.get(key) === entry) holdedReadCache.delete(key);
+    },
+  );
+  return promise;
+}
+
+function invalidateCachedHoldedReads(keyPrefix: string): void {
+  for (const key of holdedReadCache.keys()) {
+    if (key.startsWith(keyPrefix)) holdedReadCache.delete(key);
+  }
+}
 
 /**
  * A document line's `account` holds a sales channel id, not a ledger account
@@ -404,7 +484,7 @@ export interface HoldedClient {
    * key from an account that genuinely holds no entries.
    */
   listCatalogue(resource: HoldedCatalogueResource): Promise<HoldedOption[]>;
-  listTreasuryAccounts(): Promise<HoldedTreasuryAccount[]>;
+  listTreasuryAccounts(options?: HoldedReadOptions): Promise<HoldedTreasuryAccount[]>;
   listBankMovements(input: {
     accountId: string;
     startDate: string;
@@ -415,12 +495,18 @@ export interface HoldedClient {
     cursor: string | null;
   }>;
   findContactByTaxId(taxId: string): Promise<HoldedContact | null>;
-  getContact(contactId: string): Promise<HoldedContact | null>;
+  getContact(
+    contactId: string,
+    options?: HoldedReadOptions,
+  ): Promise<HoldedContact | null>;
   createContact(input: HoldedContactInput): Promise<{ id: string }>;
   updateContact(contactId: string, input: HoldedContactInput): Promise<void>;
   /** Linked WordPress-managed people that must receive estimate copies. */
   listDelegateEmails(contactId: string): Promise<string[]>;
-  listEstimatesByContact(contactId: string): Promise<HoldedEstimateSummary[]>;
+  listEstimatesByContact(
+    contactId: string,
+    options?: HoldedReadOptions,
+  ): Promise<HoldedEstimateSummary[]>;
   /** Every estimate in the account, so an operator can find one without a booking. */
   listEstimates(): Promise<HoldedEstimateSummary[]>;
   getEstimate(estimateId: string): Promise<HoldedEstimateSummary | null>;
@@ -432,7 +518,7 @@ export interface HoldedClient {
    */
   approveEstimate(estimateId: string): Promise<void>;
   approveInvoice(invoiceId: string): Promise<void>;
-  readService(serviceId: string): Promise<HoldedService>;
+  readService(serviceId: string, options?: HoldedReadOptions): Promise<HoldedService>;
   createEstimate(input: HoldedDocumentInput): Promise<HoldedDocumentResult>;
   sendEstimate(
     estimateId: string,
@@ -608,6 +694,10 @@ export function createHoldedClient(
   apiKey: string,
   httpClient: ProviderHttpClient = nativeProviderHttpClient,
 ): HoldedClient {
+  const credentialScope = `${createHash("sha256")
+    .update(apiKey)
+    .digest("base64url")}:${cacheTransportScope(httpClient)}`;
+
   async function send(
     logicalUrl: string,
     init: Record<string, unknown>,
@@ -706,6 +796,10 @@ export function createHoldedClient(
         definitive ? "definitive_failure" : "unknown",
         `Holded ${collection} creation failed`,
       );
+    } finally {
+      if (collection === "estimates") {
+        invalidateCachedHoldedReads(`${credentialScope}:estimate:`);
+      }
     }
 
     const parsed = createdSchema.safeParse(payload);
@@ -807,65 +901,81 @@ export function createHoldedClient(
       await request("GET", "/services?limit=1");
     },
 
-    async listCatalogue(resource) {
-      const collected: HoldedOption[] = [];
-      let cursor: string | null = null;
+    listCatalogue(resource) {
+      return cachedHoldedRead(
+        `${credentialScope}:catalogue:${resource}`,
+        HOLDED_CATALOGUE_CACHE_MS,
+        async () => {
+          const collected: HoldedOption[] = [];
+          let cursor: string | null = null;
 
-      for (let page = 0; page < HOLDED_MAX_CATALOGUE_PAGES; page += 1) {
-        const query = new URLSearchParams({
-          limit: String(HOLDED_CATALOGUE_PAGE_SIZE),
-        });
-        if (cursor) query.set("cursor", cursor);
+          for (let page = 0; page < HOLDED_MAX_CATALOGUE_PAGES; page += 1) {
+            const query = new URLSearchParams({
+              limit: String(HOLDED_CATALOGUE_PAGE_SIZE),
+            });
+            if (cursor) query.set("cursor", cursor);
 
-        const payload: unknown = await request("GET", `/${resource}?${query.toString()}`);
-        const { options, cursor: next } = readCataloguePage(payload);
-        collected.push(...options);
+            const payload: unknown = await request(
+              "GET",
+              `/${resource}?${query.toString()}`,
+            );
+            const { options, cursor: next } = readCataloguePage(payload);
+            collected.push(...options);
 
-        if (!next) break;
-        cursor = next;
-      }
+            if (!next) break;
+            cursor = next;
+          }
 
-      return collected;
+          return collected;
+        },
+      );
     },
 
-    async listTreasuryAccounts() {
-      const accounts: HoldedTreasuryAccount[] = [];
-      const seenCursors = new Set<string>();
-      let cursor: string | null = null;
+    listTreasuryAccounts(options) {
+      return cachedHoldedRead(
+        `${credentialScope}:treasury-accounts:all`,
+        HOLDED_REFERENCE_CACHE_MS,
+        async () => {
+          const accounts: HoldedTreasuryAccount[] = [];
+          const seenCursors = new Set<string>();
+          let cursor: string | null = null;
 
-      for (let page = 0; page < HOLDED_MAX_CATALOGUE_PAGES; page += 1) {
-        const query = new URLSearchParams({
-          limit: String(HOLDED_TREASURY_PAGE_LIMIT),
-        });
-        if (cursor) query.set("cursor", cursor);
+          for (let page = 0; page < HOLDED_MAX_CATALOGUE_PAGES; page += 1) {
+            const query = new URLSearchParams({
+              limit: String(HOLDED_TREASURY_PAGE_LIMIT),
+            });
+            if (cursor) query.set("cursor", cursor);
 
-        const parsed = holdedTreasuryAccountPageSchema.safeParse(
-          await treasuryRequest(`/treasury/accounts?${query.toString()}`),
-        );
-        if (!parsed.success) {
+            const parsed = holdedTreasuryAccountPageSchema.safeParse(
+              await treasuryRequest(`/treasury/accounts?${query.toString()}`),
+            );
+            if (!parsed.success) {
+              throw new HoldedError(
+                "malformed_response",
+                "Holded treasury accounts did not match the expected shape",
+              );
+            }
+
+            accounts.push(...parsed.data.items);
+            if (!parsed.data.has_more) return accounts;
+
+            const nextCursor = parsed.data.cursor;
+            if (!nextCursor || seenCursors.has(nextCursor)) {
+              throw new HoldedError(
+                "malformed_response",
+                "Holded treasury account pagination returned an unusable cursor",
+              );
+            }
+            seenCursors.add(nextCursor);
+            cursor = nextCursor;
+          }
+
           throw new HoldedError(
             "malformed_response",
-            "Holded treasury accounts did not match the expected shape",
+            "Holded treasury account pagination exceeded the safety limit",
           );
-        }
-
-        accounts.push(...parsed.data.items);
-        if (!parsed.data.has_more) return accounts;
-
-        const nextCursor = parsed.data.cursor;
-        if (!nextCursor || seenCursors.has(nextCursor)) {
-          throw new HoldedError(
-            "malformed_response",
-            "Holded treasury account pagination returned an unusable cursor",
-          );
-        }
-        seenCursors.add(nextCursor);
-        cursor = nextCursor;
-      }
-
-      throw new HoldedError(
-        "malformed_response",
-        "Holded treasury account pagination exceeded the safety limit",
+        },
+        options,
       );
     },
 
@@ -927,74 +1037,107 @@ export function createHoldedClient(
       return match ? toContact(match) : null;
     },
 
-    async getContact(contactId) {
-      try {
-        const parsed = contactSchema.safeParse(await request("GET", `/contacts/${contactId}`));
-        return parsed.success ? toContact(parsed.data) : null;
-      } catch (error) {
-        if (error instanceof HoldedError && error.code === "not_found") return null;
-        throw error;
-      }
+    getContact(contactId, options) {
+      return cachedHoldedRead(
+        `${credentialScope}:contact:detail:${contactId}`,
+        HOLDED_DOCUMENT_READ_CACHE_MS,
+        async () => {
+          try {
+            const parsed = contactSchema.safeParse(
+              await request("GET", `/contacts/${contactId}`),
+            );
+            return parsed.success ? toContact(parsed.data) : null;
+          } catch (error) {
+            if (error instanceof HoldedError && error.code === "not_found") return null;
+            throw error;
+          }
+        },
+        options,
+      );
     },
 
-    async listEstimatesByContact(contactId) {
-      const query = new URLSearchParams({ contact_id: contactId, limit: "100" });
-      const payload = await request("GET", `/estimates?${query.toString()}`);
-      const parsed = z
-        .object({ items: z.array(estimateSummarySchema) })
-        .catchall(z.unknown())
-        .safeParse(payload);
+    listEstimatesByContact(contactId, options) {
+      return cachedHoldedRead(
+        `${credentialScope}:estimate:contact:${contactId}`,
+        HOLDED_DOCUMENT_READ_CACHE_MS,
+        async () => {
+          const query = new URLSearchParams({ contact_id: contactId, limit: "100" });
+          const payload = await request("GET", `/estimates?${query.toString()}`);
+          const parsed = z
+            .object({ items: z.array(estimateSummarySchema) })
+            .catchall(z.unknown())
+            .safeParse(payload);
 
-      if (!parsed.success) {
-        throw new HoldedError(
-          "malformed_response",
-          "Holded estimate list did not match the expected shape",
-        );
-      }
+          if (!parsed.success) {
+            throw new HoldedError(
+              "malformed_response",
+              "Holded estimate list did not match the expected shape",
+            );
+          }
 
-      return parsed.data.items
-        // Filtered again locally, so a server that ignored the parameter cannot
-        // put another customer's estimate in front of an operator.
-        .filter((item) => item.contact_id === contactId)
-        .map(toEstimate);
+          return parsed.data.items
+            // Filtered again locally, so a server that ignored the parameter cannot
+            // put another customer's estimate in front of an operator.
+            .filter((item) => item.contact_id === contactId)
+            .map(toEstimate);
+        },
+        options,
+      );
     },
 
-    async listEstimates() {
-      const collected: HoldedEstimateSummary[] = [];
-      let cursor: string | null = null;
+    listEstimates() {
+      return cachedHoldedRead(
+        `${credentialScope}:estimate:all`,
+        HOLDED_DOCUMENT_READ_CACHE_MS,
+        async () => {
+          const collected: HoldedEstimateSummary[] = [];
+          let cursor: string | null = null;
 
-      for (let page = 0; page < HOLDED_MAX_CATALOGUE_PAGES; page += 1) {
-        const query = new URLSearchParams({ limit: String(HOLDED_CATALOGUE_PAGE_SIZE) });
-        if (cursor) query.set("cursor", cursor);
+          for (let page = 0; page < HOLDED_MAX_CATALOGUE_PAGES; page += 1) {
+            const query = new URLSearchParams({
+              limit: String(HOLDED_CATALOGUE_PAGE_SIZE),
+            });
+            if (cursor) query.set("cursor", cursor);
 
-        const payload: unknown = await request("GET", `/estimates?${query.toString()}`);
-        const parsed = estimatePageSchema.safeParse(payload);
-        if (!parsed.success) {
-          throw new HoldedError(
-            "malformed_response",
-            "Holded estimate list did not match the expected shape",
-          );
-        }
+            const payload: unknown = await request(
+              "GET",
+              `/estimates?${query.toString()}`,
+            );
+            const parsed = estimatePageSchema.safeParse(payload);
+            if (!parsed.success) {
+              throw new HoldedError(
+                "malformed_response",
+                "Holded estimate list did not match the expected shape",
+              );
+            }
 
-        collected.push(...parsed.data.items.map(toEstimate));
-        const next = parsed.data.has_more ? (parsed.data.cursor ?? null) : null;
-        if (!next) break;
-        cursor = next;
-      }
+            collected.push(...parsed.data.items.map(toEstimate));
+            const next = parsed.data.has_more ? (parsed.data.cursor ?? null) : null;
+            if (!next) break;
+            cursor = next;
+          }
 
-      return collected;
+          return collected;
+        },
+      );
     },
 
-    async getEstimate(estimateId) {
-      try {
-        const parsed = estimateSummarySchema.safeParse(
-          await request("GET", `/estimates/${estimateId}`),
-        );
-        return parsed.success ? toEstimate(parsed.data) : null;
-      } catch (error) {
-        if (error instanceof HoldedError && error.code === "not_found") return null;
-        throw error;
-      }
+    getEstimate(estimateId) {
+      return cachedHoldedRead(
+        `${credentialScope}:estimate:detail:${estimateId}`,
+        HOLDED_DOCUMENT_READ_CACHE_MS,
+        async () => {
+          try {
+            const parsed = estimateSummarySchema.safeParse(
+              await request("GET", `/estimates/${estimateId}`),
+            );
+            return parsed.success ? toEstimate(parsed.data) : null;
+          } catch (error) {
+            if (error instanceof HoldedError && error.code === "not_found") return null;
+            throw error;
+          }
+        },
+      );
     },
 
     async getInvoice(invoiceId) {
@@ -1078,6 +1221,9 @@ export function createHoldedClient(
           "Holded did not return an identifier for the created contact",
         );
       }
+      invalidateCachedHoldedReads(
+        `${credentialScope}:contact:detail:${parsed.data.id}`,
+      );
       return { id: parsed.data.id };
     },
 
@@ -1087,20 +1233,26 @@ export function createHoldedClient(
      */
     async updateContact(contactId, input) {
       const current = await readContactForWrite(contactId);
-      await replaceContact(contactId, current, {
-        name: input.name,
-        code: input.code,
-        email: input.email,
-        phone: input.phone ?? null,
-        bill_address: {
-          ...(current.bill_address ?? {}),
-          address: input.address ?? null,
-          city: input.city ?? null,
-          postal_code: input.postalCode ?? null,
-          province: input.province ?? null,
-          country: input.country ?? null,
-        },
-      });
+      try {
+        await replaceContact(contactId, current, {
+          name: input.name,
+          code: input.code,
+          email: input.email,
+          phone: input.phone ?? null,
+          bill_address: {
+            ...(current.bill_address ?? {}),
+            address: input.address ?? null,
+            city: input.city ?? null,
+            postal_code: input.postalCode ?? null,
+            province: input.province ?? null,
+            country: input.country ?? null,
+          },
+        });
+      } finally {
+        invalidateCachedHoldedReads(
+          `${credentialScope}:contact:detail:${contactId}`,
+        );
+      }
     },
 
     async listDelegateEmails(contactId) {
@@ -1156,28 +1308,35 @@ export function createHoldedClient(
       );
     },
 
-    async readService(serviceId) {
-      const payload = await request("GET", `/services/${serviceId}`);
-      const parsed = serviceSchema.safeParse(payload);
+    readService(serviceId, options) {
+      return cachedHoldedRead(
+        `${credentialScope}:service:${serviceId}`,
+        HOLDED_DOCUMENT_READ_CACHE_MS,
+        async () => {
+          const payload = await request("GET", `/services/${serviceId}`);
+          const parsed = serviceSchema.safeParse(payload);
 
-      if (!parsed.success) {
-        throw new HoldedError(
-          "malformed_response",
-          "Holded service did not match the expected shape",
-        );
-      }
+          if (!parsed.success) {
+            throw new HoldedError(
+              "malformed_response",
+              "Holded service did not match the expected shape",
+            );
+          }
 
-      const price = parseDecimal(parsed.data.price);
-      if (price === null) {
-        throw new HoldedError(
-          "malformed_response",
-          "Holded service carries no usable price",
-        );
-      }
-      return {
-        priceCents: toCents(price),
-        accountId: parsed.data.sales_channel_id ?? null,
-      };
+          const price = parseDecimal(parsed.data.price);
+          if (price === null) {
+            throw new HoldedError(
+              "malformed_response",
+              "Holded service carries no usable price",
+            );
+          }
+          return {
+            priceCents: toCents(price),
+            accountId: parsed.data.sales_channel_id ?? null,
+          };
+        },
+        options,
+      );
     },
 
     async createEstimate(input) {
@@ -1195,14 +1354,24 @@ export function createHoldedClient(
       });
     },
 
-    async listNumberingSeries(type) {
-      const payload = await request("GET", `/numbering-series/${type}`);
-      const { options } = readCataloguePage(payload);
-      return options;
+    listNumberingSeries(type) {
+      return cachedHoldedRead(
+        `${credentialScope}:numbering-series:${type}`,
+        HOLDED_REFERENCE_CACHE_MS,
+        async () => {
+          const payload = await request("GET", `/numbering-series/${type}`);
+          const { options } = readCataloguePage(payload);
+          return options;
+        },
+      );
     },
 
     async approveEstimate(estimateId) {
-      await request("POST", `/estimates/${estimateId}/approve`);
+      try {
+        await request("POST", `/estimates/${estimateId}/approve`);
+      } finally {
+        invalidateCachedHoldedReads(`${credentialScope}:estimate:`);
+      }
     },
 
     async approveInvoice(invoiceId) {
@@ -1241,10 +1410,14 @@ export function createHoldedClient(
 
     async replaceEstimateLines(estimateId, items) {
       // Sending `items` replaces the whole collection; there is no line patch.
-      await request("PUT", `/estimates/${estimateId}`, {
-        tax_included: TAX_INCLUDED,
-        items: items.map(toLine),
-      });
+      try {
+        await request("PUT", `/estimates/${estimateId}`, {
+          tax_included: TAX_INCLUDED,
+          items: items.map(toLine),
+        });
+      } finally {
+        invalidateCachedHoldedReads(`${credentialScope}:estimate:`);
+      }
     },
   };
 }

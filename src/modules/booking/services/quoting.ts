@@ -215,9 +215,9 @@ export async function runQuoteJob(
   }
 
   const [stayService, advanceService, depositService] = await Promise.all([
-    client.readService(serviceId),
-    client.readService(advanceServiceId),
-    client.readService(depositServiceId),
+    client.readService(serviceId, { fresh: true }),
+    client.readService(advanceServiceId, { fresh: true }),
+    client.readService(depositServiceId, { fresh: true }),
   ]);
   const stayAccountId = accountOf(stayService, "stay");
   const advanceAccountId = accountOf(advanceService, "advance");

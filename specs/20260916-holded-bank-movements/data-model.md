@@ -26,8 +26,8 @@ No accounting category is represented by this enum.
 
 | Value | Meaning |
 |---|---|
-| `SCHEDULED` | Normal six-hour account synchronization. |
-| `MANUAL` | An operator or administrator requested an immediate refresh. |
+| `SCHEDULED` | Six-hour synchronization: 14-day overlap after recent full evidence, otherwise the complete retained window. |
+| `MANUAL` | An operator or administrator requested an immediate full-window refresh. |
 | `EXPIRY` | A final freshness check required before expiring unpaid bookings. |
 
 ### `BankSyncStatus`
@@ -201,7 +201,7 @@ Durable request, queue item, lease, checkpoint, retry state, and user-visible pr
 | `status` | `BankSyncStatus` | yes | Starts `QUEUED`. |
 | `requestedById` | String? | no | Manual actor; null for system runs, `SET NULL` on user deletion. |
 | `resumedFromRunId` | String? | no | Prior terminal partial/failed run supplying a safe cursor. |
-| `windowStartDate` | Date | yes | Immutable `start_date` used for every page: configured date for the first run, then the greater of that date and the committed retention floor. |
+| `windowStartDate` | Date | yes | Immutable `start_date` used for every page: the complete retained-window start, or for eligible routine scheduled runs the later 14-day overlap start. |
 | `nextCursor` | Text? | no | Opaque cursor for the next uncommitted page; never logged/exposed. |
 | `lastProcessedMovementId` | String? | no | Last validated technical ID on the last committed page; not shown. |
 | `pageCount` | Integer | yes | Successfully committed pages, default 0. |

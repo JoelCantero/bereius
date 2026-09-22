@@ -327,8 +327,8 @@ export async function runReserveInvoiceJob(
   }
 
   const [advanceService, depositService] = await Promise.all([
-    client.readService(config.advanceServiceId),
-    client.readService(config.depositServiceId),
+    client.readService(config.advanceServiceId, { fresh: true }),
+    client.readService(config.depositServiceId, { fresh: true }),
   ]);
   if (!advanceService.accountId || !depositService.accountId) {
     throw new ReserveInvoiceError(

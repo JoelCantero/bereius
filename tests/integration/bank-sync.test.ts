@@ -1440,9 +1440,50 @@ describe.skipIf(!runIntegrationTests || !databaseUrl)(
       });
       await expect(
         db.bankSyncRun.findMany({ where: { accountId: account.id } }),
-      ).resolves.toMatchObject([{ trigger: "SCHEDULED", status: "QUEUED" }]);
+      ).resolves.toMatchObject([
+        {
+          trigger: "SCHEDULED",
+          status: "QUEUED",
+          windowStartDate: account.importStartDate,
+        },
+      ]);
       expect(providerMocks.listTreasuryAccounts).not.toHaveBeenCalled();
     });
+
+    it.each(["SUCCEEDED", "PARTIAL"] as const)(
+      "uses a 14-day overlap for a due run after recent %s full exhaustion",
+      async (status) => {
+        const scope = bankingScope("bank-due-overlap");
+        const due = new Date("2026-09-16T12:00:00.000Z");
+        const accountData = scope.treasuryAccount({
+          importStartDate: new Date("2026-01-01T00:00:00.000Z"),
+          retentionFloorDate: new Date("2026-06-18T00:00:00.000Z"),
+          nextScheduledAt: new Date("2026-09-16T11:59:00.000Z"),
+        });
+        const account = await db.holdedTreasuryAccount.create({ data: accountData });
+        await db.bankSyncRun.create({
+          data: scope.run(accountData, {
+            trigger: "SCHEDULED",
+            status,
+            windowStartDate: account.retentionFloorDate!,
+            exhaustedAt: new Date("2026-09-16T00:00:00.000Z"),
+            finishedAt: new Date("2026-09-16T00:00:00.000Z"),
+          }),
+        });
+
+        await expect(enqueueDueBankSyncRuns(due)).resolves.toBe(1);
+
+        await expect(
+          db.bankSyncRun.findFirstOrThrow({
+            where: { accountId: account.id, status: "QUEUED" },
+            select: { trigger: true, windowStartDate: true },
+          }),
+        ).resolves.toEqual({
+          trigger: "SCHEDULED",
+          windowStartDate: new Date("2026-09-02T00:00:00.000Z"),
+        });
+      },
+    );
 
     it("keeps equal provider movement identifiers distinct across account history", async () => {
       const scope = bankingScope("bank-scope");

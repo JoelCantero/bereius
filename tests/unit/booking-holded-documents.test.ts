@@ -81,6 +81,19 @@ describe("Holded numbering series", () => {
     expect(http.requests[0].logicalUrl).toBe(`${HOLDED_BASE_URL}/numbering-series/estimate`);
   });
 
+  it("reuses a numbering-series read", async () => {
+    const { http, client } = holded([
+      page({ items: [{ id: "s1", name: "E" }] }),
+      page({ items: [{ id: "s2", name: "Duplicate" }] }),
+    ]);
+
+    await client.listNumberingSeries("estimate");
+    await expect(client.listNumberingSeries("estimate")).resolves.toEqual([
+      { id: "s1", name: "E" },
+    ]);
+    expect(http.requests).toHaveLength(1);
+  });
+
   it("refuses a payload that is not a list of series", async () => {
     const { client } = holded([page({ unexpected: true })]);
 
@@ -147,6 +160,36 @@ describe("Holded contacts", () => {
       name: "Casal",
       phone: "938000000",
     });
+  });
+
+  it("reuses a contact detail read", async () => {
+    const { http, client } = holded([
+      page({ id: "c1", name: "Casal" }),
+      page({ id: "c1", name: "Unexpected duplicate" }),
+    ]);
+
+    await client.getContact("c1");
+    await expect(client.getContact("c1")).resolves.toMatchObject({ name: "Casal" });
+    expect(http.requests).toHaveLength(1);
+  });
+
+  it("invalidates a cached contact after updating it", async () => {
+    const { http, client } = holded([
+      page({ id: "c1", name: "Old", code: "G1", email: "old@example.test" }),
+      page({ id: "c1", name: "Old", code: "G1", email: "old@example.test" }),
+      page({}),
+      page({ id: "c1", name: "New", code: "G1", email: "new@example.test" }),
+    ]);
+
+    await client.getContact("c1");
+    await client.updateContact("c1", {
+      name: "New",
+      code: "G1",
+      email: "new@example.test",
+    });
+
+    await expect(client.getContact("c1")).resolves.toMatchObject({ name: "New" });
+    expect(http.requests).toHaveLength(4);
   });
 
   it("reports an absent contact as null instead of raising", async () => {
@@ -548,6 +591,44 @@ describe("Holded estimate reads", () => {
     expect(http.requests[1].logicalUrl).toContain("cursor=next");
   });
 
+  it("reuses estimate indexes and contact-scoped lists", async () => {
+    const { http, client } = holded([
+      page({ items: [{ id: "global" }], has_more: false }),
+      page({ items: [{ id: "contact", contact_id: "c1" }] }),
+    ]);
+
+    await client.listEstimates();
+    await client.listEstimates();
+    await client.listEstimatesByContact("c1");
+    await client.listEstimatesByContact("c1");
+
+    expect(http.requests).toHaveLength(2);
+  });
+
+  it("can refresh a contact-scoped estimate list", async () => {
+    const { http, client } = holded([
+      page({ items: [{ id: "before", contact_id: "c1" }] }),
+      page({ items: [{ id: "after", contact_id: "c1" }] }),
+    ]);
+
+    await client.listEstimatesByContact("c1");
+    await expect(
+      client.listEstimatesByContact("c1", { fresh: true }),
+    ).resolves.toMatchObject([{ id: "after" }]);
+    expect(http.requests).toHaveLength(2);
+  });
+
+  it("reuses estimate details", async () => {
+    const { http, client } = holded([
+      page({ id: "e1", document_number: "E-1" }),
+      page({ id: "e1", document_number: "Duplicate" }),
+    ]);
+
+    await client.getEstimate("e1");
+    await expect(client.getEstimate("e1")).resolves.toMatchObject({ number: "E-1" });
+    expect(http.requests).toHaveLength(1);
+  });
+
   it("refuses a malformed page of the ledger", async () => {
     const { client } = holded([page({ items: "not an array" })]);
 
@@ -762,6 +843,34 @@ describe("Holded service prices", () => {
     });
   });
 
+  it("reuses a service read", async () => {
+    const { http, client } = holded([
+      page({ id: "s1", price: "200", sales_channel_id: "acct-1" }),
+      page({ id: "s1", price: "999", sales_channel_id: "acct-2" }),
+    ]);
+
+    await client.readService("s1");
+    await expect(client.readService("s1")).resolves.toEqual({
+      priceCents: 20_000,
+      accountId: "acct-1",
+    });
+    expect(http.requests).toHaveLength(1);
+  });
+
+  it("can refresh a service used for a financial decision", async () => {
+    const { http, client } = holded([
+      page({ id: "s1", price: "200", sales_channel_id: "acct-1" }),
+      page({ id: "s1", price: "250", sales_channel_id: "acct-2" }),
+    ]);
+
+    await client.readService("s1");
+    await expect(client.readService("s1", { fresh: true })).resolves.toEqual({
+      priceCents: 25_000,
+      accountId: "acct-2",
+    });
+    expect(http.requests).toHaveLength(2);
+  });
+
   it("refuses a service record without an identifier", async () => {
     const { client } = holded([page({ price: "10" })]);
 
@@ -772,6 +881,19 @@ describe("Holded service prices", () => {
 });
 
 describe("Holded document writes", () => {
+  it("invalidates cached estimate reads after an estimate write", async () => {
+    const { http, client } = holded([
+      page({ items: [{ id: "before" }], has_more: false }),
+      page({}),
+      page({ items: [{ id: "after" }], has_more: false }),
+    ]);
+
+    await client.listEstimates();
+    await client.replaceEstimateLines("e1", []);
+    await expect(client.listEstimates()).resolves.toMatchObject([{ id: "after" }]);
+    expect(http.requests).toHaveLength(3);
+  });
+
   it("creates an estimate and reads back the number the series assigned", async () => {
     const { http, client } = holded([
       page({ id: "e1" }),

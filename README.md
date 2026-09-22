@@ -204,9 +204,10 @@ locks that account's import start date after synchronization begins. The current
 accepts EUR only. No banking-specific environment variable, secret, container, port, or service is
 introduced.
 
-- **Read-only synchronization.** PostgreSQL schedules one run every six hours. Operators and
-  administrators may request a bounded manual refresh; account-scoped provider identifiers and exact
-  signed minor units make repeated pages idempotent.
+- **Read-only synchronization.** PostgreSQL schedules one run every six hours. Routine runs use a
+  14-day overlap while a complete retained-window scan is less than 24 hours old; otherwise they
+  scan the full retained window. Manual refreshes and pre-expiry checks always use the full window.
+  Account-scoped provider identifiers and exact signed minor units make repeated pages idempotent.
 - **Human reconciliation.** Exact estimate-number and amount matches create proposals only. A person
   must confirm or dismiss every proposal; synchronization never records a payment automatically.
 - **Bounded retention.** Unmatched, unprotected bank movements age out after 90 days once a complete

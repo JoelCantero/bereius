@@ -19,6 +19,10 @@ import {
   BANK_SYNC_MAX_RETRY_MS,
   BANK_SYNC_NONTERMINAL_STATUSES,
 } from "@/modules/banking/schema";
+import {
+  fullBankSyncWindowStart,
+  scheduledBankSyncWindowStart,
+} from "@/modules/banking/synchronization-window";
 import { parseHoldedBankMovement } from "@/modules/banking/services/movements";
 import { reconcileBankMovements } from "@/modules/banking/services/reconciliation";
 import { resolveIntegration } from "@/modules/booking/services/settings";
@@ -49,10 +53,6 @@ export interface BankSyncLease {
 
 function bankDate(value: Date) {
   return value.toISOString().slice(0, 10);
-}
-
-function laterDate(first: Date, second: Date | null) {
-  return second && second > first ? second : first;
 }
 
 class BankSyncProcessingError extends Error {
@@ -250,7 +250,7 @@ export async function enqueueBankSync(input: {
         })
       : null;
     const windowStartDate = resumed?.windowStartDate ??
-      laterDate(account.importStartDate, account.retentionFloorDate);
+      fullBankSyncWindowStart(account);
 
     const run = await transaction.bankSyncRun.create({
       data: {
@@ -333,7 +333,7 @@ export async function requestManualBankSync(input: {
         resumedFromRunId: resumed?.id ?? null,
         windowStartDate:
           resumed?.windowStartDate ??
-          laterDate(account.importStartDate, account.retentionFloorDate),
+          fullBankSyncWindowStart(account),
         nextCursor: resumed?.nextCursor ?? null,
         nextAttemptAt: now,
         createdAt: now,
@@ -705,6 +705,18 @@ export async function enqueueDueBankSyncRuns(now = new Date()): Promise<number> 
     });
     if (!account) return 0;
 
+    const fullWindowStart = fullBankSyncWindowStart(account);
+    const latestFullScan = await transaction.bankSyncRun.findFirst({
+      where: {
+        accountId: account.id,
+        status: { in: ["SUCCEEDED", "PARTIAL"] },
+        exhaustedAt: { not: null, lte: now },
+        windowStartDate: { lte: fullWindowStart },
+      },
+      orderBy: [{ exhaustedAt: "desc" }, { id: "desc" }],
+      select: { exhaustedAt: true },
+    });
+
     await transaction.holdedTreasuryAccount.update({
       where: { id: account.id },
       data: { nextScheduledAt: new Date(now.getTime() + BANK_SYNC_INTERVAL_MS) },
@@ -722,10 +734,11 @@ export async function enqueueDueBankSyncRuns(now = new Date()): Promise<number> 
       data: {
         accountId: account.id,
         trigger: "SCHEDULED",
-        windowStartDate: laterDate(
-          account.importStartDate,
-          account.retentionFloorDate,
-        ),
+        windowStartDate: scheduledBankSyncWindowStart({
+          ...account,
+          latestFullScanAt: latestFullScan?.exhaustedAt ?? null,
+          now,
+        }),
         nextAttemptAt: now,
       },
     });

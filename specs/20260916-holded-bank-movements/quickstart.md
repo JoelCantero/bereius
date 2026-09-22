@@ -102,7 +102,10 @@ limited to confirming the already verified read contract and must not capture pa
 2. **Complete idempotent import** (US1, SC-002 to SC-004). Run a synthetic multi-page scan containing
    new, repeated, corrected, malformed, positive, and negative items. Run it again. Confirm one row
    per account/provider ID, corrected fields in place, exact counts, visible sanitized incidents,
-   and a terminal cursor only after every page commits.
+   and a terminal cursor only after every page commits. With recent exhausted `SUCCEEDED` and
+   incident-bearing `PARTIAL` full-window fixtures, confirm the next due run uses the 14-day
+   overlap. Confirm a run exhausted exactly 24 hours earlier and every manual refresh use the full
+   retained window.
 3. **Interrupted recovery** (US4, SC-008 to SC-009). Fail after one committed page, then reclaim an
    expired lease and retry. Existing rows stay visible, the run never reports success early, and the
    final result has no loss or duplicates. Repeat with a missing and repeated cursor. While the

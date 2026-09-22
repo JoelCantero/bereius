@@ -17,7 +17,7 @@ import {
 } from "../helpers/holded-treasury";
 
 interface TreasuryReads {
-  listTreasuryAccounts(): Promise<HoldedTreasuryAccount[]>;
+  listTreasuryAccounts(options?: { fresh?: boolean }): Promise<HoldedTreasuryAccount[]>;
   listBankMovements(input: {
     accountId: string;
     startDate: string;
@@ -98,6 +98,40 @@ describe("Holded treasury reads", () => {
     expect(new URL(http.requests[1].logicalUrl).searchParams.get("cursor")).toBe(
       "opaque:first/next",
     );
+  });
+
+  it("reuses treasury-account discovery but always reads movement pages live", async () => {
+    const fixtures = createHoldedTreasuryFixtureScope();
+    const account = fixtures.account();
+    const movement = fixtures.movement(account.id);
+    const { client, http } = treasuryClient([
+      page(fixtures.page([account])),
+      page(fixtures.page([movement])),
+      page(fixtures.page([movement])),
+    ]);
+
+    await client.listTreasuryAccounts();
+    await client.listTreasuryAccounts();
+    await client.listBankMovements({ accountId: account.id, startDate: "2026-06-18" });
+    await client.listBankMovements({ accountId: account.id, startDate: "2026-06-18" });
+
+    expect(http.requests).toHaveLength(3);
+  });
+
+  it("can refresh treasury-account discovery before saving a selection", async () => {
+    const fixtures = createHoldedTreasuryFixtureScope();
+    const before = fixtures.account({ name: "Before" });
+    const after = fixtures.account({ name: "After" });
+    const { client, http } = treasuryClient([
+      page(fixtures.page([before])),
+      page(fixtures.page([after])),
+    ]);
+
+    await client.listTreasuryAccounts();
+    await expect(client.listTreasuryAccounts({ fresh: true })).resolves.toEqual([
+      expect.objectContaining({ id: after.id, name: "After" }),
+    ]);
+    expect(http.requests).toHaveLength(2);
   });
 
   it("requests the exact bank-movements path and repeats the fixed query", async () => {

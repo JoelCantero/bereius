@@ -36,9 +36,9 @@ verify the resulting movements, classifications, incidents, and safe progress po
   descriptive word affects classification.
 4. **Given** movements already imported for an account, **When** the same data is synchronized
    again, **Then** no duplicate is created.
-5. **Given** Holded changes the information or status of an imported movement that remains inside
-  the active synchronization window, **When** it is seen again, **Then** the existing local
-  movement is updated.
+5. **Given** Holded changes the information or status of an imported movement, **When** it is seen
+  in a 14-day scheduled overlap or the next full-window scan, **Then** the existing local movement
+  is updated without creating another record.
 6. **Given** a zero amount, invalid currency, or movement lacking required identity, date, amount,
   or account association, **When** it is processed, **Then** it is excluded from totals and
    reconciliation and a sanitized synchronization incident is recorded.
@@ -195,7 +195,9 @@ to existing data and unrelated workflows.
 #### Synchronization and Data Integrity
 
 - **FR-008**: Bereius MUST attempt automatic synchronization of the configured account at least
-  once every six hours.
+  once every six hours. When a complete full-window scan finished within the preceding 24 hours,
+  the routine scheduled run MUST use a 14-calendar-day overlap bounded by the account's import date
+  and retention floor; otherwise it MUST scan the complete retained window.
 - **FR-009**: Authorized operators and administrators MUST be able to request an immediate manual
   synchronization.
 - **FR-010**: A synchronization MUST process every page advertised by Holded. It MUST NOT report
@@ -223,6 +225,9 @@ to existing data and unrelated workflows.
   MUST NOT block unrelated Bereius functions.
 - **FR-019**: Valid movements and valid pages processed before a later item or page failure MAY be
   retained, but the run MUST be marked partial and the unresolved remainder MUST remain retryable.
+- **FR-060**: Initial, manual, explicit-retry, and pre-expiry synchronization MUST scan or resume the
+  complete retained window. A recent scheduled scan MUST NOT authorize retention-floor advancement,
+  and only a terminal exhausted run covering the complete prior window MAY do so.
 
 #### Validation and Classification
 
@@ -417,8 +422,8 @@ personal data; the unredacted response MUST NOT be committed, logged, or retaine
   without a direction.
 - **SC-002**: Repeating the same synchronization, including overlapping triggers, produces zero
   duplicate records for the same account and stable provider identifier.
-- **SC-003**: A corrected provider movement updates the existing local record in every acceptance
-  test and creates no additional record.
+- **SC-003**: A corrected provider movement covered by a scheduled overlap or full-window scan
+  updates the existing local record in every acceptance test and creates no additional record.
 - **SC-004**: For every verified multi-page response, the number of valid imported movements plus
   visible invalid-item incidents equals the number of provider items across all pages.
 - **SC-005**: Under normal provider availability, a new movement appears within six hours through
@@ -461,6 +466,10 @@ personal data; the unredacted response MUST NOT be committed, logged, or retaine
   the 90-day synchronization floor advances monotonically so pruned unmatched movements are not
   re-imported; retained payment/proposal evidence outside that floor is no longer polled for
   provider corrections.
+- Routine scheduled runs use a 14-day overlap only while a terminal exhausted full-window scan is
+  less than 24 hours old. Clean success and incident-bearing partial exhaustion qualify, while an
+  interrupted partial run does not. This lowers provider traffic without using stale evidence for
+  manual recovery, historical correction coverage, retention, or booking expiry.
 - Existing booking retention, backup, and authorized personal-data access policies apply to
   payment-linked movement fields and reconciliation audit records.
 - The production scheduler can invoke work at least every six hours; its concrete mechanism is a

@@ -8,8 +8,9 @@
 ## Summary
 
 Add a private, localized banking console backed only by Holded's read-only treasury movements.
-Bereius stores a minimal account-scoped movement projection, rescans the configured window through
-verified opaque-cursor pagination, and exposes exact server-side filters and per-currency totals.
+Bereius stores a minimal account-scoped movement projection, scans a 14-day overlap every six hours
+and the complete retained window at least daily through verified opaque-cursor pagination, and
+exposes exact server-side filters and per-currency totals.
 
 Synchronization uses `BankSyncRun` as a PostgreSQL-backed queue, lease, retry record, and page
 checkpoint. The existing application scheduler claims this work; no new worker container, package,
@@ -75,16 +76,19 @@ retained window idempotently. Never delete movement history outside the specifie
 or rewrite an applied migration to recover. Restore the whole database only when forward repair
 cannot preserve correctness
 
-**Performance Goals**: Attempt scheduled synchronization at least every six hours; expose an
-accepted manual refresh result within two minutes under normal Holded availability; fetch at most
-100 provider items per request; perform no external I/O inside database transactions; return 50
-movement rows per page; calculate filtered totals in PostgreSQL without loading the complete set
+**Performance Goals**: Attempt scheduled synchronization at least every six hours with a 14-day
+overlap after a full scan less than 24 hours old; complete at least one retained-window scan daily;
+expose an accepted manual refresh result within two minutes under normal Holded availability; fetch
+at most 100 provider items per request; perform no external I/O inside database transactions; return
+50 movement rows per page; calculate filtered totals in PostgreSQL without loading the complete set
 into application or browser memory; and support the repeatable under-one-minute movement-finding
 scenario without client-side bulk loading
 
 **Constraints**: Holded is read-only and its verified movement endpoint has no update timestamp,
 direction field, separate reference, or counterparty. Every run must therefore rescan its frozen
-effective `start_date`, classify by exact signed amount, and project the one description as
+effective `start_date`; routine scheduled runs use a 14-day overlap only after recent complete
+full-window evidence, while initial, daily full, manual, retry, and expiry runs use the retained
+floor. All runs classify by exact signed amount and project the one description as
 concept/reference. Initial ingestion accepts only the evidenced two-decimal `EUR` representation;
 non-200 bodies are opaque and error categories use transport/status only. Amounts use BigInt minor
 units, bank dates use `@db.Date`, only one treasury account is active, and only one run per account
@@ -176,7 +180,8 @@ Extend the existing server-only Holded client rather than add another transport:
 ### Durable Synchronization
 
 The existing process scheduler gains a one-minute banking sweep. It atomically creates a scheduled
-run when the active account is due, advances that account's next due time by six hours, and then
+run when the active account is due, selects either the 14-day overlap or full retained window from
+the latest exhausted full-window run, advances that account's next due time by six hours, and then
 claims queued/retryable or expired-lease work. Multiple app instances may sweep concurrently because
 the partial unique index and conditional lease updates select one effective run.
 
@@ -191,9 +196,13 @@ change:
 
 For each run:
 
-1. Freeze `windowStartDate`: the first run uses the configured import date and later normal runs use
-  the greater of that date and the committed retention floor. Every run starts at page one of that
-  window so retained provider corrections remain observable.
+1. Freeze `windowStartDate`: initial, manual, retry, expiry, and daily full runs use the greater of
+  the configured import date and committed retention floor. A routine scheduled run may instead
+  use the greater of that full-window start and the UTC date 14 calendar days earlier, but only
+  when a terminal exhausted full-window run completed less than 24 hours earlier. Clean success
+  and incident-bearing partial exhaustion both qualify; interrupted partial runs do not. Every run
+  starts at page one of its frozen window; the daily full scan bounds delayed historical
+  corrections.
 2. Fetch and validate one page outside a database transaction. Detect missing/repeated cursors and
   never interpret an empty page with `has_more=true` as exhaustion.
 3. In one short transaction, verify the lease, upsert valid movements by account/provider ID, write

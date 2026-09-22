@@ -2,8 +2,8 @@
 
 Context for anyone working on this application. It describes the systems that sit **upstream** of
 Berea Booking Manager: the WordPress site at `berea.cat`, its customer area (*Àrea client*), the
-Gravity Forms booking request, and the n8n workflow that keeps WordPress users in step with Holded
-contacts.
+Gravity Forms booking request, and the inactive n8n workflow retained for on-demand synchronization
+of WordPress users with Holded contacts.
 
 Nothing here is owned by this repository. It is recorded because the booking request that this
 application ingests is produced by these systems, and because two of the decisions below contradict
@@ -27,12 +27,12 @@ flowchart LR
 
     subgraph EXT[" "]
         HOLDED["Holded<br/>contacts · invoices"]
-        N8N["n8n · nightly 02:00<br/>Holded → WordPress"]
+        N8N["n8n · inactive/on demand<br/>Holded → WordPress"]
         APP["Berea Booking Manager<br/>this repository"]
     end
 
-    N8N -->|"GET /contacts"| HOLDED
-    N8N -->|"POST/DELETE wp/v2/users"| WP
+    N8N -.->|"GET /contacts"| HOLDED
+    N8N -.->|"POST/DELETE wp/v2/users"| WP
     AREA -->|"GET/PUT /contacts/:id<br/>GET /invoices, /invoices/:id/pdf"| HOLDED
     DELEGATES -->|"create/update/archive<br/>principal-scoped people"| HOLDED
     CAL --> FORM
@@ -110,7 +110,8 @@ production; writable `code` therefore carries the marker only on these non-fisca
 An owned-person `PUT` sends the canonical WordPress name, email, phone, `is_person` and marker. No
 delegate operation performs a fiscal-principal `PUT`: production proved that replacing the shared
 contact can erase GET-only provider metadata such as `social_networks` even after a successful 2xx.
-An old forward `contact_persons` link is deliberately left untouched and has no role in discovery.
+After the mandatory ownership read, an already canonical managed person causes no `PUT`. An old
+forward `contact_persons` link is deliberately left untouched and has no role in discovery.
 
 Revocation calls `POST /contacts/bulk-archive` directly with
 `{"contact_ids":["person-id"]}` after ownership verification. An isolated production probe on
@@ -295,13 +296,21 @@ redirect and avoid a POST re-submission.
 Company name and tax identifier are rendered read-only: they identify the invoices. Correcting them
 is a manual, staffed operation through `/contactar/`.
 
+### Contracts
+
+`includes/area-client-contractes.php` lists all estimates for the linked contact in one paginated
+request sequence, then locally keeps only non-draft `partial` and `completed` documents. The
+contact-scoped index has a 15-minute transient cache. A detail request is used only when the list
+does not contain a parseable stay description; valid details are cached for one day and invalid
+details for 15 minutes.
+
 ### Invoices
 
 `includes/area-client-factures.php`.
 
 - Lists `GET /invoices` filtered by `contact_id`, `status=completed`, `approval_status=approved`,
   `start_date` two years back, `sort=-date`, with cursor pagination capped at 10 pages and a
-  five-minute transient cache.
+  15-minute transient cache.
 - Every invoice is re-checked locally before display: 24-hex identifier, `contact_id` compared with
   `hash_equals`, `status === completed`, `payments_pending` within a cent of zero, not a draft, and
   inside the two-year window.
@@ -311,6 +320,12 @@ is a manual, staffed operation through `/contactar/`.
 
 Holded returns monetary amounts with **comma decimals** in production despite the dot-decimal
 examples in its documentation, so both formats are normalised before comparison.
+
+### Contact maintenance script
+
+`scripts/normalizar_holded.py` scans the contact collection only for bulk dry runs or updates.
+`--solo <contact_id>` reads that contact directly through `GET /contacts/:id`, so repairing one
+record costs one read rather than a complete account scan before any optional `PUT`.
 
 ### Account deletion
 
@@ -342,7 +357,8 @@ the same technique used to syntax-check PHP without a local interpreter.
 
 **Name**: `Sincronizar contactos de Holded hacía WordPress` · **ID**: `RFreFgVG8yona2tE` · 12 nodes.
 
-Runs on a schedule trigger at **02:00 daily** and reconciles Holded contacts into WordPress users.
+Its stored definition contains a **02:00 daily** schedule, but the workflow is unpublished and does
+not run automatically. It may be executed manually for a controlled full reconciliation.
 
 ```
 Schedule 02:00
@@ -382,11 +398,20 @@ Details worth knowing:
 
 **Current state**: the workflow is **not active**. It has been run on demand. The delete node's own
 note says it is disabled for safety, but the node is enabled in the stored definition — verify
-before activating.
+before any manual run or reactivation.
 
 This workflow is separate from `Crear presupuesto cuando se recibe un formulario de reserva, crear
-factura y actualizar contrato` (`cjvh3V6lM0ef260e`), which is the booking automation this
-application replaces. The sync workflow is **not** being retired: it has no equivalent here.
+factura y actualizar contrato` (`cjvh3V6lM0ef260e`) and its child `Crear presupuesto en Holded`
+(`2lwzdTcMFAMm2uHu`), which are the booking automation this application replaces. Both legacy
+booking workflows are unpublished. The child also has `callerPolicy: none`, so neither an old parent
+execution nor another workflow can invoke its Holded writes.
+
+The parent still has 50 historical executions parked in `waiting` until `3000-01-01`. They cannot
+wake on that schedule, and unpublishing blocks new production webhook executions, but they should be
+deleted or cancelled through n8n when execution-management access is available. Also remove or
+disable the corresponding Gravity Forms webhook feed; the current automation is Bereius's hourly
+REST intake, not this legacy webhook. The contact sync workflow itself is retained because Bereius
+has no equivalent customer-account projection.
 
 ## The booking request
 
